@@ -87,8 +87,17 @@ export async function POST(req: Request) {
   });
 
   if (reg.status === "CONFIRMED") {
-    await issueTickets(reg.id);
-    await sendConfirmationEmail(reg.id);
+    try {
+      await issueTickets(reg.id);
+    } catch (e) {
+      console.error("[registrations] issueTickets failed", e);
+    }
+    try {
+      await sendConfirmationEmail(reg.id);
+    } catch (e) {
+      // Non-fatal — confirmation page still works, user can re-request email later
+      console.error("[registrations] sendConfirmationEmail failed (likely missing RESEND_API_KEY):", e);
+    }
   }
 
   return NextResponse.json({ id: reg.id, status: reg.status });
