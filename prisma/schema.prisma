@@ -1,0 +1,592 @@
+// EventFlow — Prisma schema
+// PostgreSQL 16
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── ENUMS ───────────────────────────
+
+enum Role {
+  ATTENDEE
+  ORGANIZER
+  STAFF
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum TicketTypeKind {
+  FREE
+  GENERAL
+  EARLY_BIRD
+  VIP
+  STUDENT
+  GROUP
+  CUSTOM
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum QuestionType {
+  TEXT
+  LONG_TEXT
+  DROPDOWN
+  RADIO
+  CHECKBOX
+  EMAIL
+  PHONE
+  NUMBER
+}
+
+enum EmailKind {
+  CONFIRMATION
+  REMINDER_30D
+  REMINDER_7D
+  REMINDER_1D
+  REMINDER_1H
+  CANCELLATION
+  REFUND
+  WAITLIST_PROMOTED
+  ABANDONED_CART
+  ORGANIZER_BLAST
+  POST_EVENT
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  FAILED
+}
+
+enum WaitlistStatus {
+  WAITING
+  PROMOTED
+  CONVERTED
+  EXPIRED
+}
+
+// ─────────────────────────── MODELS ──────────────────────────
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  website      String?
+  contactEmail String?
+  contactPhone String?
+  taxRatePct   Decimal? @db.Decimal(5, 2)
+  passProcessingFee Boolean @default(false)
+  stripeAccountId String?  // Connect account for marketplace mode
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  members      User[]
+  events       Event[]
+  auditLogs    AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  emailVerified  Boolean  @default(false)
+  passwordHash   String?
+  firstName      String?
+  lastName       String?
+  phone          String?
+  role           Role     @default(ATTENDEE)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastLoginAt    DateTime?
+  deletedAt      DateTime?
+
+  registrations  Registration[]
+  auditLogs      AuditLog[]
+  referralLinks  ReferralLink[]
+  waitlistEntries Waitlist[]
+  sessions       Session[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Event {
+  id                 String      @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slug               String      @unique
+  name               String
+  description        String      @db.Text
+  shortDescription   String?
+  category           String?
+  status             EventStatus @default(DRAFT)
+  startAt            DateTime
+  endAt              DateTime
+  timezone           String      @default("UTC")
+  capacity           Int?        // null = unlimited
+  maxPerOrder        Int?        @default(10)
+  refundPolicy       String?     @db.Text
+  cancellationPolicy String?     @db.Text
+  taxRatePct         Decimal?    @db.Decimal(5, 2)
+  passProcessingFee  Boolean     @default(false)
+  waitlistEnabled    Boolean     @default(true)
+  bannerUrl          String?
+  promoVideoUrl      String?
+  contactEmail       String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  publishedAt        DateTime?
+  deletedAt          DateTime?
+
+  location           EventLocation?
+  speakers           Speaker[]
+  media              EventMedia[]
+  tags               EventTag[]
+  ticketTypes        TicketType[]
+  customQuestions    CustomQuestion[]
+  registrations      Registration[]
+  promoCodes         PromoCode[]
+  referralLinks      ReferralLink[]
+  waitlist           Waitlist[]
+  emailCampaigns     EmailCampaign[]
+  abandonedCarts     AbandonedCart[]
+  checkIns           CheckIn[]
+  auditLogs          AuditLog[]
+
+  @@index([organizationId, startAt])
+  @@index([status, startAt])
+  @@map("events")
+}
+
+model EventLocation {
+  id            String  @id @default(cuid())
+  eventId       String  @unique
+  event         Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  venueName     String?
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String?
+  postalCode    String?
+  country       String  @default("US")
+  latitude      Decimal? @db.Decimal(10, 7)
+  longitude     Decimal? @db.Decimal(10, 7)
+  googlePlaceId String?
+  isVirtual     Boolean @default(false)
+  virtualUrl    String?
+
+  @@map("event_locations")
+}
+
+model Speaker {
+  id        String  @id @default(cuid())
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  title     String?
+  bio       String? @db.Text
+  photoUrl  String?
+  contact   String?
+  order     Int     @default(0)
+
+  @@index([eventId])
+  @@map("speakers")
+}
+
+model EventMedia {
+  id        String  @id @default(cuid())
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  kind      String  @default("photo") // photo | video
+  order     Int     @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+  @@map("event_media")
+}
+
+model EventTag {
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tag     String
+
+  @@unique([eventId, tag])
+  @@index([tag])
+  @@map("event_tags")
+}
+
+model TicketType {
+  id              String         @id @default(cuid())
+  eventId         String
+  event           Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  kind            TicketTypeKind @default(GENERAL)
+  priceCents      Int            @default(0)
+  currency        String         @default("USD")
+  quantityTotal   Int?           // null = unlimited
+  quantitySold    Int            @default(0)
+  minPerOrder     Int            @default(1)
+  maxPerOrder     Int?
+  groupSize       Int?           // for GROUP type
+  salesStartAt    DateTime?
+  salesEndAt      DateTime?
+  isHidden        Boolean        @default(false)
+  sortOrder       Int            @default(0)
+
+  registrations   Registration[]
+
+  @@index([eventId])
+  @@map("ticket_types")
+}
+
+model CustomQuestion {
+  id         String       @id @default(cuid())
+  eventId    String
+  event      Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  label      String
+  type       QuestionType
+  required   Boolean      @default(false)
+  options    Json?        // string[] for dropdown/radio/checkbox
+  sortOrder  Int          @default(0)
+
+  answers    CustomAnswer[]
+
+  @@index([eventId])
+  @@map("custom_questions")
+}
+
+model Registration {
+  id                String             @id @default(cuid())
+  eventId           String
+  event             Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId      String
+  ticketType        TicketType         @relation(fields: [ticketTypeId], references: [id])
+  userId            String?            // null for guest checkout
+  user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  firstName         String
+  lastName          String
+  email             String
+  phone             String?
+  company           String?
+  jobTitle          String?
+  dietary           String?
+  accessibility     String?
+  specialRequests   String?
+
+  quantity          Int                @default(1)
+  subtotalCents     Int                @default(0)
+  discountCents     Int                @default(0)
+  taxCents          Int                @default(0)
+  feeCents          Int                @default(0)
+  totalCents        Int                @default(0)
+  currency          String             @default("USD")
+
+  promoCodeId       String?
+  promoCode         PromoCode?         @relation(fields: [promoCodeId], references: [id])
+  referralLinkId    String?
+  referralLink      ReferralLink?      @relation(fields: [referralLinkId], references: [id])
+
+  status            RegistrationStatus @default(PENDING)
+  confirmedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+
+  stripeSessionId   String?
+  stripePaymentIntentId String?
+
+  ipAddress         String?
+  userAgent         String?
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  deletedAt         DateTime?
+
+  tickets           Ticket[]
+  payments          Payment[]
+  answers           CustomAnswer[]
+  emailLogs         EmailLog[]
+
+  @@index([eventId, status])
+  @@index([email])
+  @@index([stripeSessionId])
+  @@unique([eventId, email]) // duplicate-email prevention per event
+  @@map("registrations")
+}
+
+model Ticket {
+  id              String   @id @default(cuid())
+  registrationId  String
+  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  attendeeName    String
+  attendeeEmail   String?
+  qrCodeHash      String   @unique  // SHA-256 of signed JWT
+  qrToken         String   @db.Text // signed JWT (single-use validated at scan)
+  isValid         Boolean  @default(true)
+  invalidatedAt   DateTime?
+  invalidReason   String?
+  createdAt       DateTime @default(now())
+
+  checkIn         CheckIn?
+
+  @@index([registrationId])
+  @@map("tickets")
+}
+
+model CustomAnswer {
+  id             String  @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       CustomQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer         String  @db.Text
+
+  @@unique([registrationId, questionId])
+  @@map("custom_answers")
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  registrationId        String
+  registration          Registration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  amountCents           Int
+  currency              String        @default("USD")
+  status                PaymentStatus @default(PENDING)
+  stripePaymentIntentId String?       @unique
+  stripeChargeId        String?
+  stripeRefundId        String?
+  refundedAmountCents   Int           @default(0)
+  receiptUrl            String?
+  invoiceUrl            String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([registrationId])
+  @@map("payments")
+}
+
+model PromoCode {
+  id            String       @id @default(cuid())
+  eventId       String
+  event         Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  code          String
+  discountType  DiscountType
+  amountCents   Int?         // for FIXED
+  percentage    Decimal?     @db.Decimal(5, 2) // for PERCENTAGE
+  usageLimit    Int?
+  usageCount    Int          @default(0)
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  registrations Registration[]
+
+  @@unique([eventId, code])
+  @@index([code])
+  @@map("promo_codes")
+}
+
+model ReferralLink {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  code          String   @unique
+  label         String?
+  clickCount    Int      @default(0)
+  conversionCount Int    @default(0)
+  createdAt     DateTime @default(now())
+
+  registrations Registration[]
+  clicks        ReferralClick[]
+
+  @@index([eventId])
+  @@map("referral_links")
+}
+
+model ReferralClick {
+  id             String @id @default(cuid())
+  referralLinkId String
+  referralLink   ReferralLink @relation(fields: [referralLinkId], references: [id], onDelete: Cascade)
+  ipHash         String?
+  userAgent      String?
+  converted      Boolean @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([referralLinkId])
+  @@map("referral_clicks")
+}
+
+model CheckIn {
+  id         String   @id @default(cuid())
+  ticketId   String   @unique
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  scannedBy  String?  // user id of staff
+  scannedAt  DateTime @default(now())
+  method     String   @default("qr") // qr | manual | search
+  deviceInfo String?
+
+  @@index([eventId, scannedAt])
+  @@map("check_ins")
+}
+
+model Waitlist {
+  id         String         @id @default(cuid())
+  eventId    String
+  event      Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email      String
+  firstName  String
+  lastName   String
+  position   Int
+  status     WaitlistStatus @default(WAITING)
+  promotedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@unique([eventId, email])
+  @@index([eventId, position])
+  @@map("waitlist")
+}
+
+model EmailCampaign {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  subject     String
+  bodyHtml    String   @db.Text
+  bodyText    String?  @db.Text
+  segment     Json?    // {status:[...], ticketTypeIds:[...]}
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  recipientsCount Int  @default(0)
+  openedCount Int      @default(0)
+  clickedCount Int     @default(0)
+  createdAt   DateTime @default(now())
+
+  emailLogs   EmailLog[]
+
+  @@index([eventId])
+  @@map("email_campaigns")
+}
+
+model EmailLog {
+  id             String      @id @default(cuid())
+  registrationId String?
+  registration   Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  campaignId     String?
+  campaign       EmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  toEmail        String
+  kind           EmailKind
+  subject        String
+  status         EmailStatus @default(QUEUED)
+  providerId     String?     // Resend message id
+  errorMessage   String?
+  openedAt       DateTime?
+  clickedAt      DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime    @default(now())
+
+  @@index([toEmail])
+  @@index([status])
+  @@map("email_logs")
+}
+
+model AbandonedCart {
+  id         String   @id @default(cuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  email      String
+  firstName  String?
+  payload    Json
+  recoveredAt DateTime?
+  remindedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([eventId, email])
+  @@map("abandoned_carts")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  eventId        String?
+  event          Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String   // e.g. "event.publish", "registration.refund"
+  targetType     String?
+  targetId       String?
+  metadata       Json?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@map("audit_logs")
+}

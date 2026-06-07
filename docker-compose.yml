@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eventflow
+      POSTGRES_USER: eventflow
+      POSTGRES_PASSWORD: eventflow
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventflow -d eventflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["3000:3000"]
+    command: sh -c "npx prisma migrate deploy && npm start"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: sh -c "npx prisma migrate deploy && npx tsx src/server/worker.ts"
+
+volumes:
+  pgdata:

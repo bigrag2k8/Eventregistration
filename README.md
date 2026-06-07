@@ -1,0 +1,58 @@
+# EventFlow — Event Registration Platform MVP
+
+A production-ready event registration platform for free and paid events. Modern, mobile-first, secure, and scalable.
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes, Node.js
+- **Database**: PostgreSQL 16 + Prisma ORM
+- **Auth**: JWT (HTTP-only cookies) + bcrypt
+- **Payments**: Stripe (Checkout, Payment Intents, Webhooks)
+- **Email**: Resend (with React Email templates)
+- **QR**: `qrcode` + signed JWT payload
+- **Storage**: S3-compatible (R2, AWS S3) for banners/photos
+- **Maps**: Google Maps Embed + Places Autocomplete
+- **Deployment**: Docker, docker-compose, Vercel/Railway-ready
+
+## Quick Start
+
+```bash
+cp .env.example .env
+docker compose up -d        # Postgres + Redis
+npm install
+npx prisma migrate dev
+npm run seed
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Project Structure
+
+```
+eventflow/
+├── docs/                       # Architecture, ERD, API, roadmap, workflows
+├── prisma/
+│   ├── schema.prisma           # Full DB schema
+│   └── seed.ts                 # Sample data
+├── src/
+│   ├── app/                    # Next.js App Router (pages + API)
+│   ├── components/             # UI components
+│   ├── lib/                    # Stripe, email, QR, auth utilities
+│   └── server/                 # Server-side services
+├── docker-compose.yml
+├── Dockerfile
+└── package.json
+```
+
+## Documentation
+
+See `docs/` for full architecture, ERD, API reference, deployment instructions, and the Phase 2/3 roadmap.
+
+## Roles
+
+- **Attendee** — browse, register, manage tickets
+- **Organizer** — create events, manage sales, export reports
+- **Staff** — check-in via QR scanner
+- **Admin** — platform-wide controls (Phase 2)
