@@ -1,34 +1,24 @@
-# syntax=docker/dockerfile:1.6
-
 # ─── Stage 1: deps ────────────────────────────────────────
 FROM node:20-slim AS deps
-RUN --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update -y && apt-get install -y openssl ca-certificates
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-RUN --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-npm-cache,target=/root/.npm \
-    npm install --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 
 # ─── Stage 2: build ───────────────────────────────────────
 FROM node:20-slim AS build
-RUN --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update -y && apt-get install -y openssl ca-certificates
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p public
-RUN --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-next-cache,target=/app/.next/cache \
-    npx prisma generate && npm run build
+RUN npx prisma generate && npm run build
 
 # ─── Stage 3: runner ──────────────────────────────────────
 FROM node:20-slim AS runner
-RUN --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=56659692-be0e-4a1e-950f-c6a30c53bb66-apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update -y && apt-get install -y openssl ca-certificates
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
