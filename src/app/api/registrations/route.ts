@@ -82,11 +82,12 @@ export async function POST(req: Request) {
     quantity: input.quantity,
     promoCode: input.promoCode,
   });
-  if ("error" in totals) {
+  if ("error" in totals && totals.error) {
     // pricing errors are human-readable already
+    const msg = totals.error;
     const fieldHints: Record<string, string[]> = {};
-    if (totals.error.includes("promo")) fieldHints.promoCode = [totals.error];
-    return NextResponse.json({ error: totals.error, fieldErrors: fieldHints }, { status: 400 });
+    if (msg.includes("promo")) fieldHints.promoCode = [msg];
+    return NextResponse.json({ error: msg, fieldErrors: fieldHints }, { status: 400 });
   }
 
   const reg = await prisma.registration.create({
