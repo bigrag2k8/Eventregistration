@@ -6,6 +6,8 @@ import { getSession, requireRole } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { CopyButton } from "@/components/CopyButton";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { cancelRegistrationAction, deleteRegistrationAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +105,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Checked in</th>
                 <th className="px-3 py-2">When</th>
+                <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -127,10 +130,34 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                     </td>
                     <td className="px-3 py-2">{checkedCount}/{r.tickets.length || r.quantity}</td>
                     <td className="px-3 py-2 text-slate-500">{r.createdAt.toLocaleDateString()}</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {r.status !== "CANCELLED" && (
+                          <form action={cancelRegistrationAction} className="inline">
+                            <input type="hidden" name="eventId" value={event.id} />
+                            <input type="hidden" name="registrationId" value={r.id} />
+                            <ConfirmButton
+                              label="Cancel"
+                              confirmText={`Cancel registration for ${r.firstName} ${r.lastName}? Tickets will be invalidated and the seat opens back up.`}
+                              className="text-xs text-amber-600 hover:underline"
+                            />
+                          </form>
+                        )}
+                        <form action={deleteRegistrationAction} className="inline">
+                          <input type="hidden" name="eventId" value={event.id} />
+                          <input type="hidden" name="registrationId" value={r.id} />
+                          <ConfirmButton
+                            label="Delete"
+                            confirmText={`PERMANENTLY delete registration for ${r.firstName} ${r.lastName}? This cannot be undone.`}
+                            className="text-xs text-red-600 hover:underline"
+                          />
+                        </form>
+                      </div>
+                    </td>
                   </tr>
                   {r.tickets.length > 0 && (
                     <tr className="bg-slate-50/50">
-                      <td colSpan={9} className="px-3 py-2">
+                      <td colSpan={10} className="px-3 py-2">
                         <details>
                           <summary className="cursor-pointer text-xs text-slate-500">
                             Show {r.tickets.length} QR token{r.tickets.length > 1 ? "s" : ""} (for manual check-in entry)
@@ -157,7 +184,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                 );
               })}
               {regs.length === 0 && (
-                <tr><td colSpan={9} className="px-3 py-12 text-center text-slate-500">No registrations match.</td></tr>
+                <tr><td colSpan={10} className="px-3 py-12 text-center text-slate-500">No registrations match.</td></tr>
               )}
             </tbody>
           </table>

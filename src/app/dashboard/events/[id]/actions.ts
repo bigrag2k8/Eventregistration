@@ -117,3 +117,71 @@ export async function deleteTicketTypeAction(formData: FormData) {
   await prisma.ticketType.delete({ where: { id: tt.id } });
   revalidatePath(`/dashboard/events/${event.id}`);
 }
+
+/**
+ * Soft-cancel a registration: status -> CANCELLED, invalidate tickets,
+ * decrement ticketType.quantitySold so the seat opens back up.
+ * Keeps the row for audit trail. Use deleteRegistrationAction for hard removal.
+ */
+export async function cancelRegistrationAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const registrationId = String(formData.get("registrationId"));
+  const { event } = await authorizeEvent(eventId);
+
+  const reg = await prisma.registration.findFirst({
+    where: { id: registrationId, eventId: event.id },
+  });
+  if (!reg) throw new Error("Registration not found");
+  if (reg.status === "CANCELLED") return;
+
+  await prisma.$transaction([
+    prisma.registration.update({
+      where: { id: reg.id },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "organizer_cancel" },
+    }),
+    prisma.ticket.updateMany({
+      where: { registrationId: reg.id },
+      data: { isValid: false, invalidatedAt: new Date(), invalidReason: "registration_cancelled" },
+    }),
+    prisma.ticketType.update({
+      where: { id: reg.ticketTypeId },
+      data: { quantitySold: { decrement: reg.quantity } },
+    }),
+  ]);
+
+  revalidatePath(`/dashboard/events/${event.id}/registrations`);
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/events/${event.slug}`);
+}
+
+/**
+ * Hard-delete a registration (and its tickets + check-ins via cascade).
+ * Use for test data cleanup. Decrements quantitySold so the seat reopens.
+ */
+export async function deleteRegistrationAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const registrationId = String(formData.get("registrationId"));
+  const { event } = await authorizeEvent(eventId);
+
+  const reg = await prisma.registration.findFirst({
+    where: { id: registrationId, eventId: event.id },
+  });
+  if (!reg) throw new Error("Registration not found");
+
+  // Only decrement if it was counting against the sold count
+  const wasActive = reg.status !== "CANCELLED";
+
+  await prisma.$transaction([
+    prisma.registration.delete({ where: { id: reg.id } }),
+    ...(wasActive
+      ? [prisma.ticketType.update({
+          where: { id: reg.ticketTypeId },
+          data: { quantitySold: { decrement: reg.quantity } },
+        })]
+      : []),
+  ]);
+
+  revalidatePath(`/dashboard/events/${event.id}/registrations`);
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/events/${event.slug}`);
+}
