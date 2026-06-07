@@ -5,6 +5,8 @@ const PROTECTED = [/^\/dashboard/, /^\/checkin/, /^\/api\/admin/];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // /api/admin/seed has its own secret-based auth
+  if (pathname.startsWith("/api/admin/seed")) return NextResponse.next();
   const needsAuth = PROTECTED.some((re) => re.test(pathname));
   if (!needsAuth) return NextResponse.next();
 
