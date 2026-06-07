@@ -29,6 +29,8 @@ const schema = z.object({
   capacity: z.string().optional(),
   contactEmail: z.string().optional(),
   refundPolicy: z.string().optional(),
+  vendorRegistrationEnabled: z.string().optional(),
+  vendorApplicationNotes: z.string().optional(),
   action: z.string().default("draft"),
 });
 
@@ -93,6 +95,8 @@ export async function createEventAction(formData: FormData) {
       capacity,
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,
+      vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
+      vendorApplicationNotes: data.vendorApplicationNotes || null,
       organizationId: session.orgId,
       publishedAt: publish ? new Date() : null,
       location: hasAddress || isVirtual

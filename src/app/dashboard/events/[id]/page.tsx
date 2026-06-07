@@ -78,6 +78,7 @@ export default async function EventManagePage({ params }: { params: { id: string
               </form>
             )}
             <Link href={`/dashboard/events/${event.id}/registrations`} className="btn-secondary">View registrations</Link>
+            <Link href={`/dashboard/events/${event.id}/vendors`} className="btn-secondary">Vendors</Link>
             <a href={`/api/events/${event.id}/export.csv`} className="btn-secondary">Export CSV</a>
           </div>
         </section>

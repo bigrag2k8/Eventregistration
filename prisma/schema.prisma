@@ -100,6 +100,14 @@ enum WaitlistStatus {
   EXPIRED
 }
 
+enum VendorApplicationStatus {
+  PENDING       // submitted, awaiting organizer review
+  APPROVED      // organizer accepted; payment link sent
+  REJECTED      // organizer declined
+  PAID          // vendor paid; treated as a confirmed registration
+  WITHDRAWN     // vendor withdrew before approval
+}
+
 // ─────────────────────────── MODELS ──────────────────────────
 
 model Organization {
@@ -189,6 +197,8 @@ model Event {
   bannerUrl          String?
   promoVideoUrl      String?
   contactEmail       String?
+  vendorRegistrationEnabled Boolean @default(false)
+  vendorApplicationNotes    String? @db.Text // appears on the vendor form, e.g. "Booths are 10x10. Includes table + chairs."
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   publishedAt        DateTime?
@@ -208,6 +218,7 @@ model Event {
   abandonedCarts     AbandonedCart[]
   checkIns           CheckIn[]
   auditLogs          AuditLog[]
+  vendorApplications VendorApplication[]
 
   @@index([organizationId, startAt])
   @@index([status, startAt])
@@ -291,9 +302,11 @@ model TicketType {
   salesStartAt    DateTime?
   salesEndAt      DateTime?
   isHidden        Boolean        @default(false)
+  isVendorTier    Boolean        @default(false)  // when true, this tier is offered only via the vendor application flow
   sortOrder       Int            @default(0)
 
   registrations   Registration[]
+  vendorApplications VendorApplication[]
 
   @@index([eventId])
   @@map("ticket_types")
@@ -570,6 +583,48 @@ model AbandonedCart {
 
   @@index([eventId, email])
   @@map("abandoned_carts")
+}
+
+model VendorApplication {
+  id                 String                  @id @default(cuid())
+  eventId            String
+  event              Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId       String?
+  ticketType         TicketType?             @relation(fields: [ticketTypeId], references: [id])
+
+  // Vendor org info
+  companyName        String
+  contactFirstName   String
+  contactLastName    String
+  email              String
+  phone              String?
+  website            String?
+  logoUrl            String?
+
+  // Booth + offering
+  description        String                  @db.Text   // what they sell / their pitch
+  productCategory    String?                            // e.g. Tech / Food / Apparel / Services
+  boothPreference    String?                            // requested booth size or location
+  sponsorshipLevel   String?                            // optional add-on sponsorship interest
+  electricalNeeds    Boolean                 @default(false)
+  additionalRequests String?                 @db.Text
+
+  status             VendorApplicationStatus @default(PENDING)
+  submittedAt        DateTime                @default(now())
+  reviewedAt         DateTime?
+  reviewedBy         String?                            // user id of organizer
+  rejectionReason    String?                 @db.Text
+  approvalNotes      String?                 @db.Text
+
+  // After approval, we mint a magic-link checkout token so the vendor can pay
+  paymentLinkToken   String?                 @unique
+  paymentLinkExpiresAt DateTime?
+  registrationId     String?                 @unique    // set after they pay → links to the Registration row
+  paidAt             DateTime?
+
+  @@unique([eventId, email])  // one application per vendor per event
+  @@index([eventId, status])
+  @@map("vendor_applications")
 }
 
 model AuditLog {

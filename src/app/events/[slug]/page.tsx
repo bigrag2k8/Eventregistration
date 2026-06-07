@@ -191,6 +191,12 @@ export default async function EventLandingPage({ params }: Props) {
             <div className="mt-3 text-center text-xs text-slate-500">
               {totalSold} registered{event.capacity ? ` · capacity ${event.capacity}` : ""}
             </div>
+
+            {event.vendorRegistrationEnabled && (
+              <Link href={`/events/${event.slug}/vendors`} className="btn-secondary mt-3 w-full">
+                🏪 Become a Vendor
+              </Link>
+            )}
           </div>
 
           <div className="mt-4 text-xs text-slate-500">

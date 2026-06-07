@@ -20,6 +20,15 @@ export async function POST(req: Request) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as any;
+
+      // Vendor booth payment
+      const vendorAppId = session.metadata?.vendorApplicationId;
+      if (vendorAppId) {
+        const { finalizeVendor } = await import("@/app/api/vendors/checkout/route");
+        await finalizeVendor(vendorAppId);
+        break;
+      }
+
       const regId = session.metadata?.registrationId;
       if (!regId) break;
 

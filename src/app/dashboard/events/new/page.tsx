@@ -179,6 +179,20 @@ export default async function NewEventPage() {
               <label className="label">Refund policy</label>
               <textarea name="refundPolicy" rows={2} className="input" placeholder="Refunds available up to 14 days before the event." />
             </div>
+            <div className="sm:col-span-2 border-t pt-4">
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="vendorRegistrationEnabled" value="1" className="mt-1" />
+                <span>
+                  <span className="font-medium">Accept vendor applications</span>
+                  <br />
+                  <span className="text-xs text-slate-500">Adds a "Become a Vendor" button to the event page. Vendors submit applications you approve before payment.</span>
+                </span>
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Vendor application notes (shown on the vendor form)</label>
+              <textarea name="vendorApplicationNotes" rows={3} className="input" placeholder="e.g. Booths are 10x10 with table and chairs. Load-in 7am day of event." />
+            </div>
           </div>
         </section>
 
