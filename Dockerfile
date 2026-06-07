@@ -4,7 +4,7 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 
 # ─── Stage 2: build ───────────────────────────────────────
 FROM node:20-alpine AS build
