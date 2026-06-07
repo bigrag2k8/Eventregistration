@@ -3,8 +3,18 @@ import { prisma } from "@/lib/db";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { formatInTimeZone } from "date-fns-tz";
 
-const resend = new Resend(process.env.RESEND_API_KEY ?? "");
 const FROM = process.env.EMAIL_FROM ?? "EventFlow <hello@eventflow.app>";
+
+// Lazy init — avoids throwing during Next.js build/page-data collection when
+// RESEND_API_KEY is not set. Throws clearly at first send if still missing.
+let _resend: Resend | null = null;
+function resend(): Resend {
+  if (_resend) return _resend;
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY not set — cannot send email");
+  _resend = new Resend(key);
+  return _resend;
+}
 
 export async function sendConfirmationEmail(registrationId: string) {
   const reg = await prisma.registration.findUnique({
@@ -21,7 +31,7 @@ export async function sendConfirmationEmail(registrationId: string) {
   );
 
   const html = renderConfirmation(reg);
-  const result = await resend.emails.send({
+  const result = await resend().emails.send({
     from: FROM,
     to: reg.email,
     subject: `You're registered: ${reg.event.name}`,
@@ -92,7 +102,7 @@ export async function sendReminderEmail(registrationId: string, kind: "REMINDER_
   });
   if (!reg) return;
   const labels = { REMINDER_30D: "30 days", REMINDER_7D: "1 week", REMINDER_1D: "tomorrow", REMINDER_1H: "1 hour" };
-  const result = await resend.emails.send({
+  const result = await resend().emails.send({
     from: FROM,
     to: reg.email,
     subject: `Reminder: ${reg.event.name} is in ${labels[kind]}`,
