@@ -53,6 +53,8 @@ const basicsSchema = z.object({
   capacity: z.string().optional(),
   contactEmail: z.string().optional(),
   refundPolicy: z.string().optional(),
+  vendorRegistrationEnabled: z.string().optional(),
+  vendorApplicationNotes: z.string().optional(),
 });
 
 export async function updateBasicsAction(formData: FormData) {
@@ -74,6 +76,8 @@ export async function updateBasicsAction(formData: FormData) {
       capacity: data.capacity ? parseInt(data.capacity) : null,
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,
+      vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
+      vendorApplicationNotes: data.vendorApplicationNotes || null,
     },
   });
   revalidatePath(`/dashboard/events/${event.id}`);

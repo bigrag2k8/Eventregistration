@@ -120,6 +120,35 @@ export default async function EventManagePage({ params }: { params: { id: string
               <label className="label">Refund policy</label>
               <textarea name="refundPolicy" rows={2} defaultValue={event.refundPolicy ?? ""} className="input" />
             </div>
+            <div className="sm:col-span-2 border-t pt-4">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="vendorRegistrationEnabled"
+                  value="1"
+                  defaultChecked={event.vendorRegistrationEnabled}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-medium">Accept vendor applications</span>
+                  <br />
+                  <span className="text-xs text-slate-500">
+                    Adds a "Become a Vendor" button on the public event page. Vendors submit
+                    applications you review before sending a payment link.
+                  </span>
+                </span>
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Vendor application notes (shown on the vendor form)</label>
+              <textarea
+                name="vendorApplicationNotes"
+                rows={3}
+                defaultValue={event.vendorApplicationNotes ?? ""}
+                className="input"
+                placeholder="e.g. Booths are 10x10 with table and chairs. Load-in 7am day of event."
+              />
+            </div>
             <div className="sm:col-span-2">
               <button type="submit" className="btn-primary">Save changes</button>
             </div>
