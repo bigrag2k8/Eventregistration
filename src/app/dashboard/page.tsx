@@ -68,7 +68,9 @@ export default async function DashboardHome() {
 
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your events</h2>
-        <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
+        {session.role !== "STAFF" && (
+          <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
+        )}
       </div>
 
       <div className="mt-3 overflow-x-auto rounded-xl ring-1 ring-slate-200 bg-white">
@@ -94,9 +96,15 @@ export default async function DashboardHome() {
                 </td>
                 <td className="px-4 py-3 text-right">{e._count.registrations}</td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/dashboard/events/${e.id}`} className="text-brand-700 hover:underline">Manage</Link>
-                  <span className="px-2 text-slate-300">·</span>
-                  <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Check-in</Link>
+                  {session.role === "STAFF" ? (
+                    <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Open scanner</Link>
+                  ) : (
+                    <>
+                      <Link href={`/dashboard/events/${e.id}`} className="text-brand-700 hover:underline">Manage</Link>
+                      <span className="px-2 text-slate-300">·</span>
+                      <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Check-in</Link>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -127,7 +135,8 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
           <Link href="/dashboard" className="font-bold text-brand-700">EventFlow</Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/dashboard">Overview</Link>
-            <Link href="/dashboard/events/new">+ New event</Link>
+            {role !== "STAFF" && <Link href="/dashboard/events/new">+ New event</Link>}
+            {role === "STAFF" && <Link href="/checkin">Scanner</Link>}
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{role}</span>
             <SignOutButton />
           </nav>

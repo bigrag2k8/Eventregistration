@@ -27,5 +27,6 @@ export async function POST(req: Request) {
   });
   await setSessionCookie(token);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  return NextResponse.json({ id: user.id, role: user.role });
+  const redirectTo = user.role === "STAFF" ? "/checkin" : "/dashboard";
+  return NextResponse.json({ id: user.id, role: user.role, redirectTo });
 }

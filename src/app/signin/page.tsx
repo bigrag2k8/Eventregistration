@@ -21,7 +21,8 @@ export default function SignInPage() {
       setError(j.error ?? "Sign in failed");
       return;
     }
-    router.push("/dashboard");
+    const j = await res.json().catch(() => ({ redirectTo: "/dashboard" }));
+    router.push(j.redirectTo ?? "/dashboard");
   }
 
   return (
