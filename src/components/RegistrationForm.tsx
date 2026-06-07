@@ -163,8 +163,8 @@ export function RegistrationForm({ event }: { event: Event }) {
             {fieldErr("phone")}
           </div>
           <div>
-            <label className="label">Company *</label>
-            <input required className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
+            <label className="label">Company</label>
+            <input className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
             {fieldErr("company")}
           </div>
           <div>
