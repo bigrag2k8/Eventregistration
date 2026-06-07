@@ -5,6 +5,22 @@ import { computeTotals } from "@/server/pricing";
 import { issueTickets } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 
+const FIELD_LABELS: Record<string, string> = {
+  firstName: "First name",
+  lastName: "Last name",
+  email: "Email",
+  phone: "Phone",
+  company: "Company",
+  jobTitle: "Job title",
+  ticketTypeId: "Ticket type",
+  quantity: "Quantity",
+  eventId: "Event",
+  promoCode: "Promo code",
+};
+function humanFieldName(k: string) {
+  return FIELD_LABELS[k] ?? k;
+}
+
 const schema = z.object({
   eventId: z.string(),
   ticketTypeId: z.string(),
@@ -30,7 +46,15 @@ const schema = z.object({
  */
 export async function POST(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    const fieldErrors = flat.fieldErrors as Record<string, string[]>;
+    const firstField = Object.keys(fieldErrors)[0];
+    const message = firstField
+      ? `${humanFieldName(firstField)}: ${fieldErrors[firstField][0]}`
+      : "Please fill in all required fields correctly.";
+    return NextResponse.json({ error: message, fieldErrors }, { status: 400 });
+  }
   const input = parsed.data;
 
   const event = await prisma.event.findUnique({
@@ -38,7 +62,7 @@ export async function POST(req: Request) {
     include: { ticketTypes: true, promoCodes: true, organization: true },
   });
   if (!event || event.status !== "PUBLISHED") {
-    return NextResponse.json({ error: "Event not available" }, { status: 404 });
+    return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
   }
 
   // Duplicate email per event
@@ -46,7 +70,10 @@ export async function POST(req: Request) {
     where: { eventId_email: { eventId: event.id, email: input.email } },
   });
   if (dupe && dupe.status !== "CANCELLED") {
-    return NextResponse.json({ error: "Already registered with this email" }, { status: 409 });
+    return NextResponse.json({
+      error: "This email is already registered for this event. Check your inbox for your ticket, or use a different email.",
+      fieldErrors: { email: ["Already registered for this event"] },
+    }, { status: 409 });
   }
 
   const totals = await computeTotals({
@@ -55,7 +82,12 @@ export async function POST(req: Request) {
     quantity: input.quantity,
     promoCode: input.promoCode,
   });
-  if ("error" in totals) return NextResponse.json({ error: totals.error }, { status: 400 });
+  if ("error" in totals) {
+    // pricing errors are human-readable already
+    const fieldHints: Record<string, string[]> = {};
+    if (totals.error.includes("promo")) fieldHints.promoCode = [totals.error];
+    return NextResponse.json({ error: totals.error, fieldErrors: fieldHints }, { status: 400 });
+  }
 
   const reg = await prisma.registration.create({
     data: {

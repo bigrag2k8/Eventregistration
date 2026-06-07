@@ -26,6 +26,7 @@ export function RegistrationForm({ event }: { event: Event }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const tt = event.ticketTypes.find((t) => t.id === ticketTypeId);
   const subtotal = (tt?.priceCents ?? 0) * quantity;
@@ -40,7 +41,7 @@ export function RegistrationForm({ event }: { event: Event }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true); setError(null);
+    setSubmitting(true); setError(null); setFieldErrors({});
     try {
       const res = await fetch("/api/registrations", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -49,32 +50,60 @@ export function RegistrationForm({ event }: { event: Event }) {
           answers: Object.entries(answers).map(([questionId, answer]) => ({ questionId, answer })),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message ?? data.error ?? "Registration failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = typeof data.error === "string" ? data.error : "Something went wrong. Please try again.";
+        setError(message);
+        if (data.fieldErrors && typeof data.fieldErrors === "object") setFieldErrors(data.fieldErrors);
+        // scroll to top so user sees the banner
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
 
       if (data.status === "CONFIRMED") {
         router.push(`/events/${event.slug}/success?reg=${data.id}`);
       } else {
-        // paid → checkout
         const c = await fetch("/api/checkout/session", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ registrationId: data.id }),
         });
-        const { url } = await c.json();
-        if (!url) throw new Error("Could not create checkout");
-        window.location.href = url;
+        const cData = await c.json().catch(() => ({}));
+        if (!c.ok || !cData.url) {
+          setError(cData.error ?? "Couldn't start checkout. Please try again.");
+          return;
+        }
+        window.location.href = cData.url;
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message ?? "Network error. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
+  function fieldErr(name: string) {
+    const e = fieldErrors[name];
+    return e?.[0] ? <p className="mt-1 text-xs text-red-600">{e[0]}</p> : null;
+  }
+  function inputClass(name: string) {
+    return `input${fieldErrors[name] ? " border-red-400 ring-1 ring-red-100" : ""}`;
+  }
+
   const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-6">
+    <form onSubmit={submit} className="mt-6 space-y-6" noValidate>
+      {error && (
+        <div role="alert" className="rounded-lg bg-red-50 p-4 ring-1 ring-red-200">
+          <div className="flex items-start gap-2">
+            <span className="text-red-600">⚠</span>
+            <div>
+              <p className="text-sm font-medium text-red-800">We couldn't complete your registration</p>
+              <p className="mt-1 text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <section className="card">
         <h2 className="text-lg font-semibold">1. Select ticket</h2>
         <div className="mt-3 space-y-2">
@@ -113,12 +142,36 @@ export function RegistrationForm({ event }: { event: Event }) {
       <section className="card">
         <h2 className="text-lg font-semibold">2. Your info</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div><label className="label">First name *</label><input required className="input" value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} /></div>
-          <div><label className="label">Last name *</label><input required className="input" value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} /></div>
-          <div><label className="label">Email *</label><input required type="email" className="input" value={form.email} onChange={(e) => setField("email", e.target.value)} /></div>
-          <div><label className="label">Phone *</label><input required className="input" value={form.phone} onChange={(e) => setField("phone", e.target.value)} /></div>
-          <div><label className="label">Company *</label><input required className="input" value={form.company} onChange={(e) => setField("company", e.target.value)} /></div>
-          <div><label className="label">Job title</label><input className="input" value={form.jobTitle} onChange={(e) => setField("jobTitle", e.target.value)} /></div>
+          <div>
+            <label className="label">First name *</label>
+            <input required className={inputClass("firstName")} value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} />
+            {fieldErr("firstName")}
+          </div>
+          <div>
+            <label className="label">Last name *</label>
+            <input required className={inputClass("lastName")} value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} />
+            {fieldErr("lastName")}
+          </div>
+          <div>
+            <label className="label">Email *</label>
+            <input required type="email" className={inputClass("email")} value={form.email} onChange={(e) => setField("email", e.target.value)} />
+            {fieldErr("email")}
+          </div>
+          <div>
+            <label className="label">Phone *</label>
+            <input required className={inputClass("phone")} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+            {fieldErr("phone")}
+          </div>
+          <div>
+            <label className="label">Company *</label>
+            <input required className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
+            {fieldErr("company")}
+          </div>
+          <div>
+            <label className="label">Job title</label>
+            <input className={inputClass("jobTitle")} value={form.jobTitle} onChange={(e) => setField("jobTitle", e.target.value)} />
+            {fieldErr("jobTitle")}
+          </div>
           <div><label className="label">Dietary restrictions</label><input className="input" value={form.dietary} onChange={(e) => setField("dietary", e.target.value)} /></div>
           <div><label className="label">Accessibility</label><input className="input" value={form.accessibility} onChange={(e) => setField("accessibility", e.target.value)} /></div>
           <div className="sm:col-span-2"><label className="label">Special requests</label><textarea className="input" rows={2} value={form.specialRequests} onChange={(e) => setField("specialRequests", e.target.value)} /></div>
@@ -150,8 +203,13 @@ export function RegistrationForm({ event }: { event: Event }) {
 
       <section className="card">
         <h2 className="text-lg font-semibold">4. Promo code</h2>
-        <input className="input mt-3 max-w-xs" placeholder="Enter code"
-               value={form.promoCode} onChange={(e) => setField("promoCode", e.target.value)} />
+        <input
+          className={`${inputClass("promoCode")} mt-3 max-w-xs`}
+          placeholder="Enter code"
+          value={form.promoCode}
+          onChange={(e) => setField("promoCode", e.target.value)}
+        />
+        {fieldErr("promoCode")}
       </section>
 
       <section className="card">
@@ -165,8 +223,6 @@ export function RegistrationForm({ event }: { event: Event }) {
           </div>
         </dl>
       </section>
-
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>}
 
       <button type="submit" disabled={submitting} className="btn-primary w-full">
         {submitting ? "Processing…" : total === 0 ? "Complete registration" : `Pay ${fmt(total)} & register`}
