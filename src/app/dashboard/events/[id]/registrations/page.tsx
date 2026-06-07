@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { money } from "@/lib/format";
+import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,10 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{event.name} — Registrations</span>
           </div>
-          <a href={`/api/events/${event.id}/export.csv`} className="btn-primary">Export CSV</a>
+          <div className="flex items-center gap-2">
+            <a href={`/api/events/${event.id}/export.csv`} className="btn-primary">Export CSV</a>
+            <SignOutButton />
+          </div>
         </div>
       </header>
 

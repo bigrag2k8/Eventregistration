@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { money } from "@/lib/format";
+import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -126,10 +127,9 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
           <Link href="/dashboard" className="font-bold text-brand-700">EventFlow</Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/dashboard">Overview</Link>
-            <Link href="/dashboard/events">Events</Link>
-            <Link href="/dashboard/registrations">Registrations</Link>
-            <Link href="/dashboard/marketing">Marketing</Link>
+            <Link href="/dashboard/events/new">+ New event</Link>
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{role}</span>
+            <SignOutButton />
           </nav>
         </div>
       </header>

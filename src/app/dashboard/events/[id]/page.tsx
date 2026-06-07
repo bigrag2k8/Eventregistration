@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
+import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +41,10 @@ export default async function EventManagePage({ params }: { params: { id: string
               isPublished ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
             }`}>{event.status}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Link href={publicUrl} target="_blank" className="btn-secondary">View public page ↗</Link>
             <Link href={`/checkin/${event.id}`} className="btn-secondary">Check-in</Link>
+            <SignOutButton />
           </div>
         </div>
       </header>

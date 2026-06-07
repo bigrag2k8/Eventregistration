@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { SignOutButton } from "@/components/SignOutButton";
 import { createEventAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export default async function NewEventPage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <Link href="/dashboard" className="text-sm text-brand-700">◀ Dashboard</Link>
           <h1 className="font-semibold">Create event</h1>
-          <span />
+          <SignOutButton />
         </div>
       </header>
 
