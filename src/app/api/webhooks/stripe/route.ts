@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       // Vendor booth payment
       const vendorAppId = session.metadata?.vendorApplicationId;
       if (vendorAppId) {
-        const { finalizeVendor } = await import("@/app/api/vendors/checkout/route");
+        const { finalizeVendor } = await import("@/server/vendors");
         await finalizeVendor(vendorAppId);
         break;
       }

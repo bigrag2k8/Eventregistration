@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { issueTickets } from "@/server/tickets";
-import { sendConfirmationEmail } from "@/lib/email";
+import { finalizeVendor } from "@/server/vendors";
 
 const schema = z.object({ token: z.string().min(10) });
 
@@ -55,41 +54,3 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ url: session.url });
 }
-
-async function finalizeVendor(appId: string) {
-  const app = await prisma.vendorApplication.findUnique({
-    where: { id: appId }, include: { ticketType: true },
-  });
-  if (!app || !app.ticketType) return;
-
-  const reg = await prisma.registration.create({
-    data: {
-      eventId: app.eventId,
-      ticketTypeId: app.ticketTypeId!,
-      firstName: app.contactFirstName,
-      lastName: app.contactLastName,
-      email: app.email,
-      phone: app.phone,
-      company: app.companyName,
-      quantity: 1,
-      subtotalCents: app.ticketType.priceCents,
-      totalCents: app.ticketType.priceCents,
-      currency: app.ticketType.currency,
-      status: "CONFIRMED",
-      confirmedAt: new Date(),
-    },
-  });
-  await prisma.ticketType.update({
-    where: { id: app.ticketTypeId! },
-    data: { quantitySold: { increment: 1 } },
-  });
-  await prisma.vendorApplication.update({
-    where: { id: app.id },
-    data: { status: "PAID", paidAt: new Date(), registrationId: reg.id },
-  });
-  try { await issueTickets(reg.id); } catch (e) { console.error("[vendor] issueTickets failed:", e); }
-  try { await sendConfirmationEmail(reg.id); } catch (e) { console.error("[vendor] confirmation email failed:", e); }
-}
-
-// Export for the Stripe webhook to call
-export { finalizeVendor };
