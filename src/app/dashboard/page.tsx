@@ -132,7 +132,7 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
     <main>
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="font-bold text-brand-700">Automated I.T. Solutions Events APP</Link>
+          <Link href="/dashboard" className="font-bold text-brand-700" title="Automated I.T. Solutions Events APP">AITS Events</Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/dashboard">Overview</Link>
             {role !== "STAFF" && <Link href="/dashboard/events/new">+ New event</Link>}

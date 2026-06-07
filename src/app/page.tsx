@@ -16,7 +16,7 @@ export default async function HomePage() {
     <main>
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" className="font-bold text-brand-700">Automated I.T. Solutions Events APP</Link>
+          <Link href="/" className="font-bold text-brand-700" title="Automated I.T. Solutions Events APP">AITS Events</Link>
           <nav className="flex gap-3 text-sm">
             <Link href="/events">Browse</Link>
             <Link href="/signin">Sign in</Link>
