@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface TicketType { id: string; name: string; priceCents: number; }
@@ -142,9 +143,27 @@ export function VendorApplicationForm({ eventId, eventSlug, ticketTypes }: Props
         </section>
       )}
 
-      <button type="submit" disabled={submitting} className="btn-primary w-full">
-        {submitting ? "Submitting…" : "Submit application"}
-      </button>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href={`/events/${eventSlug}`}
+          onClick={(e) => {
+            const dirty =
+              form.companyName || form.contactFirstName || form.contactLastName ||
+              form.email || form.phone || form.website || form.logoUrl ||
+              form.description || form.productCategory || form.boothPreference ||
+              form.sponsorshipLevel || form.additionalRequests;
+            if (dirty && !confirm("Discard this application? Anything you've entered will be lost.")) {
+              e.preventDefault();
+            }
+          }}
+          className="btn-secondary text-center"
+        >
+          Cancel
+        </Link>
+        <button type="submit" disabled={submitting} className="btn-primary sm:flex-1">
+          {submitting ? "Submitting…" : "Submit application"}
+        </button>
+      </div>
       <p className="text-center text-xs text-slate-500">
         The organizer reviews every application and will email you with an update.
       </p>
