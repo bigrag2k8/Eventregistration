@@ -13,25 +13,22 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Ensure public/ exists even if user has none
 RUN mkdir -p public
 RUN npx prisma generate && npm run build
 
 # ─── Stage 3: runner ──────────────────────────────────────
 FROM node:20-slim AS runner
-RUN apt-get update -y && apt-get install -y openssl ca-certificates tini && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN groupadd -r nodejs && useradd -r -g nodejs nextjs
+ENV HOSTNAME=0.0.0.0
 
 COPY --from=build /app/public ./public
-COPY --from=build --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=build /app/.next ./.next
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/prisma ./prisma
 
-USER nextjs
 EXPOSE 3000
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss --skip-generate && node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
