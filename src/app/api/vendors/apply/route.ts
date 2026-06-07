@@ -5,7 +5,7 @@ import { rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
   eventId: z.string(),
-  companyName: z.string().min(2).max(200),
+  companyName: z.string().max(200).optional().default(""),
   contactFirstName: z.string().min(1).max(80),
   contactLastName: z.string().min(1).max(80),
   email: z.string().email(),
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     data: {
       eventId: event.id,
       ticketTypeId: input.ticketTypeId || null,
-      companyName: input.companyName,
+      companyName: input.companyName || `${input.contactFirstName} ${input.contactLastName}`,
       contactFirstName: input.contactFirstName,
       contactLastName: input.contactLastName,
       email: input.email,

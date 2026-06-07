@@ -58,8 +58,8 @@ export function VendorApplicationForm({ eventId, eventSlug, ticketTypes }: Props
         <h2 className="text-lg font-semibold">Your company</h2>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Company name *</label>
-            <input required className="input" value={form.companyName} onChange={(e)=>set("companyName", e.target.value)} />
+            <label className="label">Company name</label>
+            <input className="input" value={form.companyName} onChange={(e)=>set("companyName", e.target.value)} />
           </div>
           <div>
             <label className="label">Contact first name *</label>
