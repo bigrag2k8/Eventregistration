@@ -2,8 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "EventFlow",
-  description: "Modern event registration for organizations of every size.",
+  title: "Automated I.T. Solutions Events APP",
+  description: "Event registration powered by Automated I.T. Solutions.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

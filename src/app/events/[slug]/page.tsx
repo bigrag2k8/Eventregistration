@@ -35,7 +35,7 @@ export default async function EventLandingPage({ params }: Props) {
     <main>
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/" className="font-bold text-brand-700">EventFlow</Link>
+          <Link href="/" className="font-bold text-brand-700">Automated I.T. Solutions Events APP</Link>
           <Link href={`/events/${event.slug}/register`} className="btn-primary">Register Now</Link>
         </div>
       </header>

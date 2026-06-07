@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { formatInTimeZone } from "date-fns-tz";
 
-const FROM = process.env.EMAIL_FROM ?? "EventFlow <hello@eventflow.app>";
+const FROM = process.env.EMAIL_FROM ?? "Automated I.T. Solutions Events APP <hello@eventflow.app>";
 
 // Lazy init — avoids throwing during Next.js build/page-data collection when
 // RESEND_API_KEY is not set. Throws clearly at first send if still missing.
@@ -92,7 +92,7 @@ function renderConfirmation(reg: any) {
       ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:24px"><strong>Refund policy:</strong> ${e.refundPolicy}</p>`:""}
     </td></tr>
   </table>
-  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">EventFlow · ${e.organization?.name ?? ""}</p>
+  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">Automated I.T. Solutions Events APP · ${e.organization?.name ?? ""}</p>
 </body></html>`;
 }
 
