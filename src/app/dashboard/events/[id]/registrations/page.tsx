@@ -110,7 +110,11 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
             </thead>
             <tbody className="divide-y divide-slate-100">
               {regs.map((r) => {
-                const checkedCount = r.tickets.filter((t) => t.checkIn).length;
+                const checkedTickets = r.tickets.filter((t) => t.checkIn);
+                const checkedCount = checkedTickets.length;
+                const earliestCheckIn = checkedTickets
+                  .map((t) => t.checkIn!.scannedAt)
+                  .sort((a, b) => a.getTime() - b.getTime())[0];
                 return (
                   <Fragment key={r.id}>
                   <tr>
@@ -128,7 +132,15 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                         : "bg-slate-100 text-slate-600"
                       }`}>{r.status}</span>
                     </td>
-                    <td className="px-3 py-2">{checkedCount}/{r.tickets.length || r.quantity}</td>
+                    <td className="px-3 py-2">
+                      <div>{checkedCount}/{r.tickets.length || r.quantity}</div>
+                      {earliestCheckIn && (
+                        <div className="text-xs text-slate-500">
+                          {earliestCheckIn.toLocaleDateString()}{" "}
+                          {earliestCheckIn.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-slate-500">{r.createdAt.toLocaleDateString()}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
