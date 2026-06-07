@@ -25,10 +25,18 @@ export default async function EventLandingPage({ params }: Props) {
   const minPrice = Math.min(...event.ticketTypes.map((t) => t.priceCents));
   const totalSold = event.ticketTypes.reduce((a, t) => a + t.quantitySold, 0);
 
-  const mapsSrc = event.location
-    ? `https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&q=${encodeURIComponent(
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+  const mapsSrc = event.location && mapsKey
+    ? `https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${encodeURIComponent(
         `${event.location.addressLine1}, ${event.location.city}`
       )}`
+    : null;
+  const directionsHref = event.location
+    ? event.location.latitude && event.location.longitude
+      ? `https://www.google.com/maps/dir/?api=1&destination=${event.location.latitude},${event.location.longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          `${event.location.addressLine1}, ${event.location.city}${event.location.state ? ", " + event.location.state : ""}`
+        )}`
     : null;
 
   return (
@@ -92,25 +100,54 @@ export default async function EventLandingPage({ params }: Props) {
             </section>
           )}
 
-          {mapsSrc && (
+          {event.location && (
             <section className="mt-10">
               <h2 className="text-xl font-semibold">Location</h2>
-              <div className="mt-3 overflow-hidden rounded-xl ring-1 ring-slate-200">
-                <iframe
-                  src={mapsSrc}
-                  className="h-72 w-full"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  allowFullScreen
-                />
-              </div>
-              <a
-                className="mt-2 inline-block text-sm text-brand-700 hover:underline"
-                href={`https://www.google.com/maps/dir/?api=1&destination=${event.location!.latitude},${event.location!.longitude}`}
-                target="_blank" rel="noreferrer"
-              >
-                Get directions ↗
-              </a>
+              {mapsSrc ? (
+                <div className="mt-3 overflow-hidden rounded-xl ring-1 ring-slate-200">
+                  <iframe
+                    src={mapsSrc}
+                    className="h-72 w-full"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
+                  <div className="text-2xl">📍</div>
+                  {event.location.venueName && (
+                    <div className="mt-2 font-semibold">{event.location.venueName}</div>
+                  )}
+                  <div className="text-slate-700">
+                    {event.location.addressLine1}
+                    {event.location.addressLine2 ? `, ${event.location.addressLine2}` : ""}
+                  </div>
+                  <div className="text-slate-700">
+                    {event.location.city}
+                    {event.location.state ? `, ${event.location.state}` : ""}
+                    {event.location.postalCode ? ` ${event.location.postalCode}` : ""}
+                  </div>
+                  {directionsHref && (
+                    <a
+                      className="btn-primary mt-4 inline-flex"
+                      href={directionsHref}
+                      target="_blank" rel="noreferrer"
+                    >
+                      Open in Google Maps ↗
+                    </a>
+                  )}
+                </div>
+              )}
+              {mapsSrc && directionsHref && (
+                <a
+                  className="mt-2 inline-block text-sm text-brand-700 hover:underline"
+                  href={directionsHref}
+                  target="_blank" rel="noreferrer"
+                >
+                  Get directions ↗
+                </a>
+              )}
             </section>
           )}
 
