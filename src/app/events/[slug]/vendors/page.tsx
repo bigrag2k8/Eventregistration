@@ -8,13 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function VendorRegistrationPage({ params }: { params: { slug: string } }) {
   const event = await prisma.event.findFirst({
     where: { slug: params.slug, status: "PUBLISHED", deletedAt: null },
-    include: {
-      organization: true,
-      ticketTypes: {
-        where: { isVendorTier: true },
-        orderBy: { sortOrder: "asc" },
-      },
-    },
+    include: { organization: true },
   });
   if (!event || !event.vendorRegistrationEnabled) return notFound();
 
@@ -44,7 +38,6 @@ export default async function VendorRegistrationPage({ params }: { params: { slu
         <VendorApplicationForm
           eventId={event.id}
           eventSlug={event.slug}
-          ticketTypes={JSON.parse(JSON.stringify(event.ticketTypes))}
         />
       </div>
     </main>

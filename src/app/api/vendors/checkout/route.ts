@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   const app = await prisma.vendorApplication.findUnique({
     where: { paymentLinkToken: parsed.data.token },
-    include: { event: true, ticketType: true },
+    include: { event: true },
   });
   if (!app) return NextResponse.json({ error: "Invalid link" }, { status: 404 });
   if (app.status === "PAID") return NextResponse.json({ status: "PAID" });
@@ -20,11 +20,10 @@ export async function POST(req: Request) {
   if (app.paymentLinkExpiresAt && new Date() > app.paymentLinkExpiresAt) {
     return NextResponse.json({ error: "This payment link has expired." }, { status: 410 });
   }
-  if (!app.ticketType) return NextResponse.json({ error: "No vendor package linked. Contact the organizer." }, { status: 400 });
 
-  const priceCents = app.ticketType.priceCents;
+  const priceCents = app.quotedPriceCents ?? 0;
 
-  // If the package is free (sponsorship comp, etc.), short-circuit straight to PAID + Registration
+  // Free package (sponsorship comp, etc.) → short-circuit straight to PAID + Registration
   if (priceCents === 0) {
     await finalizeVendor(app.id);
     return NextResponse.json({ status: "PAID" });
@@ -36,10 +35,10 @@ export async function POST(req: Request) {
     line_items: [{
       quantity: 1,
       price_data: {
-        currency: app.ticketType.currency.toLowerCase(),
+        currency: "usd",
         unit_amount: priceCents,
         product_data: {
-          name: `${app.event.name} — ${app.ticketType.name} (Vendor)`,
+          name: `${app.event.name} — Vendor Booth`,
           description: app.companyName,
         },
       },

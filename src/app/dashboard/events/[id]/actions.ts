@@ -55,6 +55,7 @@ const basicsSchema = z.object({
   refundPolicy: z.string().optional(),
   vendorRegistrationEnabled: z.string().optional(),
   vendorApplicationNotes: z.string().optional(),
+  defaultVendorPrice: z.string().optional(),
 });
 
 export async function updateBasicsAction(formData: FormData) {
@@ -78,6 +79,9 @@ export async function updateBasicsAction(formData: FormData) {
       refundPolicy: data.refundPolicy || null,
       vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
       vendorApplicationNotes: data.vendorApplicationNotes || null,
+      defaultVendorPriceCents: data.defaultVendorPrice !== undefined
+        ? Math.round(parseFloat(data.defaultVendorPrice || "0") * 100)
+        : event.defaultVendorPriceCents,
     },
   });
   revalidatePath(`/dashboard/events/${event.id}`);

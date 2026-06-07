@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function VendorCheckoutPage({ params }: { params: { token: string } }) {
   const app = await prisma.vendorApplication.findUnique({
     where: { paymentLinkToken: params.token },
-    include: { event: true, ticketType: true },
+    include: { event: true },
   });
   if (!app) return notFound();
 
@@ -33,10 +33,10 @@ export default async function VendorCheckoutPage({ params }: { params: { token: 
         ) : (
           <>
             <div className="mt-6 space-y-2 text-sm">
-              <div className="flex justify-between"><span>Vendor package</span><span className="font-medium">{app.ticketType?.name ?? "Booth"}</span></div>
+              <div className="flex justify-between"><span>Vendor booth</span><span className="font-medium">{app.event.name}</span></div>
               <div className="flex justify-between border-t pt-2 font-semibold">
                 <span>Amount due</span>
-                <span>${((app.ticketType?.priceCents ?? 0) / 100).toFixed(2)}</span>
+                <span>${((app.quotedPriceCents ?? 0) / 100).toFixed(2)}</span>
               </div>
             </div>
             <VendorCheckoutForm token={params.token} />

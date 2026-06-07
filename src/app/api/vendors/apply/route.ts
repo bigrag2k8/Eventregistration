@@ -18,7 +18,6 @@ const schema = z.object({
   sponsorshipLevel: z.string().max(120).optional(),
   electricalNeeds: z.boolean().optional(),
   additionalRequests: z.string().max(2000).optional(),
-  ticketTypeId: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -51,7 +50,6 @@ export async function POST(req: Request) {
   const app = await prisma.vendorApplication.create({
     data: {
       eventId: event.id,
-      ticketTypeId: input.ticketTypeId || null,
       companyName: input.companyName || `${input.contactFirstName} ${input.contactLastName}`,
       contactFirstName: input.contactFirstName,
       contactLastName: input.contactLastName,

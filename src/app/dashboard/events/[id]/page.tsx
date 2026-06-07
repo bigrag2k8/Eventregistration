@@ -149,6 +149,18 @@ export default async function EventManagePage({ params }: { params: { id: string
                 placeholder="e.g. Booths are 10x10 with table and chairs. Load-in 7am day of event."
               />
             </div>
+            <div>
+              <label className="label">Default vendor booth price (USD)</label>
+              <input
+                name="defaultVendorPrice"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={(event.defaultVendorPriceCents / 100).toFixed(2)}
+                className="input"
+              />
+              <p className="mt-1 text-xs text-slate-500">Pre-fills the quote when approving a vendor. Override per-vendor on the Vendors page.</p>
+            </div>
             <div className="sm:col-span-2">
               <button type="submit" className="btn-primary">Save changes</button>
             </div>

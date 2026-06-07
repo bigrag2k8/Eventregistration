@@ -199,6 +199,7 @@ model Event {
   contactEmail       String?
   vendorRegistrationEnabled Boolean @default(false)
   vendorApplicationNotes    String? @db.Text // appears on the vendor form, e.g. "Booths are 10x10. Includes table + chairs."
+  defaultVendorPriceCents   Int     @default(0) // default booth price; organizer can override per-vendor at approval time
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   publishedAt        DateTime?
@@ -615,6 +616,7 @@ model VendorApplication {
   reviewedBy         String?                            // user id of organizer
   rejectionReason    String?                 @db.Text
   approvalNotes      String?                 @db.Text
+  quotedPriceCents   Int?                               // price organizer quoted at approval time; overrides event default
 
   // After approval, we mint a magic-link checkout token so the vendor can pay
   paymentLinkToken   String?                 @unique

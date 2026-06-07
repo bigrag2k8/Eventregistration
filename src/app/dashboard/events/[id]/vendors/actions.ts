@@ -29,6 +29,7 @@ export async function approveVendorAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const appId = String(formData.get("appId"));
   const notes = String(formData.get("notes") ?? "");
+  const priceStr = String(formData.get("price") ?? "");
 
   const { session, event } = await authorize(eventId);
 
@@ -38,6 +39,11 @@ export async function approveVendorAction(formData: FormData) {
   });
   if (!app) throw new Error("Application not found");
   if (app.status !== "PENDING") throw new Error(`Application is already ${app.status}`);
+
+  // Determine quoted price (cents)
+  const quotedPriceCents = priceStr
+    ? Math.max(0, Math.round(parseFloat(priceStr) * 100))
+    : (event.defaultVendorPriceCents ?? 0);
 
   const token = crypto.randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -49,6 +55,7 @@ export async function approveVendorAction(formData: FormData) {
       reviewedAt: new Date(),
       reviewedBy: session.sub,
       approvalNotes: notes || null,
+      quotedPriceCents,
       paymentLinkToken: token,
       paymentLinkExpiresAt: expiresAt,
     },
@@ -58,7 +65,9 @@ export async function approveVendorAction(formData: FormData) {
   const resend = getResend();
   if (resend) {
     const checkoutUrl = `${APP_URL}/vendor/checkout/${token}`;
-    const priceText = app.ticketType ? `$${(app.ticketType.priceCents / 100).toFixed(2)}` : "the booth fee";
+    const priceText = quotedPriceCents > 0
+      ? `$${(quotedPriceCents / 100).toFixed(2)}`
+      : "the booth fee (waived)";
     try {
       await resend.emails.send({
         from: FROM,

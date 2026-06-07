@@ -4,10 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-interface TicketType { id: string; name: string; priceCents: number; }
-interface Props { eventId: string; eventSlug: string; ticketTypes: TicketType[]; }
+interface Props { eventId: string; eventSlug: string; }
 
-export function VendorApplicationForm({ eventId, eventSlug, ticketTypes }: Props) {
+export function VendorApplicationForm({ eventId, eventSlug }: Props) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +15,7 @@ export function VendorApplicationForm({ eventId, eventSlug, ticketTypes }: Props
     email: "", phone: "", website: "", logoUrl: "",
     description: "", productCategory: "", boothPreference: "",
     sponsorshipLevel: "", electricalNeeds: false,
-    additionalRequests: "", ticketTypeId: ticketTypes[0]?.id ?? "",
+    additionalRequests: "",
   });
 
   function set<K extends keyof typeof form>(k: K, v: any) {
@@ -44,8 +43,6 @@ export function VendorApplicationForm({ eventId, eventSlug, ticketTypes }: Props
       setSubmitting(false);
     }
   }
-
-  const money = (c: number) => c === 0 ? "Free" : `$${(c/100).toFixed(2)}`;
 
   return (
     <form onSubmit={submit} className="mt-6 space-y-6">
@@ -125,23 +122,13 @@ export function VendorApplicationForm({ eventId, eventSlug, ticketTypes }: Props
         </div>
       </section>
 
-      {ticketTypes.length > 0 && (
-        <section className="card">
-          <h2 className="text-lg font-semibold">Requested vendor package</h2>
-          <p className="mt-1 text-sm text-slate-500">Pricing is per the organizer. Payment is collected only after the organizer approves your application.</p>
-          <div className="mt-3 space-y-2">
-            {ticketTypes.map((t) => (
-              <label key={t.id} className={`flex items-center justify-between rounded-lg ring-1 ring-slate-200 p-3 cursor-pointer ${form.ticketTypeId === t.id ? "bg-brand-50 ring-brand-300" : ""}`}>
-                <div className="flex items-center gap-2">
-                  <input type="radio" name="ticketTypeId" value={t.id} checked={form.ticketTypeId === t.id} onChange={()=>set("ticketTypeId", t.id)} />
-                  <span className="font-medium">{t.name}</span>
-                </div>
-                <span className="text-sm font-medium">{money(t.priceCents)}</span>
-              </label>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="card bg-slate-50">
+        <h2 className="text-lg font-semibold">Booth pricing</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          The organizer will confirm your booth fee when they review your application. You will only be
+          charged after approval, via a secure payment link emailed to you.
+        </p>
+      </section>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link

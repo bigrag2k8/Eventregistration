@@ -193,6 +193,11 @@ export default async function NewEventPage() {
               <label className="label">Vendor application notes (shown on the vendor form)</label>
               <textarea name="vendorApplicationNotes" rows={3} className="input" placeholder="e.g. Booths are 10x10 with table and chairs. Load-in 7am day of event." />
             </div>
+            <div>
+              <label className="label">Default vendor booth price (USD)</label>
+              <input name="defaultVendorPrice" type="number" step="0.01" min="0" defaultValue="0" className="input" placeholder="500.00" />
+              <p className="mt-1 text-xs text-slate-500">Pre-fills the quote when approving a vendor. You can override per vendor.</p>
+            </div>
           </div>
         </section>
 

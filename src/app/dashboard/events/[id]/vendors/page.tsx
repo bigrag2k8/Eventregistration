@@ -101,7 +101,9 @@ export default async function VendorsPage({ params, searchParams }: {
                 </div>
                 <div className="text-right text-xs text-slate-500">
                   Submitted {a.submittedAt.toLocaleDateString()}<br />
-                  {a.ticketType && <>Tier: <strong>{a.ticketType.name}</strong> · ${(a.ticketType.priceCents/100).toFixed(2)}</>}
+                  {a.quotedPriceCents !== null && a.quotedPriceCents !== undefined && (
+                    <>Quoted: <strong>${(a.quotedPriceCents/100).toFixed(2)}</strong></>
+                  )}
                 </div>
               </div>
 
@@ -128,10 +130,21 @@ export default async function VendorsPage({ params, searchParams }: {
 
               {a.status === "PENDING" && (
                 <div className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
-                  <form action={approveVendorAction} className="flex flex-1 items-end gap-2 min-w-[280px]">
+                  <form action={approveVendorAction} className="flex flex-1 flex-wrap items-end gap-2 min-w-[280px]">
                     <input type="hidden" name="eventId" value={event.id} />
                     <input type="hidden" name="appId" value={a.id} />
-                    <div className="flex-1">
+                    <div className="w-28">
+                      <label className="label">Price ($)</label>
+                      <input
+                        name="price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        defaultValue={(event.defaultVendorPriceCents / 100).toFixed(2)}
+                        className="input"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
                       <label className="label">Notes (optional, sent in approval email)</label>
                       <input name="notes" className="input" placeholder="e.g. Booth #14 reserved, load-in 8am" />
                     </div>
