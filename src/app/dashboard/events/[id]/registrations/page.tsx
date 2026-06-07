@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
+import { CopyButton } from "@/components/CopyButton";
 
 export const dynamic = "force-dynamic";
 
@@ -144,6 +145,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                                   className="grow rounded border border-slate-200 bg-white p-2 font-mono text-[10px] break-all"
                                   defaultValue={t.qrToken}
                                 />
+                                <CopyButton text={t.qrToken} />
                               </div>
                             ))}
                           </div>

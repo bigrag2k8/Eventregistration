@@ -13,12 +13,19 @@ export async function POST(req: Request) {
   const rl = await rateLimit(`checkin:${session.sub}:${ip}`, 120, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many scans" }, { status: 429 });
 
-  const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ status: "INVALID" }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  if (body && typeof body.token === "string") body.token = body.token.trim();
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ status: "INVALID", reason: "bad_payload" }, { status: 400 });
+  }
 
   const decoded = await verifyTicketToken(parsed.data.token);
-  if (!decoded || decoded.eventId !== parsed.data.eventId) {
-    return NextResponse.json({ status: "INVALID" }, { status: 404 });
+  if (!decoded) {
+    return NextResponse.json({ status: "INVALID", reason: "bad_signature" }, { status: 404 });
+  }
+  if (decoded.eventId !== parsed.data.eventId) {
+    return NextResponse.json({ status: "INVALID", reason: "wrong_event" }, { status: 404 });
   }
 
   const hash = crypto.createHash("sha256").update(parsed.data.token).digest("hex");
@@ -26,7 +33,13 @@ export async function POST(req: Request) {
     where: { id: decoded.ticketId, qrCodeHash: hash, isValid: true },
     include: { registration: true, checkIn: true },
   });
-  if (!ticket) return NextResponse.json({ status: "INVALID" }, { status: 404 });
+  if (!ticket) {
+    // Look it up by id alone to give a better hint
+    const idOnly = await prisma.ticket.findFirst({ where: { id: decoded.ticketId } });
+    if (!idOnly) return NextResponse.json({ status: "INVALID", reason: "ticket_not_found" }, { status: 404 });
+    if (!idOnly.isValid) return NextResponse.json({ status: "INVALID", reason: "ticket_invalidated" }, { status: 404 });
+    return NextResponse.json({ status: "INVALID", reason: "hash_mismatch" }, { status: 404 });
+  }
   if (ticket.registration.status !== "CONFIRMED") {
     return NextResponse.json({ status: "INVALID", reason: "registration_not_confirmed" }, { status: 409 });
   }

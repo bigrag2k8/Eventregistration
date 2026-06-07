@@ -65,9 +65,11 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
   }, [scanning]);
 
   async function submit(token: string) {
+    const cleaned = token.trim();
+    if (!cleaned) return;
     const res = await fetch("/api/checkin", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, eventId }),
+      body: JSON.stringify({ token: cleaned, eventId }),
     });
     const data = await res.json();
     setResult(data);
