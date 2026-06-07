@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -41,6 +42,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
     orderBy: { createdAt: "desc" },
     take: 500,
   });
+
 
   const counts = await prisma.registration.groupBy({
     by: ["status"],
@@ -106,7 +108,8 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
               {regs.map((r) => {
                 const checkedCount = r.tickets.filter((t) => t.checkIn).length;
                 return (
-                  <tr key={r.id}>
+                  <Fragment key={r.id}>
+                  <tr>
                     <td className="px-3 py-2 font-medium">{r.firstName} {r.lastName}</td>
                     <td className="px-3 py-2 text-slate-600">{r.email}</td>
                     <td className="px-3 py-2 text-slate-600">{r.company ?? ""}</td>
@@ -124,6 +127,32 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                     <td className="px-3 py-2">{checkedCount}/{r.tickets.length || r.quantity}</td>
                     <td className="px-3 py-2 text-slate-500">{r.createdAt.toLocaleDateString()}</td>
                   </tr>
+                  {r.tickets.length > 0 && (
+                    <tr className="bg-slate-50/50">
+                      <td colSpan={9} className="px-3 py-2">
+                        <details>
+                          <summary className="cursor-pointer text-xs text-slate-500">
+                            Show {r.tickets.length} QR token{r.tickets.length > 1 ? "s" : ""} (for manual check-in entry)
+                          </summary>
+                          <div className="mt-2 space-y-2">
+                            {r.tickets.map((t, i) => (
+                              <div key={t.id} className="flex items-start gap-2">
+                                <span className="text-xs text-slate-500 whitespace-nowrap pt-2">#{i + 1}{t.checkIn ? " ✓" : ""}</span>
+                                <textarea
+                                  readOnly
+                                  rows={2}
+                                  className="grow rounded border border-slate-200 bg-white p-2 font-mono text-[10px] break-all"
+                                  defaultValue={t.qrToken}
+                                  onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
               {regs.length === 0 && (

@@ -41,6 +41,15 @@ export default async function SuccessPage({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrs[i]} alt="QR" className="mx-auto mt-3 h-44 w-44" />
               <a href={qrs[i]} download={`ticket-${i + 1}.png`} className="btn-secondary mt-3 inline-block">Download</a>
+              <details className="mt-3 text-left">
+                <summary className="cursor-pointer text-xs text-slate-500">Show QR token (for manual entry)</summary>
+                <textarea
+                  readOnly
+                  className="mt-2 w-full break-all rounded border border-slate-200 bg-slate-50 p-2 font-mono text-[10px]"
+                  rows={4}
+                  defaultValue={t.qrToken}
+                />
+              </details>
             </div>
           ))}
         </div>
