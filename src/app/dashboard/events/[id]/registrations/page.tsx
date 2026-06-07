@@ -143,7 +143,6 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                                   rows={2}
                                   className="grow rounded border border-slate-200 bg-white p-2 font-mono text-[10px] break-all"
                                   defaultValue={t.qrToken}
-                                  onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                                 />
                               </div>
                             ))}
