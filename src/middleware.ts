@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySession } from "@/lib/auth";
 
-const PROTECTED = [/^\/dashboard/, /^\/checkin/, /^\/api\/admin/];
+const PROTECTED = [/^\/dashboard/, /^\/checkin/, /^\/api\/admin/, /^\/admin/];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -15,13 +15,17 @@ export async function middleware(req: NextRequest) {
   const session = await verifySession(token);
   if (!session) return NextResponse.redirect(new URL("/signin", req.url));
 
-  // RBAC for /checkin: ORGANIZER, STAFF, ADMIN
-  if (pathname.startsWith("/checkin") && !["ORGANIZER", "STAFF", "ADMIN"].includes(session.role)) {
+  // RBAC for /checkin: ORGANIZER, STAFF, ADMIN, SUPERADMIN
+  if (pathname.startsWith("/checkin") && !["ORGANIZER", "STAFF", "ADMIN", "SUPERADMIN"].includes(session.role)) {
     return NextResponse.redirect(new URL("/", req.url));
+  }
+  // RBAC for /admin: SUPERADMIN only
+  if (pathname.startsWith("/admin") && session.role !== "SUPERADMIN") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/checkin/:path*", "/api/admin/:path*"],
+  matcher: ["/dashboard/:path*", "/checkin/:path*", "/api/admin/:path*", "/admin/:path*"],
 };

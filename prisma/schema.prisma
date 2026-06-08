@@ -17,7 +17,15 @@ enum Role {
   ATTENDEE
   ORGANIZER
   STAFF
-  ADMIN
+  ADMIN        // org-scoped admin (manages their own org)
+  SUPERADMIN   // platform-wide admin (you/AITS) — can create orgs, view all
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
 }
 
 enum EventStatus {
@@ -125,9 +133,10 @@ model Organization {
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
 
-  members      User[]
-  events       Event[]
-  auditLogs    AuditLog[]
+  members        User[]
+  events         Event[]
+  auditLogs      AuditLog[]
+  pendingInvites PendingInvite[]
 
   @@map("organizations")
 }
@@ -585,6 +594,27 @@ model AbandonedCart {
 
   @@index([eventId, email])
   @@map("abandoned_carts")
+}
+
+model PendingInvite {
+  id              String       @id @default(cuid())
+  token           String       @unique
+  email           String
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            Role         @default(ORGANIZER)
+  invitedBy       String?      // user id of the SUPERADMIN who created it
+  message         String?      @db.Text   // optional personal note from inviter, included in the email
+  status          InviteStatus @default(PENDING)
+  expiresAt       DateTime
+  createdAt       DateTime     @default(now())
+  acceptedAt      DateTime?
+  acceptedByUserId String?
+  revokedAt       DateTime?
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("pending_invites")
 }
 
 model VendorApplication {
