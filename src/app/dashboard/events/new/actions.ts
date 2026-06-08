@@ -45,10 +45,12 @@ function slugify(name: string) {
     .slice(0, 80);
 }
 
-async function uniqueSlug(base: string) {
+async function uniqueSlug(base: string, organizationId: string) {
   let slug = base || `event-${Date.now()}`;
   let n = 0;
-  while (await prisma.event.findUnique({ where: { slug } })) {
+  while (await prisma.event.findUnique({
+    where: { organizationId_slug: { organizationId, slug } },
+  })) {
     n += 1;
     slug = `${base}-${n}`;
   }
@@ -66,7 +68,7 @@ export async function createEventAction(formData: FormData) {
   const endAt = new Date(data.endAt);
   if (endAt <= startAt) throw new Error("End time must be after start time");
 
-  const slug = await uniqueSlug(slugify(data.name));
+  const slug = await uniqueSlug(slugify(data.name), session.orgId);
   const isVirtual = data.isVirtual === "1";
   const priceCents = Math.round(parseFloat(data.ticketPrice || "0") * 100);
   const ticketKind = priceCents === 0 ? "FREE" : "GENERAL";
