@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface Props {
   eventId: string;
@@ -15,6 +15,16 @@ type Result =
   | { status: "INVALID"; reason?: string }
   | null;
 
+interface Attendee {
+  ticketId: string;
+  name: string;
+  email: string | null;
+  ticketType: string;
+  company: string | null;
+  checkedIn: boolean;
+  checkedInAt: string | null;
+}
+
 export function CheckinScanner({ eventId, eventName, initialTotal, initialChecked }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [result, setResult] = useState<Result>(null);
@@ -23,7 +33,14 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
   const [scanning, setScanning] = useState(true);
   const cooldownRef = useRef<number>(0);
 
-  // Native BarcodeDetector (Chrome/Android, Safari 17+).
+  // Find-attendee state
+  const [findOpen, setFindOpen] = useState(false);
+  const [attendees, setAttendees] = useState<Attendee[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Camera + barcode detector
   useEffect(() => {
     if (!scanning) return;
     if (typeof window === "undefined" || !("BarcodeDetector" in window)) return;
@@ -50,7 +67,7 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
             const codes = await detector.detect(videoRef.current!);
             if (codes[0]?.rawValue) {
               cooldownRef.current = Date.now() + 1500;
-              submit(codes[0].rawValue);
+              submitToken(codes[0].rawValue);
             }
           } catch {}
           requestAnimationFrame(loop);
@@ -64,7 +81,7 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
     return () => { stopped = true; stream?.getTracks().forEach((t) => t.stop()); };
   }, [scanning]);
 
-  async function submit(token: string) {
+  async function submitToken(token: string) {
     const cleaned = token.trim();
     if (!cleaned) return;
     const res = await fetch("/api/checkin", {
@@ -73,8 +90,67 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
     });
     const data = await res.json();
     setResult(data);
-    if (data.status === "CHECKED_IN") setChecked((n) => n + 1);
+    if (data.status === "CHECKED_IN") {
+      setChecked((n) => n + 1);
+      // Mark in the cached attendee list too if open
+      setAttendees((list) => list?.map((a) =>
+        // We don't have ticketId in the token response; refresh list silently
+        a
+      ) ?? null);
+      if (findOpen) loadAttendees();
+    }
   }
+
+  async function loadAttendees() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/checkin/attendees?eventId=${encodeURIComponent(eventId)}`);
+      const data = await res.json();
+      setAttendees(data.attendees ?? []);
+    } catch {
+      setAttendees([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openFind() {
+    setFindOpen(true);
+    if (!attendees) loadAttendees();
+  }
+
+  async function checkInByTicket(ticketId: string, attendeeName: string) {
+    setBusyId(ticketId);
+    try {
+      const res = await fetch("/api/checkin/manual", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, eventId }),
+      });
+      const data = await res.json();
+      setResult(data.status === "CHECKED_IN"
+        ? { status: "CHECKED_IN", attendee: attendeeName, email: data.email }
+        : data);
+      if (data.status === "CHECKED_IN") {
+        setChecked((n) => n + 1);
+        setAttendees((list) => list?.map((a) =>
+          a.ticketId === ticketId ? { ...a, checkedIn: true, checkedInAt: new Date().toISOString() } : a
+        ) ?? null);
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const filteredAttendees = useMemo(() => {
+    if (!attendees) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return attendees;
+    return attendees.filter((a) =>
+      a.name.toLowerCase().includes(q) ||
+      (a.email?.toLowerCase().includes(q) ?? false) ||
+      (a.company?.toLowerCase().includes(q) ?? false)
+    );
+  }, [attendees, query]);
 
   const bgColor =
     result?.status === "CHECKED_IN" ? "bg-emerald-600"
@@ -122,16 +198,107 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
           </div>
         )}
 
-        <details className="mt-4 rounded-xl bg-white/10 p-3 text-sm">
-          <summary>Manual entry</summary>
+        {/* Big primary "Find attendee" button */}
+        <div className="mx-auto mt-6 max-w-md">
+          <button
+            type="button"
+            onClick={openFind}
+            className="w-full rounded-xl bg-white px-4 py-3 text-slate-900 font-medium hover:bg-slate-100"
+          >
+            🔍 Find attendee &amp; check in
+          </button>
+        </div>
+
+        {/* Manual token paste (fallback) */}
+        <details className="mx-auto mt-3 max-w-md rounded-xl bg-white/10 p-3 text-sm">
+          <summary>Manual entry (paste QR token)</summary>
           <div className="mt-2 flex gap-2">
             <input value={manualToken} onChange={(e) => setManualToken(e.target.value)}
                    className="input flex-1 text-slate-900" placeholder="Paste QR token" />
             <button className="btn-secondary text-slate-900"
-                    onClick={() => manualToken && submit(manualToken)}>Submit</button>
+                    onClick={() => manualToken && submitToken(manualToken)}>Submit</button>
           </div>
         </details>
       </div>
+
+      {/* Find-attendee drawer */}
+      {findOpen && (
+        <div
+          className="fixed inset-0 z-20 flex items-end justify-center bg-black/50 sm:items-center"
+          onClick={() => setFindOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl bg-white text-slate-900 shadow-xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b px-4 py-3 flex items-center justify-between">
+              <h2 className="font-semibold">Find attendee</h2>
+              <button onClick={() => setFindOpen(false)} className="text-sm text-slate-500 hover:text-slate-900">Close</button>
+            </div>
+
+            <div className="px-4 py-3 border-b">
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="input"
+                placeholder="Search by name, email, or company…"
+              />
+              {attendees && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {filteredAttendees.length} of {attendees.length} attendees
+                  {" · "}
+                  {attendees.filter((a) => a.checkedIn).length} already checked in
+                </p>
+              )}
+            </div>
+
+            <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+              {loading && (
+                <div className="p-8 text-center text-slate-500">Loading attendees…</div>
+              )}
+              {!loading && filteredAttendees.length === 0 && (
+                <div className="p-8 text-center text-slate-500">
+                  {query ? "No matching attendees." : "No registered attendees yet."}
+                </div>
+              )}
+              {filteredAttendees.map((a) => (
+                <div key={a.ticketId} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{a.name}</div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {a.email}
+                      {a.company && ` · ${a.company}`}
+                      {" · "}{a.ticketType}
+                    </div>
+                  </div>
+                  {a.checkedIn ? (
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 whitespace-nowrap">
+                      ✓ Checked in
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busyId === a.ticketId}
+                      onClick={() => checkInByTicket(a.ticketId, a.name)}
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {busyId === a.ticketId ? "Checking in…" : "✓ Check in"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t px-4 py-2 text-xs text-slate-500 flex items-center justify-between">
+              <button onClick={loadAttendees} className="text-brand-700 hover:underline" disabled={loading}>
+                Refresh list
+              </button>
+              <span>Tip: keep this open during the rush</span>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
