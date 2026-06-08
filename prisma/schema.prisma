@@ -178,7 +178,7 @@ model Event {
   id                 String      @id @default(cuid())
   organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  slug               String      @unique
+  slug               String      // unique per-organization (not globally)
   name               String
   description        String      @db.Text
   shortDescription   String?
@@ -221,6 +221,7 @@ model Event {
   auditLogs          AuditLog[]
   vendorApplications VendorApplication[]
 
+  @@unique([organizationId, slug])
   @@index([organizationId, startAt])
   @@index([status, startAt])
   @@map("events")

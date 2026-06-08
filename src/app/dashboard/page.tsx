@@ -17,6 +17,7 @@ export default async function DashboardHome() {
     );
   }
 
+  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [events, totalRevenue, totalRegs, checkInRate] = await Promise.all([
     prisma.event.findMany({
@@ -56,8 +57,22 @@ export default async function DashboardHome() {
 
   return (
     <DashboardShell role={session.role}>
-      <h1 className="text-2xl font-bold">Overview</h1>
-      <p className="text-sm text-slate-500">Last 30 days</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Overview</h1>
+          <p className="text-sm text-slate-500">
+            {org?.name} · Last 30 days
+            {org && (
+              <>
+                {" · "}
+                <Link href={`/o/${org.slug}`} target="_blank" className="text-brand-700 hover:underline">
+                  Public page ↗
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Revenue" value={money(totalRevenue._sum.amountCents ?? 0)} />

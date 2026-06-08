@@ -26,7 +26,8 @@ export default async function EventManagePage({ params }: { params: { id: string
     _sum: { amountCents: true },
   });
 
-  const publicUrl = `/events/${event.slug}`;
+  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  const publicUrl = `/o/${org?.slug ?? "_"}/events/${event.slug}`;
   const isPublished = event.status === "PUBLISHED";
 
   return (

@@ -4,9 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-interface Props { eventId: string; eventSlug: string; }
+interface Props {
+  eventId: string;
+  eventSlug: string;
+  backHref?: string;       // where Cancel returns to
+  submittedHref?: string;  // where to redirect after successful submission
+}
 
-export function VendorApplicationForm({ eventId, eventSlug }: Props) {
+export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedHref }: Props) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +41,7 @@ export function VendorApplicationForm({ eventId, eventSlug }: Props) {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
-      router.push(`/events/${eventSlug}/vendors/submitted`);
+      router.push(submittedHref ?? `/events/${eventSlug}/vendors/submitted`);
     } catch (err: any) {
       setError(err?.message ?? "Network error. Try again.");
     } finally {
@@ -132,7 +137,7 @@ export function VendorApplicationForm({ eventId, eventSlug }: Props) {
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link
-          href={`/events/${eventSlug}`}
+          href={backHref ?? `/events/${eventSlug}`}
           onClick={(e) => {
             const dirty =
               form.companyName || form.contactFirstName || form.contactLastName ||

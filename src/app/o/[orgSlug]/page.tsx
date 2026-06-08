@@ -1,44 +1,49 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
-  const events = await prisma.event.findMany({
-    where: { status: "PUBLISHED", deletedAt: null, startAt: { gte: new Date() } },
-    orderBy: { startAt: "asc" },
-    include: { location: true, ticketTypes: true, organization: true },
-    take: 24,
+export default async function OrgPublicPage({ params }: { params: { orgSlug: string } }) {
+  const org = await prisma.organization.findFirst({
+    where: { slug: params.orgSlug, deletedAt: null },
+    include: {
+      events: {
+        where: { status: "PUBLISHED", deletedAt: null, startAt: { gte: new Date() } },
+        orderBy: { startAt: "asc" },
+        include: { location: true, ticketTypes: true },
+        take: 50,
+      },
+    },
   });
+  if (!org) return notFound();
 
   return (
     <main>
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" className="font-bold text-brand-700" title="Automated I.T. Solutions Events APP">
-            AITS Events
-          </Link>
+          <Link href={`/o/${org.slug}`} className="font-bold text-brand-700">{org.name}</Link>
           <nav className="flex gap-3 text-sm">
             <Link href="/signin">Sign in</Link>
-            <Link href="/signup" className="btn-primary">Sign up — host events</Link>
+            <Link href="/signup" className="btn-primary">Sign up</Link>
           </nav>
         </div>
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-12">
-        <h1 className="text-4xl font-bold tracking-tight">Find your next event</h1>
-        <p className="mt-2 text-slate-600">From workshops to summits — free and paid.</p>
+        <h1 className="text-4xl font-bold tracking-tight">{org.name}</h1>
+        <p className="mt-2 text-slate-600">Upcoming events</p>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-16">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((e) => {
+          {org.events.map((e) => {
             const minPrice = Math.min(...e.ticketTypes.map((t) => t.priceCents));
             return (
               <Link
                 key={e.id}
-                href={`/o/${e.organization.slug}/events/${e.slug}`}
+                href={`/o/${org.slug}/events/${e.slug}`}
                 className="card transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 {e.bannerUrl && (
@@ -51,14 +56,13 @@ export default async function HomePage() {
                 <h3 className="mt-1 text-lg font-semibold">{e.name}</h3>
                 <p className="mt-1 text-sm text-slate-600">{formatDateRange(e.startAt, e.endAt, e.timezone)}</p>
                 {e.location && (<p className="mt-1 text-sm text-slate-500">{e.location.venueName ?? e.location.city}</p>)}
-                <div className="mt-2 text-xs text-slate-400">by {e.organization.name}</div>
                 <div className="mt-3 text-sm font-medium">
                   {minPrice === 0 ? "Free" : `From $${(minPrice / 100).toFixed(2)}`}
                 </div>
               </Link>
             );
           })}
-          {events.length === 0 && (<p className="col-span-full text-slate-500">No upcoming events yet.</p>)}
+          {org.events.length === 0 && (<p className="col-span-full text-slate-500">No upcoming events.</p>)}
         </div>
       </section>
     </main>

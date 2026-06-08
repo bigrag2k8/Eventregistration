@@ -1,19 +1,14 @@
-import Link from "next/link";
+import { redirect, notFound } from "next/navigation";
+import { prisma } from "@/lib/db";
 
-export default function VendorSubmittedPage({ params }: { params: { slug: string } }) {
-  return (
-    <main className="mx-auto max-w-xl px-4 py-16 text-center">
-      <div className="card">
-        <div className="text-4xl">📨</div>
-        <h1 className="mt-3 text-2xl font-bold">Application submitted</h1>
-        <p className="mt-2 text-slate-600">
-          Thanks! The organizer will review your application and email you with next steps.
-          Approved vendors receive a payment link to secure their booth.
-        </p>
-        <Link href={`/events/${params.slug}`} className="btn-primary mt-6 inline-block">
-          Back to event
-        </Link>
-      </div>
-    </main>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function LegacyVendorsSubmittedRedirect({ params }: { params: { slug: string } }) {
+  const event = await prisma.event.findFirst({
+    where: { slug: params.slug, deletedAt: null },
+    include: { organization: true },
+    orderBy: { publishedAt: "asc" },
+  });
+  if (!event) return notFound();
+  redirect(`/o/${event.organization.slug}/events/${event.slug}/vendors/submitted`);
 }

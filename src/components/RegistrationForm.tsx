@@ -14,7 +14,13 @@ interface Event {
   taxRatePct: string | null; passProcessingFee: boolean;
 }
 
-export function RegistrationForm({ event }: { event: Event }) {
+interface Props {
+  event: Event;
+  successHref?: string;   // override where to redirect after free registration
+  backHref?: string;      // override where to send Stripe cancel
+}
+
+export function RegistrationForm({ event, successHref, backHref }: Props) {
   const router = useRouter();
   const [ticketTypeId, setTicketTypeId] = useState(event.ticketTypes[0]?.id);
   const [quantity, setQuantity] = useState(1);
@@ -61,7 +67,8 @@ export function RegistrationForm({ event }: { event: Event }) {
       }
 
       if (data.status === "CONFIRMED") {
-        router.push(`/events/${event.slug}/success?reg=${data.id}`);
+        const url = successHref ?? `/events/${event.slug}/success`;
+        router.push(`${url}?reg=${data.id}`);
       } else {
         const c = await fetch("/api/checkout/session", {
           method: "POST", headers: { "Content-Type": "application/json" },
