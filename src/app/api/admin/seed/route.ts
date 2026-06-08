@@ -88,7 +88,7 @@ export async function POST(req: Request) {
   });
 
   const event = await prisma.event.upsert({
-    where: { slug: "ai-summit-2026" },
+    where: { organizationId_slug: { organizationId: org.id, slug: "ai-summit-2026" } },
     update: {},
     create: {
       slug: "ai-summit-2026",
