@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { OrgNameSlugFields } from "@/components/OrgNameSlugFields";
 import { createOrgAndInviteAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -29,25 +30,7 @@ export default async function NewOrgPage() {
         <section className="card">
           <h2 className="text-lg font-semibold">Organization</h2>
           <div className="mt-3 grid gap-4">
-            <div>
-              <label className="label">Organization name *</label>
-              <input name="orgName" required maxLength={120} className="input" placeholder="Acme Events Co." />
-            </div>
-            <div>
-              <label className="label">URL slug *</label>
-              <div className="flex items-stretch">
-                <span className="inline-flex items-center rounded-l-lg border border-r-0 border-slate-300 bg-slate-100 px-3 text-sm text-slate-500">/o/</span>
-                <input
-                  name="orgSlug"
-                  required
-                  pattern="[a-z0-9-]+"
-                  maxLength={60}
-                  className="input rounded-l-none"
-                  placeholder="acme-events"
-                />
-              </div>
-              <p className="mt-1 text-xs text-slate-500">Lowercase letters, numbers, dashes. Will appear in their event URLs.</p>
-            </div>
+            <OrgNameSlugFields namePlaceholder="Acme Events Co." slugPlaceholder="acme-events" />
           </div>
         </section>
 
