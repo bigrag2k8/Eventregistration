@@ -124,9 +124,15 @@ model Organization {
   name         String
   slug         String   @unique
   logoUrl      String?
+  bannerUrl    String?      // wide hero image shown on /o/[slug] (optional)
+  brandColor   String?      // hex like "#1F3A8A"; used as the primary accent color
+  tagline      String?      // short marketing line shown under the org name
+  aboutBlurb   String?  @db.Text  // longer org description shown on the public org page
   website      String?
   contactEmail String?
   contactPhone String?
+  fromEmail    String?      // custom sender for transactional emails (requires Resend domain verification)
+  fromName     String?      // display name on emails (e.g. "Harmony Lodge Events")
   taxRatePct   Decimal? @db.Decimal(5, 2)
   passProcessingFee Boolean @default(false)
   stripeAccountId String?  // Connect account for marketplace mode

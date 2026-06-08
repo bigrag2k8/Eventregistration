@@ -3,7 +3,16 @@ import { prisma } from "@/lib/db";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { formatInTimeZone } from "date-fns-tz";
 
-const FROM = process.env.EMAIL_FROM ?? "Automated I.T. Solutions Events APP <hello@eventflow.app>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Automated I.T. Solutions Events APP <hello@eventflow.app>";
+
+/** Build the "From" header for transactional emails — prefer the org's custom sender when set. */
+function buildFrom(org?: { name?: string | null; fromEmail?: string | null; fromName?: string | null } | null) {
+  if (org?.fromEmail) {
+    const name = org.fromName ?? org.name ?? "Events";
+    return `${name} <${org.fromEmail}>`;
+  }
+  return DEFAULT_FROM;
+}
 
 // Lazy init — avoids throwing during Next.js build/page-data collection when
 // RESEND_API_KEY is not set. Throws clearly at first send if still missing.
@@ -19,7 +28,11 @@ function resend(): Resend {
 export async function sendConfirmationEmail(registrationId: string) {
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    include: { event: { include: { location: true } }, ticketType: true, tickets: true },
+    include: {
+      event: { include: { location: true, organization: true } },
+      ticketType: true,
+      tickets: true,
+    },
   });
   if (!reg) return;
 
@@ -32,7 +45,7 @@ export async function sendConfirmationEmail(registrationId: string) {
 
   const html = renderConfirmation(reg);
   const result = await resend().emails.send({
-    from: FROM,
+    from: buildFrom(reg.event.organization),
     to: reg.email,
     subject: `You're registered: ${reg.event.name}`,
     html,
@@ -54,14 +67,24 @@ export async function sendConfirmationEmail(registrationId: string) {
 
 function renderConfirmation(reg: any) {
   const e = reg.event;
+  const org = e.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
+    ? org.brandColor
+    : "#1F3A8A";
   const when = formatInTimeZone(e.startAt, e.timezone, "EEEE, MMMM d 'at' h:mm a zzz");
   const loc = e.location ? `${e.location.venueName ?? ""} ${e.location.addressLine1}, ${e.location.city}` : "";
   const totalFmt = (reg.totalCents / 100).toFixed(2);
+  const orgName = org.name ?? "";
+  const logo = org.logoUrl
+    ? `<img src="${org.logoUrl}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    : "";
+
   return `
 <!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
   <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
     <tr><td>
-      <h1 style="margin:0 0 8px;color:#1947c8">You're registered 🎉</h1>
+      ${logo}
+      <h1 style="margin:0 0 8px;color:${brand}">You're registered 🎉</h1>
       <p style="color:#475569">Hi ${reg.firstName}, thanks for signing up.</p>
 
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #e2e8f0;border-radius:8px">
@@ -85,29 +108,30 @@ function renderConfirmation(reg: any) {
       <p style="margin-top:24px">Your QR ticket${reg.tickets.length>1?"s are":" is"} attached. Show it at the door — it's scanned for entry.</p>
 
       <a href="${process.env.NEXT_PUBLIC_APP_URL}/api/registrations/${reg.id}/ics"
-         style="display:inline-block;background:#205aea;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;margin-top:8px">
+         style="display:inline-block;background:${brand};color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;margin-top:8px">
          Add to Calendar
       </a>
 
       ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:24px"><strong>Refund policy:</strong> ${e.refundPolicy}</p>`:""}
     </td></tr>
   </table>
-  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">Automated I.T. Solutions Events APP · ${e.organization?.name ?? ""}</p>
+  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">${orgName} · Powered by AITS Events APP</p>
 </body></html>`;
 }
 
 export async function sendReminderEmail(registrationId: string, kind: "REMINDER_30D"|"REMINDER_7D"|"REMINDER_1D"|"REMINDER_1H") {
   const reg = await prisma.registration.findUnique({
-    where: { id: registrationId }, include: { event: true },
+    where: { id: registrationId }, include: { event: { include: { organization: true } } },
   });
   if (!reg) return;
   const labels = { REMINDER_30D: "30 days", REMINDER_7D: "1 week", REMINDER_1D: "tomorrow", REMINDER_1H: "1 hour" };
+  const orgSlug = reg.event.organization?.slug ?? "_";
   const result = await resend().emails.send({
-    from: FROM,
+    from: buildFrom(reg.event.organization),
     to: reg.email,
     subject: `Reminder: ${reg.event.name} is in ${labels[kind]}`,
     html: `<p>Hi ${reg.firstName}, your event is coming up in ${labels[kind]}. See you there!</p>
-           <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/events/${reg.event.slug}">View event</a></p>`,
+           <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}">View event</a></p>`,
   });
   await prisma.emailLog.create({
     data: { registrationId: reg.id, toEmail: reg.email, kind, subject: `Reminder: ${reg.event.name}`, status: "SENT", providerId: result.data?.id, sentAt: new Date() },
