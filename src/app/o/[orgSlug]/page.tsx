@@ -26,7 +26,6 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
           <Link href={`/o/${org.slug}`} className="font-bold text-brand-700">{org.name}</Link>
           <nav className="flex gap-3 text-sm">
             <Link href="/signin">Sign in</Link>
-            <Link href="/signup" className="btn-primary">Sign up</Link>
           </nav>
         </div>
       </header>

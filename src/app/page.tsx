@@ -21,7 +21,7 @@ export default async function HomePage() {
           </Link>
           <nav className="flex gap-3 text-sm">
             <Link href="/signin">Sign in</Link>
-            <Link href="/signup" className="btn-primary">Sign up — host events</Link>
+            <a href="mailto:AITS-Events@automateditsolutions.net" className="btn-primary">Host an event — contact us</a>
           </nav>
         </div>
       </header>
