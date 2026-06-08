@@ -8,7 +8,7 @@ import { rateLimit } from "@/lib/rate-limit";
 const schema = z.object({ token: z.string().min(10), eventId: z.string() });
 
 export async function POST(req: Request) {
-  const session = requireRole(["ORGANIZER", "STAFF", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"], await getSession());
   const ip = req.headers.get("x-forwarded-for") ?? "anon";
   const rl = await rateLimit(`checkin:${session.sub}:${ip}`, 120, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many scans" }, { status: 429 });

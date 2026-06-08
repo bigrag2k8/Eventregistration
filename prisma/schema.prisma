@@ -17,6 +17,7 @@ enum Role {
   ATTENDEE
   ORGANIZER
   STAFF
+  VOLUNTEER    // similar permissions to STAFF (check-in only) but tracked separately
   ADMIN        // org-scoped admin (manages their own org)
   SUPERADMIN   // platform-wide admin (you/AITS) — can create orgs, view all
 }
@@ -597,20 +598,23 @@ model AbandonedCart {
 }
 
 model PendingInvite {
-  id              String       @id @default(cuid())
-  token           String       @unique
-  email           String
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  role            Role         @default(ORGANIZER)
-  invitedBy       String?      // user id of the SUPERADMIN who created it
-  message         String?      @db.Text   // optional personal note from inviter, included in the email
-  status          InviteStatus @default(PENDING)
-  expiresAt       DateTime
-  createdAt       DateTime     @default(now())
-  acceptedAt      DateTime?
-  acceptedByUserId String?
-  revokedAt       DateTime?
+  id                 String       @id @default(cuid())
+  token              String       @unique
+  email              String
+  invitedFirstName   String?      // optional pre-fill for the accept form
+  invitedLastName    String?
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role               Role         @default(ORGANIZER)
+  roleDescription    String?      @db.Text   // what the invitee will do (e.g. "Setup crew", "Door check-in")
+  invitedBy          String?      // user id of whoever created the invite
+  message            String?      @db.Text   // optional personal note from inviter, included in the email
+  status             InviteStatus @default(PENDING)
+  expiresAt          DateTime
+  createdAt          DateTime     @default(now())
+  acceptedAt         DateTime?
+  acceptedByUserId   String?
+  revokedAt          DateTime?
 
   @@index([organizationId])
   @@index([email])

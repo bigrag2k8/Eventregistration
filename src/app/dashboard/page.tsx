@@ -150,8 +150,9 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
           <Link href="/dashboard" className="font-bold text-brand-700" title="Automated I.T. Solutions Events APP">AITS Events</Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/dashboard">Overview</Link>
-            {role !== "STAFF" && <Link href="/dashboard/events/new">+ New event</Link>}
-            {role === "STAFF" && <Link href="/checkin">Scanner</Link>}
+            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/events/new">+ New event</Link>}
+            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/team">Team</Link>}
+            {(role === "STAFF" || role === "VOLUNTEER") && <Link href="/checkin">Scanner</Link>}
             {role === "SUPERADMIN" && (
               <Link href="/admin" className="rounded-lg bg-slate-900 px-3 py-1 text-white hover:bg-slate-800">
                 🛡 Platform Admin

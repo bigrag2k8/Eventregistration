@@ -18,9 +18,16 @@ export default async function InviteAcceptPage({ params }: { params: { token: st
   return (
     <main className="mx-auto max-w-md px-4 py-12">
       <div className="card">
-        <div className="text-xs uppercase tracking-wider text-brand-700">You're invited</div>
+        <div className="text-xs uppercase tracking-wider text-brand-700">You're invited as {invite.role}</div>
         <h1 className="mt-1 text-2xl font-bold">Join {invite.organization.name}</h1>
         <p className="mt-2 text-sm text-slate-600">on the Automated I.T. Solutions Events APP</p>
+
+        {invite.roleDescription && (
+          <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+            <strong>Your duties:</strong>
+            <p className="mt-1 whitespace-pre-line">{invite.roleDescription}</p>
+          </div>
+        )}
 
         {invite.message && (
           <div className="mt-4 rounded-lg bg-brand-50 p-3 text-sm text-brand-800 ring-1 ring-brand-200">
@@ -40,7 +47,12 @@ export default async function InviteAcceptPage({ params }: { params: { token: st
         )}
 
         {isPending && (
-          <AcceptInviteForm token={params.token} email={invite.email} />
+          <AcceptInviteForm
+            token={params.token}
+            email={invite.email}
+            prefillFirstName={invite.invitedFirstName ?? undefined}
+            prefillLastName={invite.invitedLastName ?? undefined}
+          />
         )}
       </div>
     </main>

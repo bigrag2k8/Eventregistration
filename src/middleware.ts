@@ -15,8 +15,8 @@ export async function middleware(req: NextRequest) {
   const session = await verifySession(token);
   if (!session) return NextResponse.redirect(new URL("/signin", req.url));
 
-  // RBAC for /checkin: ORGANIZER, STAFF, ADMIN, SUPERADMIN
-  if (pathname.startsWith("/checkin") && !["ORGANIZER", "STAFF", "ADMIN", "SUPERADMIN"].includes(session.role)) {
+  // RBAC for /checkin: ORGANIZER, STAFF, VOLUNTEER, ADMIN, SUPERADMIN
+  if (pathname.startsWith("/checkin") && !["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"].includes(session.role)) {
     return NextResponse.redirect(new URL("/", req.url));
   }
   // RBAC for /admin: SUPERADMIN only

@@ -6,7 +6,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 export const dynamic = "force-dynamic";
 
 export default async function CheckinEventPicker() {
-  const session = requireRole(["ORGANIZER", "STAFF", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"], await getSession());
 
   const events = await prisma.event.findMany({
     where: {

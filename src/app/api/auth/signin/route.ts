@@ -27,6 +27,6 @@ export async function POST(req: Request) {
   });
   await setSessionCookie(token);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  const redirectTo = user.role === "STAFF" ? "/checkin" : "/dashboard";
+  const redirectTo = (user.role === "STAFF" || user.role === "VOLUNTEER") ? "/checkin" : "/dashboard";
   return NextResponse.json({ id: user.id, role: user.role, redirectTo });
 }

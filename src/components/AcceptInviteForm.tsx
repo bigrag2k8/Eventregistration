@@ -3,11 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function AcceptInviteForm({ token, email }: { token: string; email: string }) {
+export function AcceptInviteForm({ token, email, prefillFirstName, prefillLastName }: {
+  token: string; email: string; prefillFirstName?: string; prefillLastName?: string;
+}) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ firstName: "", lastName: "", password: "", confirm: "" });
+  const [form, setForm] = useState({
+    firstName: prefillFirstName ?? "",
+    lastName: prefillLastName ?? "",
+    password: "",
+    confirm: "",
+  });
 
   function set<K extends keyof typeof form>(k: K, v: string) { setForm((f) => ({ ...f, [k]: v })); }
 
