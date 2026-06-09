@@ -65,15 +65,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
   }
 
-  // Duplicate email per event
+  // Duplicate email per event:
+  // - CONFIRMED: block (don't overwrite a real registration)
+  // - REFUNDED / PARTIALLY_REFUNDED: block (refunded registrations shouldn't be re-used)
+  // - PENDING (abandoned checkout) or CANCELLED: delete the old row so the new INSERT can succeed
   const dupe = await prisma.registration.findUnique({
     where: { eventId_email: { eventId: event.id, email: input.email } },
   });
-  if (dupe && dupe.status !== "CANCELLED") {
-    return NextResponse.json({
-      error: "This email is already registered for this event. Check your inbox for your ticket, or use a different email.",
-      fieldErrors: { email: ["Already registered for this event"] },
-    }, { status: 409 });
+  if (dupe) {
+    if (dupe.status === "CONFIRMED") {
+      return NextResponse.json({
+        error: "This email is already registered for this event. Check your inbox for your ticket, or use a different email.",
+        fieldErrors: { email: ["Already registered for this event"] },
+      }, { status: 409 });
+    }
+    if (dupe.status === "REFUNDED" || dupe.status === "PARTIALLY_REFUNDED") {
+      return NextResponse.json({
+        error: "A refunded registration exists with this email. Please contact the organizer or use a different email.",
+        fieldErrors: { email: ["Previously refunded — contact organizer"] },
+      }, { status: 409 });
+    }
+    // PENDING / CANCELLED → cascade delete the old row to free the (eventId, email) unique slot
+    await prisma.registration.delete({ where: { id: dupe.id } }).catch(() => {});
   }
 
   const totals = await computeTotals({
