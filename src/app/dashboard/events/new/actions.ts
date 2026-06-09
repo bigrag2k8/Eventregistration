@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { PLANS } from "@/lib/plans";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
@@ -68,6 +69,36 @@ export async function createEventAction(formData: FormData) {
   const endAt = new Date(data.endAt);
   if (endAt <= startAt) throw new Error("End time must be after start time");
 
+  // Enforce plan limits on event creation
+  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  if (!org) throw new Error("Organization not found");
+  const plan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+  if (plan.monthlyEventLimit !== null && org.singleEventCredits === 0) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
+    const used = await prisma.event.count({
+      where: { organizationId: org.id, deletedAt: null, createdAt: { gte: startOfMonth } },
+    });
+    if (used >= plan.monthlyEventLimit) {
+      throw new Error(
+        `Your ${plan.name} plan allows ${plan.monthlyEventLimit} event${plan.monthlyEventLimit > 1 ? "s" : ""} per month. ` +
+        `You've created ${used} this month. Upgrade your plan or buy a single-event credit at /dashboard/billing.`
+      );
+    }
+  }
+  // Decrement a single-event credit if the org has one and is on a plan that doesn't auto-cover this event
+  let consumeCredit = false;
+  if (plan.monthlyEventLimit !== null && org.singleEventCredits > 0) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
+    const used = await prisma.event.count({
+      where: { organizationId: org.id, deletedAt: null, createdAt: { gte: startOfMonth } },
+    });
+    if (used >= plan.monthlyEventLimit) {
+      consumeCredit = true; // they're over their plan limit but have a credit to spend
+    }
+  }
+
   const slug = await uniqueSlug(slugify(data.name), session.orgId);
   const isVirtual = data.isVirtual === "1";
   const priceCents = Math.round(parseFloat(data.ticketPrice || "0") * 100);
@@ -130,6 +161,13 @@ export async function createEventAction(formData: FormData) {
       },
     },
   });
+
+  if (consumeCredit) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { singleEventCredits: { decrement: 1 } },
+    });
+  }
 
   redirect(`/dashboard/events/${event.id}`);
 }

@@ -14,6 +14,17 @@ export async function GET(req: Request) {
   });
   if (!event) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  // STAFF/VOLUNTEER with explicit assignments must be assigned to this event
+  if (session.role === "STAFF" || session.role === "VOLUNTEER") {
+    const assignments = await prisma.eventAssignment.findMany({
+      where: { userId: session.sub },
+      select: { eventId: true },
+    });
+    if (assignments.length > 0 && !assignments.some((a) => a.eventId === event.id)) {
+      return NextResponse.json({ error: "Not assigned to this event" }, { status: 403 });
+    }
+  }
+
   const tickets = await prisma.ticket.findMany({
     where: { registration: { eventId, status: "CONFIRMED" }, isValid: true },
     include: {

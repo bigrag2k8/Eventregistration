@@ -21,6 +21,7 @@ const inviteSchema = z.object({
   invitedFirstName: z.string().max(80).optional(),
   invitedLastName: z.string().max(80).optional(),
   role: z.enum(["ORGANIZER", "STAFF", "VOLUNTEER"]),
+  eventId: z.string().optional(), // empty string = org-wide
   roleDescription: z.string().max(2000).optional(),
   message: z.string().max(2000).optional(),
 });
@@ -46,6 +47,16 @@ export async function inviteTeamMemberAction(formData: FormData) {
     throw new Error(`A pending invite to ${data.email} already exists. Use Resend or Revoke from the team page.`);
   }
 
+  // If event scoping was requested, validate it belongs to this org
+  let scopedEventId: string | null = null;
+  if (data.eventId) {
+    const event = await prisma.event.findFirst({
+      where: { id: data.eventId, organizationId: org.id, deletedAt: null },
+    });
+    if (!event) throw new Error("Selected event not found in this organization");
+    scopedEventId = event.id;
+  }
+
   const token = crypto.randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -56,6 +67,7 @@ export async function inviteTeamMemberAction(formData: FormData) {
       invitedFirstName: data.invitedFirstName || null,
       invitedLastName: data.invitedLastName || null,
       organizationId: org.id,
+      eventId: scopedEventId,
       role: data.role,
       roleDescription: data.roleDescription || null,
       invitedBy: session.sub,

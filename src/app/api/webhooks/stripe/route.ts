@@ -21,6 +21,16 @@ export async function POST(req: Request) {
     case "checkout.session.completed": {
       const session = event.data.object as any;
 
+      // Org subscription / one-time billing checkout
+      const orgIdFromBilling = session.metadata?.organizationId;
+      const planKey = session.metadata?.planKey;
+      const kind = session.metadata?.kind ?? session.payment_intent?.metadata?.kind;
+      if (orgIdFromBilling && planKey) {
+        const { handleBillingCheckoutCompleted } = await import("@/server/billing");
+        await handleBillingCheckoutCompleted(orgIdFromBilling, planKey, kind, session);
+        break;
+      }
+
       // Vendor booth payment
       const vendorAppId = session.metadata?.vendorApplicationId;
       if (vendorAppId) {
@@ -84,6 +94,20 @@ export async function POST(req: Request) {
           });
         }
       }
+      break;
+    }
+    case "customer.subscription.created":
+    case "customer.subscription.updated":
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as any;
+      const { handleSubscriptionEvent } = await import("@/server/billing");
+      await handleSubscriptionEvent(sub, event.type);
+      break;
+    }
+    case "invoice.payment_failed": {
+      const inv = event.data.object as any;
+      const { handleInvoicePaymentFailed } = await import("@/server/billing");
+      await handleInvoicePaymentFailed(inv);
       break;
     }
   }

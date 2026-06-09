@@ -147,11 +147,12 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
     <main>
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="font-bold text-brand-700" title="Automated I.T. Solutions Events APP">AITS Events</Link>
+          <Link href="/dashboard" className="font-bold text-brand-700" title="Your Events App">Your Events App</Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/dashboard">Overview</Link>
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/events/new">+ New event</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/team">Team</Link>}
+            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/billing">Billing</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/settings">Settings</Link>}
             {(role === "STAFF" || role === "VOLUNTEER") && <Link href="/checkin">Scanner</Link>}
             {role === "SUPERADMIN" && (

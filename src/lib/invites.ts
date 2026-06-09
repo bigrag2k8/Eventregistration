@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const FROM = process.env.EMAIL_FROM ?? "Automated I.T. Solutions Events APP <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Your Events App <onboarding@resend.dev>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 let _resend: Resend | null = null;
@@ -44,11 +44,11 @@ export async function sendInviteEmail(p: SendInviteParams) {
 
   const subject = roleLabel
     ? `${p.inviterName ?? "You"} invited you to ${p.orgName} as ${roleLabel}`
-    : `You're invited to set up ${p.orgName} on AITS Events`;
+    : `You're invited to set up ${p.orgName} on Your Events App`;
 
   const intro = roleLabel
     ? `${p.inviterName ? `${p.inviterName} has` : "You've been"} invited you to join <strong>${p.orgName}</strong> as <strong>${roleLabel}</strong>.`
-    : `${p.inviterName ? `${p.inviterName} has` : "You've been"} invited you to set up <strong>${p.orgName}</strong> on the Automated I.T. Solutions Events APP.`;
+    : `${p.inviterName ? `${p.inviterName} has` : "You've been"} invited you to set up <strong>${p.orgName}</strong> on the Your Events App.`;
 
   const html = `
   <div style="font-family:Arial,sans-serif;max-width:600px;margin:24px auto;padding:24px;background:#fff;border-radius:12px">

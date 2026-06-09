@@ -20,7 +20,7 @@ export default async function InviteAcceptPage({ params }: { params: { token: st
       <div className="card">
         <div className="text-xs uppercase tracking-wider text-brand-700">You're invited as {invite.role}</div>
         <h1 className="mt-1 text-2xl font-bold">Join {invite.organization.name}</h1>
-        <p className="mt-2 text-sm text-slate-600">on the Automated I.T. Solutions Events APP</p>
+        <p className="mt-2 text-sm text-slate-600">on the Your Events App</p>
 
         {invite.roleDescription && (
           <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">

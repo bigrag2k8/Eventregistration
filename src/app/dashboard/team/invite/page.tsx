@@ -6,11 +6,20 @@ import { inviteTeamMemberAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function InviteTeamMemberPage() {
+export default async function InviteTeamMemberPage({ searchParams }: { searchParams: { eventId?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
-  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  const [org, events] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: session.orgId } }),
+    prisma.event.findMany({
+      where: { organizationId: session.orgId, deletedAt: null },
+      orderBy: { startAt: "desc" },
+      select: { id: true, name: true, startAt: true },
+    }),
+  ]);
   if (!org) redirect("/dashboard");
+
+  const preselectedEventId = searchParams.eventId ?? "";
 
   return (
     <main>
@@ -57,6 +66,29 @@ export default async function InviteTeamMemberPage() {
               description="Paid event staff. Same access as volunteer: check-in only. Tracked separately." />
             <RoleOption value="ORGANIZER" label="Organizer (co-admin)"
               description="Full access — create and manage events, view registrations, manage team, see revenue. Use sparingly." />
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 className="text-lg font-semibold">Event assignment</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Limit this person to a specific event, or leave them with access to all events.
+            (Organizers always see all events — this only restricts Staff and Volunteers.)
+          </p>
+          <div className="mt-3">
+            <label className="label">Assign to event</label>
+            <select name="eventId" defaultValue={preselectedEventId} className="input">
+              <option value="">All events in {org.name} (org-wide access)</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} — {e.startAt.toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              If you assign them to one event, they will only see that event in their check-in scanner.
+              You can change this later from the Team page.
+            </p>
           </div>
         </section>
 

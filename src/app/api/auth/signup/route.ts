@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
  */
 export async function POST() {
   return NextResponse.json(
-    { error: "Self-serve signup is closed. Please contact AITS-Events@automateditsolutions.net to request access." },
+    { error: "Self-serve signup is closed. Please contact events@yourevents.app to request access." },
     { status: 403 }
   );
 }

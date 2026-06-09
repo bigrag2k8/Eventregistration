@@ -18,7 +18,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-bold text-brand-700">AITS Events</Link>
+            <Link href="/dashboard" className="font-bold text-brand-700">Your Events App</Link>
             <span className="text-slate-300">/</span>
             <span className="font-semibold">Settings</span>
           </div>
@@ -122,7 +122,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
         <section className="card">
           <h2 className="text-lg font-semibold">Email sender</h2>
           <p className="mt-1 text-sm text-slate-500">
-            By default, confirmation emails come from <code className="font-mono">AITS-Events@automateditsolutions.net</code>.
+            By default, confirmation emails come from <code className="font-mono">events@yourevents.app</code>.
             You can use your own address — but the domain must be verified in our email provider (Resend) first. Contact your platform admin to set this up.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

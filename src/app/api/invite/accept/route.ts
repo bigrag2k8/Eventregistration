@@ -42,6 +42,17 @@ export async function POST(req: Request) {
         emailVerified: true, // they clicked a single-use link to their inbox
       },
     });
+    // If the invite was scoped to a specific event, create an assignment
+    if (invite.eventId) {
+      await tx.eventAssignment.create({
+        data: {
+          eventId: invite.eventId,
+          userId: user.id,
+          roleDescription: invite.roleDescription,
+          assignedBy: invite.invitedBy,
+        },
+      });
+    }
     await tx.pendingInvite.update({
       where: { id: invite.id },
       data: { status: "ACCEPTED", acceptedAt: new Date(), acceptedByUserId: user.id },

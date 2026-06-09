@@ -13,6 +13,21 @@ export async function POST(req: Request) {
   const rl = await rateLimit(`checkin:${session.sub}:${ip}`, 120, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many scans" }, { status: 429 });
 
+  // For STAFF/VOLUNTEER with explicit assignments, verify they're assigned to this event
+  if (session.role === "STAFF" || session.role === "VOLUNTEER") {
+    const body = await req.clone().json().catch(() => null);
+    const eventId = body?.eventId;
+    if (eventId) {
+      const assignments = await prisma.eventAssignment.findMany({
+        where: { userId: session.sub },
+        select: { eventId: true },
+      });
+      if (assignments.length > 0 && !assignments.some((a) => a.eventId === eventId)) {
+        return NextResponse.json({ status: "INVALID", reason: "not_assigned_to_event" }, { status: 403 });
+      }
+    }
+  }
+
   const body = await req.json().catch(() => null);
   if (body && typeof body.token === "string") body.token = body.token.trim();
   const parsed = schema.safeParse(body);

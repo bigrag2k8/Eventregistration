@@ -49,7 +49,7 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-bold text-brand-700">AITS Events</Link>
+            <Link href="/dashboard" className="font-bold text-brand-700">Your Events App</Link>
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{org.name} — Team</span>
           </div>

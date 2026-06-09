@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { formatInTimeZone } from "date-fns-tz";
 
-const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Automated I.T. Solutions Events APP <hello@eventflow.app>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <hello@eventflow.app>";
 
 /** Build the "From" header for transactional emails — prefer the org's custom sender when set. */
 function buildFrom(org?: { name?: string | null; fromEmail?: string | null; fromName?: string | null } | null) {
@@ -115,7 +115,7 @@ function renderConfirmation(reg: any) {
       ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:24px"><strong>Refund policy:</strong> ${e.refundPolicy}</p>`:""}
     </td></tr>
   </table>
-  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">${orgName} · Powered by AITS Events APP</p>
+  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">${orgName} · Powered by Your Events App</p>
 </body></html>`;
 }
 

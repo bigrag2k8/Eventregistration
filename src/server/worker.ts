@@ -87,6 +87,6 @@ async function tick() {
 }
 
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
-console.log("Automated I.T. Solutions Events APP worker started");
+console.log("Your Events App worker started");
 tick();
 setInterval(tick, INTERVAL);

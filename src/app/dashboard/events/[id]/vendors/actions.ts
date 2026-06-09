@@ -22,7 +22,7 @@ function getResend() {
   return new Resend(key);
 }
 
-const FROM = process.env.EMAIL_FROM ?? "Automated I.T. Solutions Events APP <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Your Events App <onboarding@resend.dev>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 export async function approveVendorAction(formData: FormData) {
