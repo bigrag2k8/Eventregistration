@@ -108,3 +108,30 @@ export async function handleInvoicePaymentFailed(invoice: any) {
     data: { subscriptionStatus: "PAST_DUE" },
   });
 }
+
+/**
+ * Called for account.updated — keeps the org's Connect account status in sync.
+ * Fires every time an organizer makes progress in Stripe's hosted onboarding.
+ */
+export async function handleConnectAccountUpdated(acct: any) {
+  const accountId: string = acct.id;
+  const orgId = acct.metadata?.organizationId;
+  const where = orgId ? { id: orgId } : { stripeAccountId: accountId };
+
+  const status =
+    acct.charges_enabled && acct.payouts_enabled ? "verified"
+    : acct.requirements?.disabled_reason ? "restricted"
+    : acct.details_submitted ? "pending"
+    : "incomplete";
+
+  await prisma.organization.updateMany({
+    where,
+    data: {
+      stripeAccountId: accountId,
+      stripeAccountChargesEnabled: !!acct.charges_enabled,
+      stripeAccountPayoutsEnabled: !!acct.payouts_enabled,
+      stripeAccountDetailsSubmitted: !!acct.details_submitted,
+      stripeAccountStatus: status,
+    },
+  });
+}

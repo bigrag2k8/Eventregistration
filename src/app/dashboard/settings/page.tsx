@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { requirePlanSelected } from "@/lib/plan-gate";
+import { ConnectActions } from "@/components/ConnectActions";
+import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
 import { updateOrgSettingsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +120,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
               <input name="website" type="url" defaultValue={org.website ?? ""} className="input"
                      placeholder="https://yourorg.com" />
             </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 className="text-lg font-semibold">Payouts (Stripe Connect)</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Connect your Stripe account so attendee ticket sales and vendor booth fees go directly into
+            your bank account. Your Events App takes a <strong>{PLATFORM_FEE_PERCENT}% platform fee</strong> on
+            each transaction (on top of Stripe's standard processing fees). You manage your own payouts and refunds.
+          </p>
+          <div className="mt-4">
+            <ConnectActions
+              hasAccount={!!org.stripeAccountId}
+              chargesEnabled={org.stripeAccountChargesEnabled}
+              payoutsEnabled={org.stripeAccountPayoutsEnabled}
+              detailsSubmitted={org.stripeAccountDetailsSubmitted}
+            />
           </div>
         </section>
 

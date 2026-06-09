@@ -110,6 +110,13 @@ export async function POST(req: Request) {
       await handleInvoicePaymentFailed(inv);
       break;
     }
+    case "account.updated": {
+      // Connect: an organizer's Stripe Express account status changed
+      const acct = event.data.object as any;
+      const { handleConnectAccountUpdated } = await import("@/server/billing");
+      await handleConnectAccountUpdated(acct);
+      break;
+    }
   }
 
   return NextResponse.json({ received: true });

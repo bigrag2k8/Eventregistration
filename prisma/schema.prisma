@@ -152,7 +152,12 @@ model Organization {
   fromName     String?      // display name on emails (e.g. "Harmony Lodge Events")
   taxRatePct   Decimal? @db.Decimal(5, 2)
   passProcessingFee Boolean @default(false)
-  stripeAccountId String?  // Connect account for marketplace mode
+  // Stripe Connect (Express) — each org gets their own Stripe account so payments flow to them directly
+  stripeAccountId                String?  @unique  // acct_… returned by stripe.accounts.create
+  stripeAccountChargesEnabled    Boolean  @default(false)  // can they accept payments?
+  stripeAccountPayoutsEnabled    Boolean  @default(false)  // will Stripe send them payouts?
+  stripeAccountDetailsSubmitted  Boolean  @default(false)  // did they finish onboarding?
+  stripeAccountStatus            String?  // optional human-readable: "pending", "verified", "restricted", "rejected"
 
   // Subscription / billing
   stripeCustomerId            String?  @unique
