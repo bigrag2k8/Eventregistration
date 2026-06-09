@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
@@ -17,12 +18,17 @@ async function authorizeEvent(eventId: string) {
 
 export async function publishAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
-  const { event } = await authorizeEvent(eventId);
+  const { session, event } = await authorizeEvent(eventId);
   const hasTicketTypes = await prisma.ticketType.count({ where: { eventId: event.id } });
   if (!hasTicketTypes) throw new Error("Add at least one ticket type before publishing");
   await prisma.event.update({
     where: { id: event.id },
     data: { status: "PUBLISHED", publishedAt: event.publishedAt ?? new Date() },
+  });
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.publish", targetType: "Event", targetId: event.id,
+    metadata: { name: event.name, slug: event.slug },
   });
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath(`/events/${event.slug}`);
@@ -31,16 +37,26 @@ export async function publishAction(formData: FormData) {
 
 export async function unpublishAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
-  const { event } = await authorizeEvent(eventId);
+  const { session, event } = await authorizeEvent(eventId);
   await prisma.event.update({ where: { id: event.id }, data: { status: "DRAFT" } });
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.unpublish", targetType: "Event", targetId: event.id,
+    metadata: { name: event.name },
+  });
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath("/");
 }
 
 export async function deleteAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
-  const { event } = await authorizeEvent(eventId);
+  const { session, event } = await authorizeEvent(eventId);
   await prisma.event.update({ where: { id: event.id }, data: { deletedAt: new Date(), status: "CANCELLED" } });
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.delete", targetType: "Event", targetId: event.id,
+    metadata: { name: event.name, slug: event.slug },
+  });
   redirect("/dashboard");
 }
 
@@ -134,7 +150,7 @@ export async function deleteTicketTypeAction(formData: FormData) {
 export async function cancelRegistrationAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const registrationId = String(formData.get("registrationId"));
-  const { event } = await authorizeEvent(eventId);
+  const { session, event } = await authorizeEvent(eventId);
 
   const reg = await prisma.registration.findFirst({
     where: { id: registrationId, eventId: event.id },
@@ -157,6 +173,12 @@ export async function cancelRegistrationAction(formData: FormData) {
     }),
   ]);
 
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "registration.cancel", targetType: "Registration", targetId: reg.id,
+    metadata: { attendee: `${reg.firstName} ${reg.lastName}`, email: reg.email, quantity: reg.quantity },
+  });
+
   revalidatePath(`/dashboard/events/${event.id}/registrations`);
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath(`/events/${event.slug}`);
@@ -169,7 +191,7 @@ export async function cancelRegistrationAction(formData: FormData) {
 export async function deleteRegistrationAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const registrationId = String(formData.get("registrationId"));
-  const { event } = await authorizeEvent(eventId);
+  const { session, event } = await authorizeEvent(eventId);
 
   const reg = await prisma.registration.findFirst({
     where: { id: registrationId, eventId: event.id },
@@ -188,6 +210,12 @@ export async function deleteRegistrationAction(formData: FormData) {
         })]
       : []),
   ]);
+
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "registration.delete", targetType: "Registration", targetId: reg.id,
+    metadata: { attendee: `${reg.firstName} ${reg.lastName}`, email: reg.email, quantity: reg.quantity },
+  });
 
   revalidatePath(`/dashboard/events/${event.id}/registrations`);
   revalidatePath(`/dashboard/events/${event.id}`);

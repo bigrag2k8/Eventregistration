@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { sendInviteEmail } from "@/lib/invites";
+import { audit } from "@/lib/audit";
 
 async function authorizeOrg() {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -74,6 +75,12 @@ export async function inviteTeamMemberAction(formData: FormData) {
       message: data.message || null,
       expiresAt,
     },
+  });
+
+  await audit({
+    organizationId: org.id, eventId: scopedEventId, userId: session.sub,
+    action: "team.invite", targetType: "PendingInvite", targetId: token,
+    metadata: { email: data.email, role: data.role, eventScoped: !!scopedEventId },
   });
 
   const inviter = await prisma.user.findUnique({ where: { id: session.sub } });
@@ -148,10 +155,17 @@ export async function removeMemberAction(formData: FormData) {
     throw new Error("You can't remove yourself from your own organization.");
   }
 
+  const target = await prisma.user.findFirst({ where: { id: userId, organizationId: org.id } });
   // Detach the user from this org; don't delete the user (they may have history)
   await prisma.user.updateMany({
     where: { id: userId, organizationId: org.id },
     data: { organizationId: null, role: "ATTENDEE" },
+  });
+
+  await audit({
+    organizationId: org.id, userId: session.sub,
+    action: "team.remove", targetType: "User", targetId: userId,
+    metadata: { email: target?.email, removedRole: target?.role },
   });
 
   revalidatePath("/dashboard/team");

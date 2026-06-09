@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { Resend } from "resend";
+import { audit } from "@/lib/audit";
 
 async function authorize(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
@@ -61,6 +62,12 @@ export async function approveVendorAction(formData: FormData) {
     },
   });
 
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "vendor.approve", targetType: "VendorApplication", targetId: app.id,
+    metadata: { company: app.companyName, email: app.email, quotedPriceCents, notes: notes || null },
+  });
+
   // Email vendor with payment link
   const resend = getResend();
   if (resend) {
@@ -114,6 +121,12 @@ export async function rejectVendorAction(formData: FormData) {
       reviewedBy: session.sub,
       rejectionReason: reason || null,
     },
+  });
+
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "vendor.reject", targetType: "VendorApplication", targetId: app.id,
+    metadata: { company: app.companyName, email: app.email, reason: reason || null },
   });
 
   const resend = getResend();
