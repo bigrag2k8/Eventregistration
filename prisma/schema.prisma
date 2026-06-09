@@ -109,6 +109,23 @@ enum WaitlistStatus {
   EXPIRED
 }
 
+enum SubscriptionPlan {
+  FREE         // default
+  SINGLE_EVENT // one-time payment per event credit
+  STARTER      // $24.99/mo, 3 events/month
+  PRO          // $29/mo, unlimited
+  ENTERPRISE   // custom, set by SUPERADMIN manually
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  NONE         // no active subscription (Free plan)
+}
+
 enum VendorApplicationStatus {
   PENDING       // submitted, awaiting organizer review
   APPROVED      // organizer accepted; payment link sent
@@ -136,6 +153,17 @@ model Organization {
   taxRatePct   Decimal? @db.Decimal(5, 2)
   passProcessingFee Boolean @default(false)
   stripeAccountId String?  // Connect account for marketplace mode
+
+  // Subscription / billing
+  stripeCustomerId            String?  @unique
+  subscriptionPlan            SubscriptionPlan   @default(FREE)
+  subscriptionStatus          SubscriptionStatus @default(NONE)
+  stripeSubscriptionId        String?  @unique
+  subscriptionCurrentPeriodEnd DateTime?
+  subscriptionCancelAtPeriodEnd Boolean @default(false)
+  /// Number of "single event" credits remaining (incremented per one-time purchase, decremented when an event is published)
+  singleEventCredits          Int      @default(0)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
@@ -170,6 +198,7 @@ model User {
   referralLinks  ReferralLink[]
   waitlistEntries Waitlist[]
   sessions       Session[]
+  eventAssignments EventAssignment[]
 
   @@index([organizationId])
   @@map("users")
@@ -236,6 +265,8 @@ model Event {
   checkIns           CheckIn[]
   auditLogs          AuditLog[]
   vendorApplications VendorApplication[]
+  assignments        EventAssignment[]
+  pendingInvites     PendingInvite[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, startAt])
@@ -611,6 +642,8 @@ model PendingInvite {
   invitedLastName    String?
   organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId            String?      // when set, invite is scoped to a specific event
+  event              Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
   role               Role         @default(ORGANIZER)
   roleDescription    String?      @db.Text   // what the invitee will do (e.g. "Setup crew", "Door check-in")
   invitedBy          String?      // user id of whoever created the invite
@@ -623,8 +656,25 @@ model PendingInvite {
   revokedAt          DateTime?
 
   @@index([organizationId])
+  @@index([eventId])
   @@index([email])
   @@map("pending_invites")
+}
+
+model EventAssignment {
+  id              String   @id @default(cuid())
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleDescription String?  @db.Text   // duties for THIS event (carries from the invite)
+  assignedBy      String?  // user id of the organizer who assigned them
+  assignedAt      DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId])
+  @@map("event_assignments")
 }
 
 model VendorApplication {
