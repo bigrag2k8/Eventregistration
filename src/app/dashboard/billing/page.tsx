@@ -144,6 +144,9 @@ function PlanCard({ plan, isCurrent }: { plan: PlanInfo; isCurrent: boolean }) {
         {plan.registrationLimitPerEvent !== null
           ? <li>👥 Up to {plan.registrationLimitPerEvent} registrations per event</li>
           : <li>👥 Unlimited registrations</li>}
+        {plan.emailCampaignsPerEvent !== null
+          ? <li>📣 {plan.emailCampaignsPerEvent} email broadcast{plan.emailCampaignsPerEvent > 1 ? "s" : ""} per event</li>
+          : <li>📣 Unlimited email broadcasts</li>}
         <FeatureLi on={plan.features.customBranding} label="Custom branding (logo, color, email)" />
         <FeatureLi on={plan.features.vendorFlow} label="Vendor application flow" />
         <FeatureLi on={plan.features.teamInvites} label="Team invites + per-event assignments" />
