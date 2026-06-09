@@ -29,6 +29,9 @@ COPY --from=build /app/.next ./.next
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/prisma ./prisma
+# src + tsconfig included so the worker service (npx tsx src/server/worker.ts) can run from this image
+COPY --from=build /app/src ./src
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 
 EXPOSE 3000
 CMD ["npm", "start"]
