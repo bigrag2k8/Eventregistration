@@ -151,7 +151,9 @@ export async function sendCampaignAction(formData: FormData) {
   });
 
   revalidatePath(`/dashboard/events/${event.id}/campaigns`);
-  return { ok: true, sent, failed };
+  // Server actions used as <form action={...}> must return void.
+  // Success indicators: the page revalidates → new row appears in "Sent broadcasts",
+  // counter increments, and the audit log records sent / failed counts.
 }
 
 function htmlBody(body: string, event: any, org: any, firstName?: string) {
