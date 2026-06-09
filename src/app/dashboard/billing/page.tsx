@@ -5,15 +5,18 @@ import { getSession, requireRole } from "@/lib/auth";
 import { PLANS, PlanInfo } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BillingActions } from "@/components/BillingActions";
+import { activateFreePlanAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function BillingPage({ searchParams }: { searchParams: { upgraded?: string; canceled?: string } }) {
+export default async function BillingPage({ searchParams }: { searchParams: { upgraded?: string; canceled?: string; welcome?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
 
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) redirect("/dashboard");
+
+  const isFirstTime = !org.planSelected;
 
   const currentPlan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
 
@@ -38,6 +41,15 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
       </header>
 
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+        {isFirstTime && (
+          <div className="rounded-xl bg-brand-50 p-5 ring-1 ring-brand-200">
+            <h2 className="text-lg font-semibold text-brand-900">👋 Welcome to Your Events App!</h2>
+            <p className="mt-1 text-sm text-brand-800">
+              Pick a plan below to activate your account. You can start with <strong>Free</strong> at no cost,
+              or pick a paid plan for more events and full branding. You won't be able to create events until you choose a plan.
+            </p>
+          </div>
+        )}
         {searchParams.upgraded && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ You're now on the <strong>{PLANS[searchParams.upgraded as keyof typeof PLANS]?.name ?? searchParams.upgraded}</strong> plan. Welcome!
@@ -154,19 +166,21 @@ function FeatureLi({ on, label }: { on: boolean; label: string }) {
 }
 
 function UpgradeButton({ planKey, cadence }: { planKey: string; cadence: string }) {
-  // Free plan: no checkout (downgrade handled via portal)
+  // Free plan: activate without Stripe
   if (planKey === "FREE") {
     return (
-      <span className="block rounded-lg bg-slate-100 px-3 py-2 text-center text-sm text-slate-500">
-        Manage via the portal below
-      </span>
+      <form action={activateFreePlanAction}>
+        <button type="submit" className="btn-primary w-full">
+          Start with Free
+        </button>
+      </form>
     );
   }
   return (
     <form action="/api/billing/checkout" method="POST">
       <input type="hidden" name="planKey" value={planKey} />
       <button type="submit" className="btn-primary w-full">
-        {cadence === "one_time" ? "Buy event credit" : "Upgrade"}
+        {cadence === "one_time" ? "Buy event credit" : "Choose plan"}
       </button>
     </form>
   );

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
+import { requirePlanSelected } from "@/lib/plan-gate";
 import { updateOrgSettingsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage({ searchParams }: { searchParams: { saved?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
+  await requirePlanSelected(session);
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) redirect("/dashboard");
 

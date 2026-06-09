@@ -27,6 +27,20 @@ export async function POST(req: Request) {
   });
   await setSessionCookie(token);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  const redirectTo = (user.role === "STAFF" || user.role === "VOLUNTEER") ? "/checkin" : "/dashboard";
+
+  // Plan gate: if the user's org hasn't picked a plan yet, send them to billing first.
+  let needsPlan = false;
+  if (user.organizationId && user.role !== "SUPERADMIN") {
+    const org = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { planSelected: true },
+    });
+    needsPlan = !!org && !org.planSelected;
+  }
+
+  const redirectTo =
+    needsPlan ? "/dashboard/billing?welcome=1"
+    : (user.role === "STAFF" || user.role === "VOLUNTEER") ? "/checkin"
+    : "/dashboard";
   return NextResponse.json({ id: user.id, role: user.role, redirectTo });
 }

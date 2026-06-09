@@ -1,27 +1,97 @@
-import Link from "next/link";
+"use client";
 
-export default function SignUpClosedPage() {
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { OrgNameSlugFields } from "@/components/OrgNameSlugFields";
+
+export default function SignUpPage() {
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null); setSubmitting(true);
+    const fd = new FormData(e.currentTarget as HTMLFormElement);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: fd.get("firstName"),
+          lastName: fd.get("lastName"),
+          email: fd.get("email"),
+          password: fd.get("password"),
+          orgName: fd.get("orgName"),
+          orgSlug: fd.get("orgSlug"),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Sign up failed.");
+        return;
+      }
+      // Plan-required gate: new accounts always land on billing first
+      router.push("/dashboard/billing?welcome=1");
+    } catch (err: any) {
+      setError(err?.message ?? "Network error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <main className="mx-auto max-w-md px-4 py-16">
-      <div className="card text-center">
-        <div className="text-4xl">🔒</div>
-        <h1 className="mt-3 text-2xl font-bold">Sign-up is by invitation only</h1>
-        <p className="mt-3 text-slate-600">
-          The Your Events App is currently invite-only. If you'd like to host
-          your events on this platform, please contact us and we'll get you set up.
+    <main className="mx-auto max-w-md px-4 py-12">
+      <h1 className="text-2xl font-bold">Create your account</h1>
+      <p className="mt-2 text-sm text-slate-600">
+        Sign up your organization in two minutes. You'll pick a plan on the next screen — free plan available.
+        Already have an account?{" "}
+        <Link href="/signin" className="text-brand-700 hover:underline">Sign in</Link>.
+      </p>
+
+      <form onSubmit={submit} className="mt-6 space-y-5">
+        {error && (
+          <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>
+        )}
+
+        <section className="card">
+          <h2 className="text-base font-semibold">About you</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">First name *</label>
+              <input name="firstName" required maxLength={80} className="input" />
+            </div>
+            <div>
+              <label className="label">Last name *</label>
+              <input name="lastName" required maxLength={80} className="input" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Email *</label>
+              <input name="email" required type="email" className="input" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Password *</label>
+              <input name="password" required type="password" minLength={8} className="input" />
+              <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 className="text-base font-semibold">Your organization</h2>
+          <p className="mt-1 text-xs text-slate-500">This is the name attendees will see when they register for your events.</p>
+          <div className="mt-3 space-y-3">
+            <OrgNameSlugFields namePlaceholder="Acme Events" slugPlaceholder="acme-events" />
+          </div>
+        </section>
+
+        <button type="submit" disabled={submitting} className="btn-primary w-full">
+          {submitting ? "Creating account…" : "Create account → pick a plan"}
+        </button>
+        <p className="text-center text-xs text-slate-500">
+          You won't be charged until you select a paid plan. A free tier is available.
         </p>
-        <div className="mt-6 space-y-2 text-sm">
-          <div>
-            <a href="mailto:events@yourevents.app" className="btn-primary inline-block">
-              Email us to request access
-            </a>
-          </div>
-          <div className="text-slate-500">
-            Already have an account?{" "}
-            <Link href="/signin" className="text-brand-700 hover:underline">Sign in →</Link>
-          </div>
-        </div>
-      </div>
+      </form>
     </main>
   );
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { requirePlanSelected } from "@/lib/plan-gate";
 import { SignOutButton } from "@/components/SignOutButton";
 import { createEventAction } from "./actions";
 
@@ -22,6 +23,7 @@ const CATEGORIES = [
 
 export default async function NewEventPage() {
   const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  await requirePlanSelected(session);
   if (!session.orgId) {
     return (
       <main className="mx-auto max-w-xl px-4 py-16">

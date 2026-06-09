@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { requirePlanSelected } from "@/lib/plan-gate";
 import { resendTeamInviteAction, revokeTeamInviteAction, removeMemberAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ const INVITE_STATUS_STYLES: Record<string, string> = {
 export default async function TeamPage({ searchParams }: { searchParams: { invited?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
+  await requirePlanSelected(session);
 
   const [org, members, invites] = await Promise.all([
     prisma.organization.findUnique({ where: { id: session.orgId } }),

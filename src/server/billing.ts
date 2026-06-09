@@ -31,21 +31,25 @@ export async function handleBillingCheckoutCompleted(
   }
 
   if (kind === "single_event_credit" || planKey === "SINGLE_EVENT") {
-    // One-time purchase — increment credit counter
+    // One-time purchase — increment credit counter AND activate the account
     await prisma.organization.update({
       where: { id: organizationId },
-      data: { singleEventCredits: { increment: 1 } },
+      data: {
+        singleEventCredits: { increment: 1 },
+        planSelected: true,
+      },
     });
     return;
   }
 
   // Subscription — Stripe will fire customer.subscription.created shortly,
-  // but we can already mark the org as on the new plan optimistically.
+  // but we can already mark the org as on the new plan optimistically and activate it.
   await prisma.organization.update({
     where: { id: organizationId },
     data: {
       subscriptionPlan: planKey as any,
       subscriptionStatus: "ACTIVE",
+      planSelected: true,
     },
   });
 }
@@ -87,6 +91,7 @@ export async function handleSubscriptionEvent(sub: any, eventType: string) {
       stripeSubscriptionId: sub.id,
       subscriptionCurrentPeriodEnd: periodEnd,
       subscriptionCancelAtPeriodEnd: !!sub.cancel_at_period_end,
+      planSelected: true, // active subscription = plan selected
     },
   });
 }

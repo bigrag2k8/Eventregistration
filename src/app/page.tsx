@@ -12,7 +12,7 @@ export default function HomePage() {
           </Link>
           <nav className="flex gap-3 text-sm">
             <Link href="/signin">Sign in</Link>
-            <a href="mailto:events@yourevents.app" className="btn-primary">Contact us</a>
+            <Link href="/signup" className="btn-primary">Sign up — host events</Link>
           </nav>
         </div>
       </header>
@@ -24,11 +24,14 @@ export default function HomePage() {
         </p>
 
         <div className="mt-10 flex flex-wrap justify-center gap-3">
-          <a href="mailto:events@yourevents.app" className="btn-primary">
-            Host an event — contact us
-          </a>
+          <Link href="/signup" className="btn-primary">
+            Sign up — start free
+          </Link>
           <Link href="/signin" className="btn-secondary">Sign in to your account</Link>
         </div>
+        <p className="mt-4 text-sm text-slate-500">
+          Free tier available · No credit card required to start
+        </p>
 
         <p className="mt-12 text-sm text-slate-500">
           To view a specific organization's events, use the link they shared with you

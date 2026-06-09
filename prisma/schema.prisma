@@ -163,6 +163,8 @@ model Organization {
   subscriptionCancelAtPeriodEnd Boolean @default(false)
   /// Number of "single event" credits remaining (incremented per one-time purchase, decremented when an event is published)
   singleEventCredits          Int      @default(0)
+  /// false = org just signed up and hasn't picked a plan yet. While false, the dashboard locks them to /dashboard/billing.
+  planSelected                Boolean  @default(true)
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

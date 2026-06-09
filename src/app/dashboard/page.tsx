@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
+import { requirePlanSelected } from "@/lib/plan-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function DashboardHome() {
       </main>
     );
   }
+  await requirePlanSelected(session);
 
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
