@@ -14,7 +14,6 @@ export default async function HomePage() {
       deletedAt: null,
       endAt: { gte: new Date() }, // current + future
     },
-    include: { location: true, ticketTypes: true, organization: true },
     select: {
       id: true, slug: true, name: true, category: true, startAt: true, endAt: true,
       timezone: true, bannerUrl: true,
