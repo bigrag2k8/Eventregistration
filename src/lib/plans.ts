@@ -19,6 +19,8 @@ export interface PlanInfo {
   /** null = unlimited */
   monthlyEventLimit: number | null;
   registrationLimitPerEvent: number | null;
+  /** Max email broadcasts an organizer can send per event. null = unlimited. */
+  emailCampaignsPerEvent: number | null;
   features: {
     customBranding: boolean;       // logo + brand color + custom from-email
     vendorFlow: boolean;
@@ -41,6 +43,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
     stripePriceId: null,
     monthlyEventLimit: 1,
     registrationLimitPerEvent: 50,
+    emailCampaignsPerEvent: 1,
     features: {
       customBranding: false,
       vendorFlow: false,
@@ -61,6 +64,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
     stripePriceId: STRIPE_PRICES.SINGLE_EVENT,
     monthlyEventLimit: null, // credit-based; controlled by singleEventCredits
     registrationLimitPerEvent: null,
+    emailCampaignsPerEvent: 3,
     features: {
       customBranding: true,
       vendorFlow: true,
@@ -81,6 +85,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
     stripePriceId: STRIPE_PRICES.STARTER,
     monthlyEventLimit: 3,
     registrationLimitPerEvent: null,
+    emailCampaignsPerEvent: 5,
     features: {
       customBranding: true,
       vendorFlow: true,
@@ -101,6 +106,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
     stripePriceId: STRIPE_PRICES.PRO,
     monthlyEventLimit: null,
     registrationLimitPerEvent: null,
+    emailCampaignsPerEvent: 8,
     features: {
       customBranding: true,
       vendorFlow: true,
@@ -121,6 +127,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
     stripePriceId: null,
     monthlyEventLimit: null,
     registrationLimitPerEvent: null,
+    emailCampaignsPerEvent: null,
     features: {
       customBranding: true,
       vendorFlow: true,
