@@ -70,6 +70,17 @@ export function requireRole(allowed: Role[], session: JwtPayload | null) {
 }
 
 /**
+ * Returns a Prisma `where` snippet that scopes a query to the caller's
+ * organization, EXCEPT for SUPERADMIN, who can view/manage records across
+ * every organization. Use anywhere we currently inline
+ * `{ organizationId: session.orgId }`.
+ */
+export function orgScope(session: JwtPayload): { organizationId?: string } {
+  if (session.role === "SUPERADMIN") return {};
+  return session.orgId ? { organizationId: session.orgId } : { organizationId: "__none__" };
+}
+
+/**
  * QR ticket signing: short-lived stateless signature.
  * Validation also requires DB lookup for single-use enforcement.
  */

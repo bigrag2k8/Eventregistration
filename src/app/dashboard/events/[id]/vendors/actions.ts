@@ -3,14 +3,14 @@
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { Resend } from "resend";
 import { audit } from "@/lib/audit";
 
 async function authorize(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
-    where: { id: eventId, organizationId: session.orgId, deletedAt: null },
+    where: { id: eventId, ...orgScope(session), deletedAt: null },
     include: { organization: true },
   });
   if (!event) throw new Error("Forbidden");

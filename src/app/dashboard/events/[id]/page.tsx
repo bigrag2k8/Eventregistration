@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
@@ -12,7 +12,7 @@ export default async function EventManagePage({ params }: { params: { id: string
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
 
   const event = await prisma.event.findFirst({
-    where: { id: params.id, organizationId: session.orgId, deletedAt: null },
+    where: { id: params.id, ...orgScope(session), deletedAt: null },
     include: {
       location: true,
       ticketTypes: { orderBy: { sortOrder: "asc" } },
@@ -26,7 +26,8 @@ export default async function EventManagePage({ params }: { params: { id: string
     _sum: { amountCents: true },
   });
 
-  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  // Use the event's org, not the session's, so SUPERADMIN viewing another org's event gets the right public slug.
+  const org = await prisma.organization.findUnique({ where: { id: event.organizationId } });
   const publicUrl = `/o/${org?.slug ?? "_"}/events/${event.slug}`;
   const isPublished = event.status === "PUBLISHED";
 

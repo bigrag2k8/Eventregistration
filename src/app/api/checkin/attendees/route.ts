@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 
 export async function GET(req: Request) {
   const session = requireRole(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -10,7 +10,7 @@ export async function GET(req: Request) {
 
   // Verify caller's org owns this event (defense-in-depth)
   const event = await prisma.event.findFirst({
-    where: { id: eventId, organizationId: session.orgId, deletedAt: null },
+    where: { id: eventId, ...orgScope(session), deletedAt: null },
   });
   if (!event) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

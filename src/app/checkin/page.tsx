@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function CheckinEventPicker() {
 
   const events = await prisma.event.findMany({
     where: {
-      organizationId: session.orgId,
+      ...orgScope(session),
       deletedAt: null,
       status: "PUBLISHED",
       endAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // upcoming + recently ended

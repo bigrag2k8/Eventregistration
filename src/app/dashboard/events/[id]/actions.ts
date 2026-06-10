@@ -4,13 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
-    where: { id: eventId, organizationId: session.orgId, deletedAt: null },
+    where: { id: eventId, ...orgScope(session), deletedAt: null },
   });
   if (!event) throw new Error("Forbidden");
   return { session, event };

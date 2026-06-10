@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { approveVendorAction, rejectVendorAction, deleteVendorApplicationAction } from "./actions";
@@ -22,7 +22,7 @@ export default async function VendorsPage({ params, searchParams }: {
 }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
-    where: { id: params.id, organizationId: session.orgId, deletedAt: null },
+    where: { id: params.id, ...orgScope(session), deletedAt: null },
   });
   if (!event) return notFound();
 

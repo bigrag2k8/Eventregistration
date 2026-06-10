@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { PLANS } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -15,7 +15,7 @@ export default async function CampaignsPage({ params }: { params: { id: string }
   await requirePlanSelected(session);
 
   const event = await prisma.event.findFirst({
-    where: { id: params.id, organizationId: session.orgId, deletedAt: null },
+    where: { id: params.id, ...orgScope(session), deletedAt: null },
     include: { organization: { select: { name: true, subscriptionPlan: true } } },
   });
   if (!event) return notFound();

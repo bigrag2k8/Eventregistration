@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { requirePlanSelected } from "@/lib/plan-gate";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardHome() {
   const session = await getSession();
-  if (!session?.orgId) {
+  // SUPERADMIN doesn't need an org link — they can view everything.
+  if (!session || (!session.orgId && session.role !== "SUPERADMIN")) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-16">
         <h1 className="text-xl font-semibold">No organization linked</h1>
@@ -17,25 +18,30 @@ export default async function DashboardHome() {
       </main>
     );
   }
-  await requirePlanSelected(session);
+  if (session.role !== "SUPERADMIN") await requirePlanSelected(session);
 
-  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  const isSuper = session.role === "SUPERADMIN";
+  const org = session.orgId
+    ? await prisma.organization.findUnique({ where: { id: session.orgId } })
+    : null;
+  const eventScope = orgScope(session); // {} for SUPERADMIN, {organizationId} otherwise
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [events, totalRevenue, totalRegs, checkInRate] = await Promise.all([
     prisma.event.findMany({
-      where: { organizationId: session.orgId, deletedAt: null },
+      where: { ...eventScope, deletedAt: null },
       orderBy: { startAt: "desc" },
       take: 12,
       include: {
         _count: { select: { registrations: true } },
         ticketTypes: true,
+        organization: { select: { name: true, slug: true } },
       },
     }),
     prisma.payment.aggregate({
       where: {
         status: "SUCCEEDED",
         createdAt: { gte: since },
-        registration: { event: { organizationId: session.orgId } },
+        registration: { event: eventScope },
       },
       _sum: { amountCents: true },
     }),
@@ -43,15 +49,15 @@ export default async function DashboardHome() {
       where: {
         status: "CONFIRMED",
         createdAt: { gte: since },
-        event: { organizationId: session.orgId },
+        event: eventScope,
       },
     }),
     (async () => {
       const total = await prisma.ticket.count({
-        where: { registration: { status: "CONFIRMED", event: { organizationId: session.orgId } } },
+        where: { registration: { status: "CONFIRMED", event: eventScope } },
       });
       const checked = await prisma.checkIn.count({
-        where: { event: { organizationId: session.orgId } },
+        where: { event: eventScope },
       });
       return total === 0 ? 0 : Math.round((checked / total) * 100);
     })(),
@@ -63,8 +69,8 @@ export default async function DashboardHome() {
         <div>
           <h1 className="text-2xl font-bold">Overview</h1>
           <p className="text-sm text-slate-500">
-            {org?.name} · Last 30 days
-            {org && (
+            {isSuper ? "All organizations" : org?.name} · Last 30 days
+            {!isSuper && org && (
               <>
                 {" · "}
                 <Link href={`/o/${org.slug}`} target="_blank" className="text-brand-700 hover:underline">
@@ -95,6 +101,7 @@ export default async function DashboardHome() {
           <thead className="bg-slate-50">
             <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
               <th className="px-4 py-3">Event</th>
+              {isSuper && <th className="px-4 py-3">Organization</th>}
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Registrations</th>
@@ -105,6 +112,9 @@ export default async function DashboardHome() {
             {events.map((e) => (
               <tr key={e.id}>
                 <td className="px-4 py-3 font-medium">{e.name}</td>
+                {isSuper && (
+                  <td className="px-4 py-3 text-slate-600">{(e as any).organization?.name ?? "—"}</td>
+                )}
                 <td className="px-4 py-3 text-slate-600">
                   {e.startAt.toLocaleDateString()}
                 </td>
@@ -126,7 +136,7 @@ export default async function DashboardHome() {
               </tr>
             ))}
             {events.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No events yet.</td></tr>
+              <tr><td colSpan={isSuper ? 6 : 5} className="px-4 py-8 text-center text-slate-500">No events yet.</td></tr>
             )}
           </tbody>
         </table>

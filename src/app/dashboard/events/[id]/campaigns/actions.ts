@@ -4,7 +4,7 @@ import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { PLANS } from "@/lib/plans";
 
@@ -40,7 +40,7 @@ export async function sendCampaignAction(formData: FormData) {
   const data = schema.parse(Object.fromEntries(formData.entries()));
 
   const event = await prisma.event.findFirst({
-    where: { id: data.eventId, organizationId: session.orgId, deletedAt: null },
+    where: { id: data.eventId, ...orgScope(session), deletedAt: null },
     include: { organization: true, location: true },
   });
   if (!event) throw new Error("Event not found");

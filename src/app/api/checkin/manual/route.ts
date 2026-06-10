@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
   // Verify event belongs to caller's org
   const event = await prisma.event.findFirst({
-    where: { id: parsed.data.eventId, organizationId: session.orgId, deletedAt: null },
+    where: { id: parsed.data.eventId, ...orgScope(session), deletedAt: null },
   });
   if (!event) return NextResponse.json({ status: "INVALID", reason: "forbidden" }, { status: 403 });
 

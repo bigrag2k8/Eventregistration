@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { SignOutButton } from "@/components/SignOutButton";
 
@@ -33,13 +33,14 @@ const PAGE_SIZE = 50;
 
 export default async function AuditLogPage({ searchParams }: { searchParams: SearchParams }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
-  if (!session.orgId) redirect("/dashboard");
-  await requirePlanSelected(session);
+  // SUPERADMIN can audit any org; everyone else must have one linked.
+  if (!session.orgId && session.role !== "SUPERADMIN") redirect("/dashboard");
+  if (session.role !== "SUPERADMIN") await requirePlanSelected(session);
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1") || 1);
   const skip = (page - 1) * PAGE_SIZE;
 
-  const where: any = { organizationId: session.orgId };
+  const where: any = { ...orgScope(session) };
   if (searchParams.action) where.action = { contains: searchParams.action, mode: "insensitive" };
   if (searchParams.q) {
     where.OR = [
@@ -56,7 +57,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
     }),
     prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({
-      where: { organizationId: session.orgId }, select: { action: true }, distinct: ["action"],
+      where: { ...orgScope(session) }, select: { action: true }, distinct: ["action"],
       orderBy: { action: "asc" }, take: 50,
     }),
   ]);
