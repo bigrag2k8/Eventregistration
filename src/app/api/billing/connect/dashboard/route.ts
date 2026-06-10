@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { stripe, stripeConfigured } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 
@@ -10,6 +10,13 @@ import { getSession, requireRole } from "@/lib/auth";
 export async function POST() {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+
+  if (!stripeConfigured) {
+    return NextResponse.json(
+      { error: "Stripe is not configured on the server." },
+      { status: 503 },
+    );
+  }
 
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org?.stripeAccountId) {
