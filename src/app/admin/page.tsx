@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
+import { FactoryResetCard } from "@/components/FactoryResetCard";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function AdminHome() {
   if (!session) redirect("/signin");
   if (session.role !== "SUPERADMIN") redirect("/dashboard");
 
-  const [orgCount, eventCount, regCount, pendingInvites, recentOrgs] = await Promise.all([
+  const [orgCount, eventCount, regCount, pendingInvites, recentOrgs, me] = await Promise.all([
     prisma.organization.count({ where: { deletedAt: null } }),
     prisma.event.count({ where: { deletedAt: null } }),
     prisma.registration.count({ where: { status: "CONFIRMED" } }),
@@ -21,6 +22,10 @@ export default async function AdminHome() {
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { _count: { select: { events: true, members: true } } },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.sub },
+      include: { organization: { select: { name: true } } },
     }),
   ]);
 
@@ -97,6 +102,11 @@ export default async function AdminHome() {
             </Link>
           </div>
         )}
+
+        <FactoryResetCard
+          keepEmail={me?.email ?? "your account"}
+          keepOrgName={me?.organization?.name ?? null}
+        />
       </section>
     </main>
   );
