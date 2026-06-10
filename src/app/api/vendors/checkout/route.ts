@@ -44,8 +44,12 @@ export async function POST(req: Request) {
       },
     }],
     customer_email: app.email,
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/vendor/checkout/${app.paymentLinkToken}?paid=1`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/vendor/checkout/${app.paymentLinkToken}`,
+    // Include the Stripe session id so the success page can verify payment
+    // synchronously instead of waiting for the webhook (which usually lands
+    // a few seconds after the redirect — that race condition was making
+    // the page show the payment form again).
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/vendor/checkout/${app.paymentLinkToken}?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/vendor/checkout/${app.paymentLinkToken}?cancelled=1`,
     metadata: { vendorApplicationId: app.id, eventId: app.eventId },
     payment_intent_data: { metadata: { vendorApplicationId: app.id } },
     expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
