@@ -35,7 +35,14 @@ export default async function VendorCheckoutPage({ params, searchParams }: Props
         if (refreshed) app = refreshed;
       }
     } catch (e: any) {
-      console.error("[vendor/checkout success] session verify failed:", e?.message);
+      // Log the FULL error so we can actually debug. e.message is often empty
+      // on Prisma errors — the useful info is in e.code + e.stack.
+      console.error("[vendor/checkout success] session verify failed:", {
+        message: e?.message,
+        code: e?.code,
+        meta: e?.meta,
+        stack: e?.stack,
+      });
     }
   }
   // TS can't narrow `app` across the reassignment above — re-narrow explicitly.
@@ -70,8 +77,10 @@ export default async function VendorCheckoutPage({ params, searchParams }: Props
             <a href={`/vendor/checkout/${params.token}`} className="mt-3 inline-block text-amber-900 underline">
               Refresh now
             </a>
-            {/* Auto-refresh after 4s in case the webhook is still landing */}
-            <meta httpEquiv="refresh" content="4" />
+            {/* Auto-refresh after 10s in case the webhook is still landing.
+                Don't go shorter — finalizeVendor is heavy (insert + tickets +
+                email) and a 4s refresh was racing itself. */}
+            <meta httpEquiv="refresh" content="10" />
           </div>
         ) : expired ? (
           <div className="mt-6 rounded-lg bg-red-50 p-4 ring-1 ring-red-200 text-sm text-red-700">
