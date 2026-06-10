@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession, orgScope } from "@/lib/auth";
+import { KycBanner } from "@/components/KycBanner";
 import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { requirePlanSelected } from "@/lib/plan-gate";
@@ -81,6 +82,18 @@ export default async function DashboardHome() {
           </p>
         </div>
       </div>
+
+      {/* KYC banner: shown when org has revenue but Stripe payouts aren't enabled */}
+      {!isSuper && org && (
+        <div className="mt-4">
+          <KycBanner
+            kycStatus={org.stripeAccountStatus}
+            payoutsEnabled={org.stripeAccountPayoutsEnabled}
+            hasSoldTicket={(totalRevenue._sum.amountCents ?? 0) > 0 || totalRegs > 0}
+            pendingPayoutCents={totalRevenue._sum.amountCents ?? 0}
+          />
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Revenue" value={money(totalRevenue._sum.amountCents ?? 0)} />

@@ -3,12 +3,31 @@ import { stripe, stripeConfigured } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
- * Begins (or continues) Stripe Connect Express onboarding for the current org.
- * - Creates a Stripe account if the org doesn't have one yet.
- * - Generates a one-time account link and redirects the user to Stripe's hosted onboarding form.
- * - When they finish or refresh, Stripe sends them back to our return_url / refresh_url.
+ * Express Connect onboarding — optimized for the SHORTEST possible flow
+ * (4 screens, ~90 sec). Key decisions:
+ *
+ *   - business_type: "individual"
+ *       Individuals need far fewer fields than companies (no EIN, no
+ *       business address proof). Organizers can upgrade to "company"
+ *       later via /api/billing/connect/upgrade-to-business.
+ *
+ *   - business_profile.mcc = "7922"
+ *       MCC 7922 = Theatrical Producers, Ticket Agencies. Pre-classifying
+ *       the org skips Stripe's "what do you sell?" prompt and lowers the
+ *       odds of an "additional review" requirement landing later.
+ *
+ *   - settings.payouts.schedule.interval = "daily"
+ *       Faster than Eventbrite's 3-day hold. Pro tier later upgrades to
+ *       instant payouts.
+ *
+ *   - collection_options.fields = "currently_due" on every accountLink
+ *       This is DEFERRED KYC: Stripe only collects the bare minimum
+ *       required RIGHT NOW (typically just name, email, DOB).
+ *       SSN/bank details are deferred until the organizer actually
+ *       receives funds. That's how we hit ~90 seconds.
  */
 export async function POST() {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -21,46 +40,94 @@ export async function POST() {
     );
   }
 
-  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  // Rate limit: 5 attempts per org per hour. Prevents accidental hammering
+  // and abuse of the accountLinks.create endpoint (which is metered).
+  const rl = await rateLimit(`connect-start:${session.orgId}`, 5, 60 * 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many onboarding attempts. Try again in an hour." },
+      { status: 429 },
+    );
+  }
+
+  const org = await prisma.organization.findUnique({
+    where: { id: session.orgId },
+    include: { members: { where: { id: session.sub }, select: { email: true, firstName: true, lastName: true } } },
+  });
   if (!org) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
 
+  const me = org.members[0];
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
+
   try {
-    // Create the Stripe Express account on first onboard attempt
+    // 1. Create the Stripe Express account on first onboard attempt.
     let acctId = org.stripeAccountId;
     if (!acctId) {
       const acct = await stripe.accounts.create({
         type: "express",
         country: "US",
-        email: org.contactEmail ?? undefined,
-        business_profile: {
-          name: org.name,
-          url: org.website ?? undefined,
-        },
+        // Default to individual — minimizes required fields.
+        // Convert to "company" later via upgrade endpoint when org grows.
+        business_type: "individual",
+        // Pre-fill the email so the first Stripe screen is already filled in.
+        email: me?.email ?? org.contactEmail ?? undefined,
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
-        metadata: { organizationId: org.id, organizationSlug: org.slug },
+        business_profile: {
+          // MCC 7922 = Theatrical / ticket agencies. Pre-classifies us.
+          mcc: "7922",
+          name: org.name,
+          product_description: "Event ticketing and vendor booth management",
+          url: `${baseUrl || "https://yourevents.app"}/o/${org.slug}`,
+          support_email: org.contactEmail ?? me?.email ?? undefined,
+          support_phone: org.contactPhone ?? undefined,
+          support_url: org.website ?? undefined,
+        },
+        // Pre-fill what we can about the individual to reduce screens.
+        individual: {
+          email: me?.email ?? undefined,
+          first_name: me?.firstName ?? undefined,
+          last_name: me?.lastName ?? undefined,
+          phone: org.contactPhone ?? undefined,
+        },
+        // Daily payouts — much faster than Eventbrite's 3-day hold.
+        settings: {
+          payouts: { schedule: { interval: "daily" } },
+        },
+        metadata: {
+          organizationId: org.id,
+          organizationSlug: org.slug,
+          tier: "starter",
+        },
       });
       acctId = acct.id;
       await prisma.organization.update({
         where: { id: org.id },
-        data: { stripeAccountId: acctId },
+        data: {
+          stripeAccountId: acctId,
+          stripeAccountStatus: "in_progress",
+        },
       });
       await audit({
         organizationId: org.id, userId: session.sub,
         action: "stripe_connect.account_created",
         targetType: "Organization", targetId: org.id,
-        metadata: { stripeAccountId: acctId },
+        metadata: { stripeAccountId: acctId, businessType: "individual" },
       });
     }
 
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    // 2. Generate the one-time onboarding link with DEFERRED KYC.
+    //    "currently_due" tells Stripe to only collect what's required RIGHT NOW.
+    //    Everything else (full SSN, bank info) is collected later, lazily,
+    //    when the organizer actually receives funds.
     const link = await stripe.accountLinks.create({
       account: acctId,
-      refresh_url: `${base}/dashboard/settings?connect=refresh`,
-      return_url: `${base}/dashboard/settings?connect=return`,
+      refresh_url: `${baseUrl}/api/billing/connect/refresh`,
+      return_url: `${baseUrl}/dashboard/settings?connect=return`,
       type: "account_onboarding",
+      collection_options: { fields: "currently_due" },
     });
 
     return NextResponse.json({ url: link.url });

@@ -110,11 +110,38 @@ export async function POST(req: Request) {
       await handleInvoicePaymentFailed(inv);
       break;
     }
-    case "account.updated": {
-      // Connect: an organizer's Stripe Express account status changed
-      const acct = event.data.object as any;
+    case "account.updated":
+    case "capability.updated": {
+      // Connect: organizer's Express account or a capability status changed.
+      const obj = event.data.object as any;
       const { handleConnectAccountUpdated } = await import("@/server/billing");
-      await handleConnectAccountUpdated(acct);
+      if (event.type === "account.updated") {
+        await handleConnectAccountUpdated(obj);
+      } else {
+        // capability.updated — fetch the full parent account to re-sync.
+        const accountId = (obj?.account as string) ?? (event as any).account;
+        if (accountId) {
+          const acct = await stripe.accounts.retrieve(accountId);
+          await handleConnectAccountUpdated(acct);
+        }
+      }
+      break;
+    }
+    case "account.application.deauthorized": {
+      // Organizer disconnected our platform — clear the link.
+      const accountId = (event as any).account;
+      if (accountId) {
+        await prisma.organization.updateMany({
+          where: { stripeAccountId: accountId },
+          data: {
+            stripeAccountId: null,
+            stripeAccountChargesEnabled: false,
+            stripeAccountPayoutsEnabled: false,
+            stripeAccountDetailsSubmitted: false,
+            stripeAccountStatus: "not_started",
+          },
+        });
+      }
       break;
     }
   }

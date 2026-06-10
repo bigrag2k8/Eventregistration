@@ -123,7 +123,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
           </div>
         </section>
 
-        <section className="card">
+        <section id="payouts" className="card scroll-mt-20">
           <h2 className="text-lg font-semibold">Payouts (Stripe Connect)</h2>
           <p className="mt-1 text-sm text-slate-500">
             Connect your Stripe account so attendee ticket sales and vendor booth fees go directly into

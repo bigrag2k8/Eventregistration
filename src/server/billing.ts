@@ -118,11 +118,17 @@ export async function handleConnectAccountUpdated(acct: any) {
   const orgId = acct.metadata?.organizationId;
   const where = orgId ? { id: orgId } : { stripeAccountId: accountId };
 
+  // KYC status vocabulary (consumed by the dashboard UI):
+  //   not_started    — no Stripe account yet (set elsewhere)
+  //   in_progress    — account exists, organizer hasn't finished onboarding
+  //   pending_review — onboarding submitted, Stripe is reviewing
+  //   verified       — charges + payouts both enabled
+  //   restricted     — Stripe disabled the account or set a hard requirement
   const status =
     acct.charges_enabled && acct.payouts_enabled ? "verified"
     : acct.requirements?.disabled_reason ? "restricted"
-    : acct.details_submitted ? "pending"
-    : "incomplete";
+    : acct.details_submitted ? "pending_review"
+    : "in_progress";
 
   await prisma.organization.updateMany({
     where,
