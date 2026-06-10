@@ -28,16 +28,18 @@ export default async function VendorCheckoutPage({ params, searchParams }: Props
       if (sessionVendorId === app.id && session.payment_status === "paid") {
         await finalizeVendor(app.id);
         // Re-read so the success branch below renders
-        app = await prisma.vendorApplication.findUnique({
+        const refreshed = await prisma.vendorApplication.findUnique({
           where: { paymentLinkToken: params.token },
           include: { event: true },
         });
-        if (!app) return notFound();
+        if (refreshed) app = refreshed;
       }
     } catch (e: any) {
       console.error("[vendor/checkout success] session verify failed:", e?.message);
     }
   }
+  // TS can't narrow `app` across the reassignment above — re-narrow explicitly.
+  if (!app) return notFound();
 
   const now = new Date();
   const expired = app.paymentLinkExpiresAt ? now > app.paymentLinkExpiresAt : false;
