@@ -59,7 +59,7 @@ async function uniqueSlug(base: string, organizationId: string) {
 }
 
 export async function createEventAction(formData: FormData) {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) throw new Error("No organization linked");
 
   const raw = Object.fromEntries(formData.entries());

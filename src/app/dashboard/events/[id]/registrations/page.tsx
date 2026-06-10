@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default async function RegistrationsListPage({ params, searchParams }: Props) {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
     where: { id: params.id, organizationId: session.orgId, deletedAt: null },
   });

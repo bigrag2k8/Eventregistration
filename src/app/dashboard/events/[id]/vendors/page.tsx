@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default async function VendorsPage({ params, searchParams }: {
   params: { id: string }; searchParams: { status?: string };
 }) {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
     where: { id: params.id, organizationId: session.orgId, deletedAt: null },
   });

@@ -8,7 +8,7 @@ import { getSession, requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 
 async function authorizeEvent(eventId: string) {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
     where: { id: eventId, organizationId: session.orgId, deletedAt: null },
   });

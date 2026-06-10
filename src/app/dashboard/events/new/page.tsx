@@ -22,7 +22,7 @@ const CATEGORIES = [
 ];
 
 export default async function NewEventPage() {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   await requirePlanSelected(session);
   if (!session.orgId) {
     return (
