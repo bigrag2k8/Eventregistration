@@ -5,6 +5,7 @@ import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
+import { BannerImageInput } from "@/components/BannerImageInput";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,9 @@ export default async function EventManagePage({ params }: { params: { id: string
             <div className="sm:col-span-2">
               <label className="label">Refund policy</label>
               <textarea name="refundPolicy" rows={2} defaultValue={event.refundPolicy ?? ""} className="input" />
+            </div>
+            <div className="sm:col-span-2 border-t pt-4">
+              <BannerImageInput defaultUrl={event.bannerUrl} />
             </div>
             <div className="sm:col-span-2 border-t pt-4">
               <label className="flex items-start gap-2 text-sm">

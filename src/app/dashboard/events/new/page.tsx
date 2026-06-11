@@ -5,6 +5,7 @@ import { getSession, requireRole } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { SignOutButton } from "@/components/SignOutButton";
 import { createEventAction } from "./actions";
+import { BannerImageInput } from "@/components/BannerImageInput";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,9 @@ export default async function NewEventPage() {
             <div>
               <label className="label">Tags (comma-separated)</label>
               <input name="tags" className="input" placeholder="networking, summer, free" />
+            </div>
+            <div className="sm:col-span-2">
+              <BannerImageInput />
             </div>
           </div>
         </section>

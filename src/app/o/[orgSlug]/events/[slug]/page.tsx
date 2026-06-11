@@ -69,32 +69,69 @@ export default async function EventLandingPage({ params }: Props) {
         </div>
       </header>
 
-      {event.bannerUrl && (
-        <div className="aspect-[16/6] w-full overflow-hidden bg-slate-200">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.bannerUrl} alt={event.name} className="h-full w-full object-cover" />
-        </div>
-      )}
-
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 lg:grid-cols-3">
-        <article className="lg:col-span-2">
-          <div className="flex flex-wrap gap-2 text-xs">
-            {event.category && (
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700">{event.category}</span>
-            )}
-            {event.tags.map((t) => (
-              <span key={t.id} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">#{t.tag}</span>
-            ))}
-          </div>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight">{event.name}</h1>
-          <p className="mt-2 text-slate-600">📅 {formatDateRange(event.startAt, event.endAt, event.timezone)}</p>
-          {event.location && (
-            <p className="mt-1 text-slate-600">
-              📍 {event.location.venueName ?? ""} {event.location.addressLine1}, {event.location.city}
-            </p>
+      {/* Hero — image with gradient overlay + title + meta. If no banner, a
+          gradient using the org's brand color stands in. */}
+      <section className="relative isolate overflow-hidden">
+        <div className="aspect-[16/7] w-full sm:aspect-[16/6]">
+          {event.bannerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={event.bannerUrl}
+              alt={event.name}
+              className="h-full w-full object-cover"
+              loading="eager"
+            />
+          ) : (
+            <div
+              className="h-full w-full"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--org-brand, #1F3A8A) 0%, color-mix(in srgb, var(--org-brand, #1F3A8A) 60%, black) 100%)",
+              }}
+            />
           )}
+          {/* Dark gradient overlay for legible text */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-black/10" />
+        </div>
 
-          <div className="mt-6 whitespace-pre-line text-slate-700">{event.description}</div>
+        {/* Title block laid over the hero */}
+        <div className="absolute inset-x-0 bottom-0">
+          <div className="mx-auto max-w-6xl px-4 pb-6 sm:pb-10">
+            <div className="flex flex-wrap gap-2 text-xs">
+              {event.category && (
+                <span className="rounded-full bg-white/90 px-2 py-0.5 font-medium" style={{ color: "var(--org-brand)" }}>
+                  {event.category}
+                </span>
+              )}
+              {event.tags.slice(0, 4).map((t) => (
+                <span key={t.id} className="rounded-full bg-white/15 px-2 py-0.5 text-white backdrop-blur-sm">
+                  #{t.tag}
+                </span>
+              ))}
+            </div>
+            <h1 className="mt-3 text-3xl font-bold tracking-tight text-white drop-shadow sm:text-5xl">
+              {event.name}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-white/90 sm:text-base">
+              <span>📅 {formatDateRange(event.startAt, event.endAt, event.timezone)}</span>
+              {event.location && (
+                <span>
+                  📍 {event.location.venueName ?? ""}
+                  {event.location.venueName ? " · " : ""}
+                  {event.location.city}{event.location.state ? `, ${event.location.state}` : ""}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 lg:grid-cols-3">
+        <article className="lg:col-span-2">
+          {event.shortDescription && (
+            <p className="text-lg font-medium leading-snug text-slate-700">{event.shortDescription}</p>
+          )}
+          <div className={`${event.shortDescription ? "mt-4" : ""} whitespace-pre-line text-slate-700`}>{event.description}</div>
 
           {event.speakers.length > 0 && (
             <section className="mt-10">

@@ -33,6 +33,7 @@ const schema = z.object({
   vendorRegistrationEnabled: z.string().optional(),
   vendorApplicationNotes: z.string().optional(),
   defaultVendorPrice: z.string().optional(),
+  bannerUrl: z.string().url().optional().or(z.literal("")),
   action: z.string().default("draft"),
 });
 
@@ -132,6 +133,7 @@ export async function createEventAction(formData: FormData) {
       vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
       vendorApplicationNotes: data.vendorApplicationNotes || null,
       defaultVendorPriceCents: Math.round(parseFloat(data.defaultVendorPrice || "0") * 100),
+      bannerUrl: data.bannerUrl || null,
       organizationId: session.orgId,
       publishedAt: publish ? new Date() : null,
       location: hasAddress || isVirtual
