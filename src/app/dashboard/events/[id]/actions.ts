@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { stripe, stripeConfigured } from "@/lib/stripe";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -116,6 +117,22 @@ export async function addTicketTypeAction(formData: FormData) {
   const data = ttSchema.parse(Object.fromEntries(formData.entries()));
   const priceCents = Math.round(parseFloat(data.price || "0") * 100);
   const qty = data.quantity ? parseInt(data.quantity) : null;
+
+  // Phase B: paid ticket types require the org to be Connect-ready, otherwise
+  // we'd accept registrations we can't process at checkout time. Free tiers
+  // are always allowed.
+  if (priceCents > 0) {
+    const org = await prisma.organization.findUnique({
+      where: { id: event.organizationId },
+      select: { stripeAccountId: true, stripeAccountChargesEnabled: true },
+    });
+    if (!org?.stripeAccountId || !org.stripeAccountChargesEnabled) {
+      throw new Error(
+        "Set up payouts (Settings → Payouts) before adding paid ticket types. Free tiers are still allowed.",
+      );
+    }
+  }
+
   const existing = await prisma.ticketType.count({ where: { eventId: event.id } });
   await prisma.ticketType.create({
     data: {
@@ -220,4 +237,69 @@ export async function deleteRegistrationAction(formData: FormData) {
   revalidatePath(`/dashboard/events/${event.id}/registrations`);
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath(`/events/${event.slug}`);
+}
+
+/**
+ * Refund a paid registration through Stripe Connect.
+ *
+ * With Destination Charges (Phase B), the original payment had:
+ *   - application_fee_amount = our 3.5% platform cut
+ *   - transfer_data.destination = the organizer's connected account
+ *
+ * On refund we set:
+ *   - reverse_transfer: true          → claw the funds back from the connected
+ *                                       account (otherwise the organizer keeps
+ *                                       the money and we're out the refund)
+ *   - refund_application_fee: true    → also refund our 3.5% fee proportionally
+ *                                       so the customer is made whole
+ *
+ * Stripe's `charge.refunded` webhook fires after this and the existing handler
+ * updates Payment.status + Registration.status + invalidates tickets.
+ */
+export async function refundRegistrationAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const registrationId = String(formData.get("registrationId"));
+  const { session, event } = await authorizeEvent(eventId);
+
+  if (!stripeConfigured) throw new Error("Stripe is not configured.");
+
+  const reg = await prisma.registration.findFirst({
+    where: { id: registrationId, eventId: event.id },
+    include: { payments: { where: { status: "SUCCEEDED" }, orderBy: { createdAt: "desc" }, take: 1 } },
+  });
+  if (!reg) throw new Error("Registration not found");
+  if (reg.status === "REFUNDED") return; // idempotent
+  const payment = reg.payments[0];
+  if (!payment?.stripePaymentIntentId) {
+    throw new Error("No completed payment found for this registration.");
+  }
+
+  try {
+    await stripe.refunds.create({
+      payment_intent: payment.stripePaymentIntentId,
+      reverse_transfer: true,
+      refund_application_fee: true,
+      metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub },
+    });
+  } catch (e: any) {
+    console.error("[refund] Stripe error:", { type: e?.type, code: e?.code, message: e?.message });
+    throw new Error(e?.message ?? "Refund failed. Please try again.");
+  }
+
+  // The webhook will flip Payment/Registration to REFUNDED and invalidate tickets.
+  // We DO write the audit row immediately for the organizer dashboard.
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "registration.refund",
+    targetType: "Registration", targetId: reg.id,
+    metadata: {
+      attendee: `${reg.firstName} ${reg.lastName}`,
+      email: reg.email,
+      amountCents: payment.amountCents,
+      paymentIntent: payment.stripePaymentIntentId,
+    },
+  });
+
+  revalidatePath(`/dashboard/events/${event.id}/registrations`);
+  revalidatePath(`/dashboard/events/${event.id}`);
 }

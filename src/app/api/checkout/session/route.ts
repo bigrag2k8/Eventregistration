@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { connectChargeParams, canAcceptPayments, PLATFORM_FEE_PERCENT } from "@/lib/connect";
 
 const schema = z.object({ registrationId: z.string() });
 
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Registration not pending" }, { status: 400 });
   }
 
-  // Sanity check before talking to Stripe
+  // Sanity checks before talking to Stripe
   if (!process.env.STRIPE_SECRET_KEY) {
     console.error("[checkout] STRIPE_SECRET_KEY not set");
     return NextResponse.json({
@@ -29,6 +30,17 @@ export async function POST(req: Request) {
       error: "Total is zero — no checkout needed. Please refresh and try again.",
     }, { status: 400 });
   }
+
+  // Connect gating: organizer must have a verified Stripe account before
+  // we can accept payments on their behalf. If not, surface a clear error
+  // (the event manage page also shows a banner so this should be rare).
+  const org = reg.event.organization;
+  if (!org || !canAcceptPayments(org)) {
+    return NextResponse.json({
+      error: "This organizer hasn't finished setting up payments. Please try again later or contact them.",
+    }, { status: 503 });
+  }
+
   const unitAmount = Math.round((reg.totalCents - reg.feeCents - reg.taxCents) / reg.quantity);
   if (unitAmount <= 0) {
     console.error("[checkout] computed unit_amount is non-positive", { totalCents: reg.totalCents, feeCents: reg.feeCents, taxCents: reg.taxCents, quantity: reg.quantity });
@@ -38,9 +50,14 @@ export async function POST(req: Request) {
   }
 
   // Build the org-scoped success/cancel URLs (legacy /events/[slug] still 307-redirects)
-  const orgSlug = reg.event.organization?.slug ?? "_";
+  const orgSlug = org.slug;
   const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/success?reg=${reg.id}`;
   const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/register`;
+
+  // Connect routing: take PLATFORM_FEE_PERCENT% of the total, route the
+  // remainder to the organizer's Stripe account. on_behalf_of makes the
+  // customer's statement read as the organizer.
+  const connect = connectChargeParams(org, reg.totalCents);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -78,8 +95,18 @@ export async function POST(req: Request) {
       customer_email: reg.email,
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { registrationId: reg.id, eventId: reg.eventId },
-      payment_intent_data: { metadata: { registrationId: reg.id } },
+      metadata: {
+        registrationId: reg.id,
+        eventId: reg.eventId,
+        organizationId: org.id,
+        platformFeePercent: String(PLATFORM_FEE_PERCENT),
+      },
+      payment_intent_data: {
+        metadata: { registrationId: reg.id, organizationId: org.id },
+        // Spread the Connect routing into payment_intent_data so the
+        // PaymentIntent carries the destination + fee split.
+        ...(connect ?? {}),
+      },
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     });
 
@@ -90,7 +117,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (e: any) {
-    // Stripe API errors carry a `.message` we want to surface to the user (and log fully server-side)
     console.error("[checkout] Stripe error:", {
       type: e?.type,
       code: e?.code,

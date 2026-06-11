@@ -7,7 +7,7 @@ import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { CopyButton } from "@/components/CopyButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { cancelRegistrationAction, deleteRegistrationAction } from "../actions";
+import { cancelRegistrationAction, deleteRegistrationAction, refundRegistrationAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -144,6 +144,17 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                     <td className="px-3 py-2 text-slate-500">{r.createdAt.toLocaleDateString()}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {r.status === "CONFIRMED" && r.totalCents > 0 && (
+                          <form action={refundRegistrationAction} className="inline">
+                            <input type="hidden" name="eventId" value={event.id} />
+                            <input type="hidden" name="registrationId" value={r.id} />
+                            <ConfirmButton
+                              label="Refund"
+                              confirmText={`Refund $${(r.totalCents / 100).toFixed(2)} to ${r.firstName} ${r.lastName}? Stripe will reverse the transfer from your account and also refund the platform fee.`}
+                              className="text-xs text-brand-700 hover:underline"
+                            />
+                          </form>
+                        )}
                         {r.status !== "CANCELLED" && (
                           <form action={cancelRegistrationAction} className="inline">
                             <input type="hidden" name="eventId" value={event.id} />

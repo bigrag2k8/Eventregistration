@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { finalizeVendor } from "@/server/vendors";
+import { connectChargeParams, canAcceptPayments, PLATFORM_FEE_PERCENT } from "@/lib/connect";
 
 const schema = z.object({ token: z.string().min(10) });
 
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
 
   const app = await prisma.vendorApplication.findUnique({
     where: { paymentLinkToken: parsed.data.token },
-    include: { event: true },
+    include: { event: { include: { organization: true } } },
   });
   if (!app) return NextResponse.json({ error: "Invalid link" }, { status: 404 });
   if (app.status === "PAID") return NextResponse.json({ status: "PAID" });
@@ -28,6 +29,17 @@ export async function POST(req: Request) {
     await finalizeVendor(app.id);
     return NextResponse.json({ status: "PAID" });
   }
+
+  // Connect gating: organizer must have a verified Stripe account before
+  // we can accept vendor booth payments on their behalf.
+  const org = app.event.organization;
+  if (!canAcceptPayments(org)) {
+    return NextResponse.json({
+      error: "The organizer hasn't finished setting up payouts. Please contact them.",
+    }, { status: 503 });
+  }
+
+  const connect = connectChargeParams(org, priceCents);
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -45,13 +57,19 @@ export async function POST(req: Request) {
     }],
     customer_email: app.email,
     // Include the Stripe session id so the success page can verify payment
-    // synchronously instead of waiting for the webhook (which usually lands
-    // a few seconds after the redirect — that race condition was making
-    // the page show the payment form again).
+    // synchronously instead of waiting for the webhook.
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/vendor/checkout/${app.paymentLinkToken}?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/vendor/checkout/${app.paymentLinkToken}?cancelled=1`,
-    metadata: { vendorApplicationId: app.id, eventId: app.eventId },
-    payment_intent_data: { metadata: { vendorApplicationId: app.id } },
+    metadata: {
+      vendorApplicationId: app.id,
+      eventId: app.eventId,
+      organizationId: org.id,
+      platformFeePercent: String(PLATFORM_FEE_PERCENT),
+    },
+    payment_intent_data: {
+      metadata: { vendorApplicationId: app.id, organizationId: org.id },
+      ...(connect ?? {}),
+    },
     expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
   });
 
