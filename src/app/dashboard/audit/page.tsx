@@ -73,7 +73,10 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
             <span className="text-slate-300">/</span>
             <span className="font-semibold">Audit log</span>
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">◀ Dashboard</Link>
+            <SignOutButton />
+          </div>
         </div>
       </header>
 

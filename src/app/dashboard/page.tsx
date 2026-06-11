@@ -68,7 +68,7 @@ export default async function DashboardHome() {
     <DashboardShell role={session.role}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Overview</h1>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-slate-500">
             {isSuper ? "All organizations" : org?.name} · Last 30 days
             {!isSuper && org && (
@@ -174,7 +174,7 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link href="/dashboard" className="font-bold text-brand-700" title="Your Events App">Your Events App</Link>
           <nav className="flex items-center gap-4 text-sm">
-            <Link href="/dashboard">Overview</Link>
+            <Link href="/dashboard">Dashboard</Link>
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/events/new">+ New event</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/team">Team</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/billing">Billing</Link>}

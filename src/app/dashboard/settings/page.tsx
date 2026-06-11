@@ -26,7 +26,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
             <span className="text-slate-300">/</span>
             <span className="font-semibold">Settings</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">◀ Dashboard</Link>
             <Link href={`/o/${org.slug}`} target="_blank" className="text-sm text-brand-700 hover:underline">View public page ↗</Link>
             <SignOutButton />
           </div>
