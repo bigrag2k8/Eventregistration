@@ -108,7 +108,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
             {(["FREE", "SINGLE_EVENT", "STARTER", "PRO"] as const).map((key) => {
               const plan = PLANS[key];
               const isCurrent = org.subscriptionPlan === key;
-              return <PlanCard key={key} plan={plan} isCurrent={isCurrent} />;
+              return <PlanCard key={key} plan={plan} isCurrent={isCurrent} needsActivation={isFirstTime} />;
             })}
           </div>
           <div className="mt-4">
@@ -130,9 +130,15 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
   );
 }
 
-function PlanCard({ plan, isCurrent }: { plan: PlanInfo; isCurrent: boolean }) {
+function PlanCard({ plan, isCurrent, needsActivation }: { plan: PlanInfo; isCurrent: boolean; needsActivation: boolean }) {
+  // During first-time onboarding (planSelected=false), the org technically already
+  // has subscriptionPlan="FREE" from the schema default — but they HAVEN'T committed
+  // to it yet. Show the activation button on EVERY card so the user can pick one,
+  // not the "Current plan" badge that would lock them out.
+  const showActivationButton = needsActivation || !isCurrent;
+
   return (
-    <div className={`flex flex-col rounded-xl bg-white p-5 ring-1 ${isCurrent ? "ring-2 ring-brand-500" : "ring-slate-200"}`}>
+    <div className={`flex flex-col rounded-xl bg-white p-5 ring-1 ${isCurrent && !needsActivation ? "ring-2 ring-brand-500" : "ring-slate-200"}`}>
       <div className="text-lg font-semibold">{plan.name}</div>
       <div className="mt-1 text-2xl font-bold">{plan.price}</div>
       <p className="mt-2 text-sm text-slate-600 flex-1">{plan.blurb}</p>
@@ -154,10 +160,10 @@ function PlanCard({ plan, isCurrent }: { plan: PlanInfo; isCurrent: boolean }) {
       </ul>
 
       <div className="mt-5">
-        {isCurrent ? (
-          <span className="block rounded-lg bg-brand-100 px-3 py-2 text-center text-sm font-medium text-brand-700">Current plan</span>
+        {showActivationButton ? (
+          <UpgradeButton planKey={plan.key} cadence={plan.cadence} firstTime={needsActivation} />
         ) : (
-          <UpgradeButton planKey={plan.key} cadence={plan.cadence} />
+          <span className="block rounded-lg bg-brand-100 px-3 py-2 text-center text-sm font-medium text-brand-700">Current plan</span>
         )}
       </div>
     </div>
@@ -168,13 +174,13 @@ function FeatureLi({ on, label }: { on: boolean; label: string }) {
   return <li className={on ? "" : "text-slate-400"}>{on ? "✓" : "—"} {label}</li>;
 }
 
-function UpgradeButton({ planKey, cadence }: { planKey: string; cadence: string }) {
+function UpgradeButton({ planKey, cadence, firstTime }: { planKey: string; cadence: string; firstTime?: boolean }) {
   // Free plan: activate without Stripe
   if (planKey === "FREE") {
     return (
       <form action={activateFreePlanAction}>
         <button type="submit" className="btn-primary w-full">
-          Start with Free
+          {firstTime ? "Continue with Free" : "Switch to Free"}
         </button>
       </form>
     );
@@ -183,7 +189,7 @@ function UpgradeButton({ planKey, cadence }: { planKey: string; cadence: string 
     <form action="/api/billing/checkout" method="POST">
       <input type="hidden" name="planKey" value={planKey} />
       <button type="submit" className="btn-primary w-full">
-        {cadence === "one_time" ? "Buy event credit" : "Choose plan"}
+        {cadence === "one_time" ? "Buy event credit" : firstTime ? "Continue with this plan" : "Choose plan"}
       </button>
     </form>
   );
