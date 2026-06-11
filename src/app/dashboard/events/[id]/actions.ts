@@ -74,6 +74,7 @@ const basicsSchema = z.object({
   vendorApplicationNotes: z.string().optional(),
   defaultVendorPrice: z.string().optional(),
   bannerUrl: z.string().url().optional().or(z.literal("")),
+  isPrivate: z.string().optional(),
 });
 
 export async function updateBasicsAction(formData: FormData) {
@@ -96,6 +97,7 @@ export async function updateBasicsAction(formData: FormData) {
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,
       vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
+      isPrivate: data.isPrivate === "1",
       vendorApplicationNotes: data.vendorApplicationNotes || null,
       defaultVendorPriceCents: data.defaultVendorPrice !== undefined
         ? Math.round(parseFloat(data.defaultVendorPrice || "0") * 100)

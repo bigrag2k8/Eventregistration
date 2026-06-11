@@ -34,6 +34,7 @@ const schema = z.object({
   vendorApplicationNotes: z.string().optional(),
   defaultVendorPrice: z.string().optional(),
   bannerUrl: z.string().url().optional().or(z.literal("")),
+  isPrivate: z.string().optional(),
   action: z.string().default("draft"),
 });
 
@@ -131,6 +132,7 @@ export async function createEventAction(formData: FormData) {
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,
       vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
+      isPrivate: data.isPrivate === "1",
       vendorApplicationNotes: data.vendorApplicationNotes || null,
       defaultVendorPriceCents: Math.round(parseFloat(data.defaultVendorPrice || "0") * 100),
       bannerUrl: data.bannerUrl || null,

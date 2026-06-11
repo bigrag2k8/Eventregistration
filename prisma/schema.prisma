@@ -252,6 +252,7 @@ model Event {
   vendorRegistrationEnabled Boolean @default(false)
   vendorApplicationNotes    String? @db.Text // appears on the vendor form, e.g. "Booths are 10x10. Includes table + chairs."
   defaultVendorPriceCents   Int     @default(0) // default booth price; organizer can override per-vendor at approval time
+  isPrivate                 Boolean @default(false)  // true = hidden from yourevents.app homepage & org public page; direct link still works
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   publishedAt        DateTime?

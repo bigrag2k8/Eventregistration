@@ -138,6 +138,24 @@ export default async function EventManagePage({ params, searchParams }: { params
               <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
+                  name="isPrivate"
+                  value="1"
+                  defaultChecked={event.isPrivate}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="font-bold">Make this event private</span>
+                  <br />
+                  <span className="text-xs text-slate-500">
+                    Hides the event from yourevents.app and your public org page. People can still register if you share the direct link.
+                  </span>
+                </span>
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
                   name="vendorRegistrationEnabled"
                   value="1"
                   defaultChecked={event.vendorRegistrationEnabled}

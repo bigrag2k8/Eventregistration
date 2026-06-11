@@ -28,6 +28,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
       where: {
         status: "PUBLISHED",
         deletedAt: null,
+        isPrivate: false,
         endAt: { gte: new Date() },
         OR: [
           { name: { contains: q, mode: "insensitive" } },
@@ -47,6 +48,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
       where: {
         status: "PUBLISHED",
         deletedAt: null,
+        isPrivate: false,
         endAt: { gte: new Date() }, // current + future
       },
       select: EVENT_SELECT,

@@ -11,7 +11,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
     where: { slug: params.orgSlug, deletedAt: null },
     include: {
       events: {
-        where: { status: "PUBLISHED", deletedAt: null, startAt: { gte: new Date() } },
+        where: { status: "PUBLISHED", deletedAt: null, isPrivate: false, startAt: { gte: new Date() } },
         orderBy: { startAt: "asc" },
         include: { location: true, ticketTypes: true },
         take: 50,
