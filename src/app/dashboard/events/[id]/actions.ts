@@ -106,6 +106,9 @@ export async function updateBasicsAction(formData: FormData) {
   });
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath(`/events/${event.slug}`);
+  // Redirect back with ?saved=1 so the page can show a "Changes saved" banner.
+  // (Without a redirect, server actions complete silently.)
+  redirect(`/dashboard/events/${event.id}?saved=1`);
 }
 
 const ttSchema = z.object({

@@ -9,7 +9,7 @@ import { BannerImageInput } from "@/components/BannerImageInput";
 
 export const dynamic = "force-dynamic";
 
-export default async function EventManagePage({ params }: { params: { id: string } }) {
+export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
 
   const event = await prisma.event.findFirst({
@@ -86,6 +86,13 @@ export default async function EventManagePage({ params }: { params: { id: string
             <a href={`/api/events/${event.id}/export.csv`} className="btn-secondary">Export CSV</a>
           </div>
         </section>
+
+        {/* Saved toast (shown after updateBasicsAction redirects back with ?saved=1) */}
+        {searchParams?.saved && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Changes saved. Your public event page reflects them immediately.
+          </div>
+        )}
 
         {/* Basics editor */}
         <section className="card">
