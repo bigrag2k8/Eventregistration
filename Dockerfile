@@ -11,6 +11,20 @@ FROM node:20-slim AS build
 RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# NEXT_PUBLIC_* env vars must be present at BUILD TIME — Next.js inlines them
+# into the client JS bundle during `next build`. Railway only injects env vars
+# into the build process when the Dockerfile declares ARG for each one and
+# re-exports them as ENV before `npm run build` runs.
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_GOOGLE_MAPS_KEY
+ARG NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+ARG NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_GOOGLE_MAPS_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_KEY
+ENV NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=$NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+ENV NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=$NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p public
