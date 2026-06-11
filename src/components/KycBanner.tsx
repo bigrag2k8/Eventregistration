@@ -30,7 +30,9 @@ export function KycBanner({ kycStatus, payoutsEnabled, hasSoldTicket, pendingPay
     title = "⏳ Stripe is reviewing your account";
     body = "Stripe is verifying your details. Most reviews finish in under 24 hours.";
   } else if (hasSoldTicket) {
-    title = "🎉 You sold your first ticket! Set up payouts to get paid.";
+    // hasSoldTicket means PAID revenue exists — we only get here when
+    // the org has actual money waiting to settle.
+    title = "🎉 You sold your first paid ticket! Set up payouts to get paid.";
     body = isUrgent
       ? `You have $${(pendingPayoutCents / 100).toFixed(2)} waiting. Finish payout setup so Stripe can deposit it.`
       : "Takes about 90 seconds. Stripe holds the funds until you finish.";

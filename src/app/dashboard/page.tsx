@@ -83,13 +83,16 @@ export default async function DashboardHome() {
         </div>
       </div>
 
-      {/* KYC banner: shown when org has revenue but Stripe payouts aren't enabled */}
+      {/* KYC banner: only nag when there's actual MONEY waiting.
+          Free events generate registrations but no revenue, so no payout is
+          required — don't push organizers to set up Stripe Connect they
+          don't need yet. */}
       {!isSuper && org && (
         <div className="mt-4">
           <KycBanner
             kycStatus={org.stripeAccountStatus}
             payoutsEnabled={org.stripeAccountPayoutsEnabled}
-            hasSoldTicket={(totalRevenue._sum.amountCents ?? 0) > 0 || totalRegs > 0}
+            hasSoldTicket={(totalRevenue._sum.amountCents ?? 0) > 0}
             pendingPayoutCents={totalRevenue._sum.amountCents ?? 0}
           />
         </div>
