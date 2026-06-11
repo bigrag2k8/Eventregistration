@@ -9,6 +9,7 @@ export default function SignUpPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slugValid, setSlugValid] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,12 +82,12 @@ export default function SignUpPage() {
           <h2 className="text-base font-semibold">Your organization</h2>
           <p className="mt-1 text-xs text-slate-500">This is the name attendees will see when they register for your events.</p>
           <div className="mt-3 space-y-3">
-            <OrgNameSlugFields namePlaceholder="Acme Events" slugPlaceholder="acme-events" />
+            <OrgNameSlugFields namePlaceholder="Acme Events" slugPlaceholder="acme-events" onValidityChange={setSlugValid} />
           </div>
         </section>
 
-        <button type="submit" disabled={submitting} className="btn-primary w-full">
-          {submitting ? "Creating account…" : "Create account → pick a plan"}
+        <button type="submit" disabled={submitting || !slugValid} className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50">
+          {submitting ? "Creating account…" : !slugValid ? "Pick an available URL to continue" : "Create account → pick a plan"}
         </button>
         <p className="text-center text-xs text-slate-500">
           You won't be charged until you select a paid plan. A free tier is available.
