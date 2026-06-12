@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, verifyTicketToken } from "@/lib/auth";
+import { getSession, requireRole, orgScope, verifyTicketToken } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({ token: z.string().min(10), eventId: z.string() });
@@ -33,6 +33,16 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ status: "INVALID", reason: "bad_payload" }, { status: 400 });
+  }
+
+  // The event must belong to the scanner's org (SUPERADMIN excepted) — without
+  // this, staff of ANY org could consume tickets on another org's event.
+  const scopedEvent = await prisma.event.findFirst({
+    where: { id: parsed.data.eventId, ...orgScope(session), deletedAt: null },
+    select: { id: true },
+  });
+  if (!scopedEvent) {
+    return NextResponse.json({ status: "INVALID", reason: "event_not_found" }, { status: 404 });
   }
 
   const decoded = await verifyTicketToken(parsed.data.token);
@@ -66,14 +76,23 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
 
-  await prisma.checkIn.create({
-    data: {
-      ticketId: ticket.id,
-      eventId: ticket.registration.eventId,
-      scannedBy: session.sub,
-      method: "qr",
-    },
-  });
+  try {
+    await prisma.checkIn.create({
+      data: {
+        ticketId: ticket.id,
+        eventId: ticket.registration.eventId,
+        scannedBy: session.sub,
+        method: "qr",
+      },
+    });
+  } catch (e: any) {
+    // Two staff scanning the same ticket in the same instant: the loser hits
+    // the unique ticketId constraint — report "already used", not a 500.
+    if (e?.code === "P2002") {
+      return NextResponse.json({ status: "ALREADY_USED", attendee: ticket.attendeeName }, { status: 409 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({
     status: "CHECKED_IN",

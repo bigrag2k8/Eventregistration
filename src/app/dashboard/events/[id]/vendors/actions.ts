@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { Resend } from "resend";
 import { audit } from "@/lib/audit";
+import { esc } from "@/lib/email";
 
 async function authorize(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -83,9 +84,9 @@ export async function approveVendorAction(formData: FormData) {
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:24px auto;padding:24px;background:#fff;border-radius:12px">
             <h1 style="color:#1F3A8A">Approved! 🎉</h1>
-            <p>Hi ${app.contactFirstName},</p>
-            <p>Great news — your vendor application for <strong>${event.name}</strong> has been approved by ${event.organization.name}.</p>
-            ${notes ? `<div style="background:#EFF6FF;border-left:4px solid #1F3A8A;padding:12px 16px;margin:16px 0"><strong>From the organizer:</strong><br>${notes.replace(/\n/g, "<br>")}</div>` : ""}
+            <p>Hi ${esc(app.contactFirstName)},</p>
+            <p>Great news — your vendor application for <strong>${esc(event.name)}</strong> has been approved by ${esc(event.organization.name)}.</p>
+            ${notes ? `<div style="background:#EFF6FF;border-left:4px solid #1F3A8A;padding:12px 16px;margin:16px 0"><strong>From the organizer:</strong><br>${esc(notes).replace(/\n/g, "<br>")}</div>` : ""}
             <p>To secure your booth, please complete payment of ${priceText} using the link below. This link expires in 7 days.</p>
             <p style="margin:24px 0"><a href="${checkoutUrl}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Complete payment →</a></p>
             <p style="color:#64748b;font-size:12px">If the button doesn't work, paste this link into your browser:<br>${checkoutUrl}</p>
@@ -139,11 +140,11 @@ export async function rejectVendorAction(formData: FormData) {
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:24px auto;padding:24px;background:#fff;border-radius:12px">
             <h1 style="color:#1F3A8A">Application update</h1>
-            <p>Hi ${app.contactFirstName},</p>
-            <p>Thanks for your interest in being a vendor at <strong>${event.name}</strong>. Unfortunately we are unable to accept your application at this time.</p>
-            ${reason ? `<div style="background:#FEF2F2;border-left:4px solid #B91C1C;padding:12px 16px;margin:16px 0"><strong>Reason:</strong><br>${reason.replace(/\n/g, "<br>")}</div>` : ""}
+            <p>Hi ${esc(app.contactFirstName)},</p>
+            <p>Thanks for your interest in being a vendor at <strong>${esc(event.name)}</strong>. Unfortunately we are unable to accept your application at this time.</p>
+            ${reason ? `<div style="background:#FEF2F2;border-left:4px solid #B91C1C;padding:12px 16px;margin:16px 0"><strong>Reason:</strong><br>${esc(reason).replace(/\n/g, "<br>")}</div>` : ""}
             <p>We appreciate your interest and wish you the best.</p>
-            <p style="color:#64748b">— ${event.organization.name}</p>
+            <p style="color:#64748b">— ${esc(event.organization.name)}</p>
           </div>
         `,
       });

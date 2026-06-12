@@ -5,6 +5,20 @@ import { formatInTimeZone } from "date-fns-tz";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <hello@eventflow.app>";
 
+/**
+ * Escape user-supplied values before interpolating into email HTML. Attendee
+ * names, event fields, vendor input, etc. come from public forms — unescaped
+ * they let anyone inject markup into mail sent from the organizer's domain.
+ */
+export function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /** Build the "From" header for transactional emails — prefer the org's custom sender when set. */
 function buildFrom(org?: { name?: string | null; fromEmail?: string | null; fromName?: string | null } | null) {
   if (org?.fromEmail) {
@@ -72,11 +86,11 @@ function renderConfirmation(reg: any) {
     ? org.brandColor
     : "#1F3A8A";
   const when = formatInTimeZone(e.startAt, e.timezone, "EEEE, MMMM d 'at' h:mm a zzz");
-  const loc = e.location ? `${e.location.venueName ?? ""} ${e.location.addressLine1}, ${e.location.city}` : "";
+  const loc = e.location ? esc(`${e.location.venueName ?? ""} ${e.location.addressLine1}, ${e.location.city}`) : "";
   const totalFmt = (reg.totalCents / 100).toFixed(2);
-  const orgName = org.name ?? "";
+  const orgName = esc(org.name ?? "");
   const logo = org.logoUrl
-    ? `<img src="${org.logoUrl}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    ? `<img src="${esc(org.logoUrl)}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
     : "";
 
   return `
@@ -85,11 +99,11 @@ function renderConfirmation(reg: any) {
     <tr><td>
       ${logo}
       <h1 style="margin:0 0 8px;color:${brand}">You're registered 🎉</h1>
-      <p style="color:#475569">Hi ${reg.firstName}, thanks for signing up.</p>
+      <p style="color:#475569">Hi ${esc(reg.firstName)}, thanks for signing up.</p>
 
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #e2e8f0;border-radius:8px">
         <tr><td style="padding:16px">
-          <strong style="font-size:18px">${e.name}</strong><br>
+          <strong style="font-size:18px">${esc(e.name)}</strong><br>
           <span style="color:#475569">📅 ${when}</span><br>
           ${loc ? `<span style="color:#475569">📍 ${loc}</span>` : ""}
         </td></tr>
@@ -97,7 +111,7 @@ function renderConfirmation(reg: any) {
 
       <h3 style="margin-top:24px">Order summary</h3>
       <table width="100%" cellpadding="6" cellspacing="0">
-        <tr><td>${reg.ticketType.name} × ${reg.quantity}</td><td align="right">$${(reg.subtotalCents/100).toFixed(2)}</td></tr>
+        <tr><td>${esc(reg.ticketType.name)} × ${reg.quantity}</td><td align="right">$${(reg.subtotalCents/100).toFixed(2)}</td></tr>
         ${reg.discountCents>0?`<tr><td>Discount</td><td align="right">-$${(reg.discountCents/100).toFixed(2)}</td></tr>`:""}
         ${reg.taxCents>0?`<tr><td>Tax</td><td align="right">$${(reg.taxCents/100).toFixed(2)}</td></tr>`:""}
         ${reg.feeCents>0?`<tr><td>Processing fee</td><td align="right">$${(reg.feeCents/100).toFixed(2)}</td></tr>`:""}
@@ -112,7 +126,7 @@ function renderConfirmation(reg: any) {
          Add to Calendar
       </a>
 
-      ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:24px"><strong>Refund policy:</strong> ${e.refundPolicy}</p>`:""}
+      ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:24px"><strong>Refund policy:</strong> ${esc(e.refundPolicy)}</p>`:""}
     </td></tr>
   </table>
   <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">${orgName} · Powered by Your Events App</p>
@@ -130,7 +144,7 @@ export async function sendReminderEmail(registrationId: string, kind: "REMINDER_
     from: buildFrom(reg.event.organization),
     to: reg.email,
     subject: `Reminder: ${reg.event.name} is in ${labels[kind]}`,
-    html: `<p>Hi ${reg.firstName}, your event is coming up in ${labels[kind]}. See you there!</p>
+    html: `<p>Hi ${esc(reg.firstName)}, your event is coming up in ${labels[kind]}. See you there!</p>
            <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}">View event</a></p>`,
   });
   await prisma.emailLog.create({

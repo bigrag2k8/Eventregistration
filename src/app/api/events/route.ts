@@ -21,6 +21,7 @@ export async function GET(req: Request) {
     where: {
       status: "PUBLISHED",
       deletedAt: null,
+      isPrivate: false, // private events are direct-link only — never in public search
       startAt: { gte: new Date() },
       ...(q && { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] }),
       ...(category && { category }),

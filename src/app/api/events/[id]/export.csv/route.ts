@@ -35,9 +35,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     ];
   });
 
-  const csv = [headers, ...rows]
-    .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
+  // Quote-escape AND neutralize formula injection: attendee-controlled fields
+  // starting with = + - @ (or tab/CR) execute as formulas when the organizer
+  // opens the export in Excel. Prefix with ' so they render as text.
+  const cell = (c: unknown) => {
+    let s = String(c).replace(/"/g, '""');
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return `"${s}"`;
+  };
+  const csv = [headers, ...rows].map((row) => row.map(cell).join(",")).join("\n");
 
   return new NextResponse(csv, {
     headers: {

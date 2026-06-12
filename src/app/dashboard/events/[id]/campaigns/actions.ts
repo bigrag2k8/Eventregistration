@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { esc } from "@/lib/email";
 import { PLANS } from "@/lib/plans";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
@@ -161,13 +162,15 @@ function htmlBody(body: string, event: any, org: any, firstName?: string) {
   const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
     ? org.brandColor : "#1F3A8A";
   const logo = org.logoUrl
-    ? `<img src="${org.logoUrl}" alt="${org.name}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    ? `<img src="${esc(org.logoUrl)}" alt="${esc(org.name)}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
     : "";
   const eventUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${org.slug}/events/${event.slug}`;
   const venueLine = event.location
-    ? `<p style="color:#475569;margin:0 0 8px"><strong>Location:</strong> ${event.location.venueName ?? ""} ${event.location.addressLine1 ?? ""}, ${event.location.city ?? ""}</p>`
+    ? `<p style="color:#475569;margin:0 0 8px"><strong>Location:</strong> ${esc(`${event.location.venueName ?? ""} ${event.location.addressLine1 ?? ""}, ${event.location.city ?? ""}`)}</p>`
     : "";
-  const greeting = firstName ? `Hi ${firstName},` : "Hi,";
+  // firstName is attendee-supplied from the public form — must be escaped.
+  // The body itself is organizer-authored and intentionally allows HTML.
+  const greeting = firstName ? `Hi ${esc(firstName)},` : "Hi,";
 
   // Convert plain newlines to <br> if body looks like plain text
   const looksLikeHtml = body.includes("<") && body.includes(">");
@@ -177,7 +180,7 @@ function htmlBody(body: string, event: any, org: any, firstName?: string) {
     <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
       <tr><td>
         ${logo}
-        <h2 style="color:${brand};margin:0 0 4px">${event.name}</h2>
+        <h2 style="color:${brand};margin:0 0 4px">${esc(event.name)}</h2>
         ${venueLine}
         <p style="color:#0f172a;margin:24px 0 8px">${greeting}</p>
         <div style="color:#0f172a;line-height:1.6">${formattedBody}</div>
@@ -189,8 +192,8 @@ function htmlBody(body: string, event: any, org: any, firstName?: string) {
       </td></tr>
     </table>
     <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">
-      Sent by ${org.name} via Your Events App.<br>
-      You received this because you registered for <em>${event.name}</em>.
+      Sent by ${esc(org.name)} via Your Events App.<br>
+      You received this because you registered for <em>${esc(event.name)}</em>.
     </p>
   </body></html>`;
 }

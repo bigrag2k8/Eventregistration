@@ -1,10 +1,11 @@
 /**
- * One-shot production seed endpoint.
+ * One-shot DEV seed endpoint. Disabled entirely in production — it creates a
+ * SUPERADMIN with a known password, which must never be reachable on prod.
  *
- * Hit with: POST /api/admin/seed?secret=YOUR_SECRET
- * Requires SEED_SECRET env var.
- * Idempotent — safe to call multiple times.
+ * Hit with: POST /api/admin/seed with header `x-seed-secret: YOUR_SECRET`.
+ * Requires SEED_SECRET env var. Idempotent — safe to call multiple times.
  */
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
@@ -12,9 +13,21 @@ import { prisma } from "@/lib/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function secretMatches(provided: string | null, expected: string | undefined) {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  // timingSafeEqual demands equal lengths; unequal length = no match.
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 export async function POST(req: Request) {
-  const secret = new URL(req.url).searchParams.get("secret");
-  if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  // Header, not query string — query params land in proxy/access logs.
+  const secret = req.headers.get("x-seed-secret");
+  if (!secretMatches(secret, process.env.SEED_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
