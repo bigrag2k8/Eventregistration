@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { computeTotals } from "@/server/pricing";
-import { issueTickets, releaseSeats } from "@/server/tickets";
+import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 
 /** Thrown inside the reservation transaction when seats can't be claimed. */
@@ -12,6 +12,9 @@ class SoldOutError extends Error {
     super(scope);
   }
 }
+
+/** Thrown inside the reservation transaction when the promo code's usage limit is exhausted. */
+class PromoExhaustedError extends Error {}
 
 const FIELD_LABELS: Record<string, string> = {
   firstName: "First name",
@@ -106,6 +109,7 @@ export async function POST(req: Request) {
         }
       }
       await releaseSeats(prisma, dupe.ticketTypeId, dupe.quantity);
+      await releasePromoUse(prisma, dupe.promoCodeId);
     }
     await prisma.registration.delete({ where: { id: dupe.id } }).catch(() => {});
   }
@@ -152,6 +156,19 @@ export async function POST(req: Request) {
         if (Number(rows[0].total) > event.capacity) throw new SoldOutError("capacity");
       }
 
+      // Claim a promo-code use atomically. Pricing pre-checked usageCount, but
+      // only this conditional increment makes the limit race-proof. Released on
+      // abandon/cancel/dupe-replace/full-refund, mirroring seats.
+      if (totals.promoCodeId) {
+        const claimed = await tx.$executeRaw`
+          UPDATE promo_codes
+          SET "usageCount" = "usageCount" + 1
+          WHERE id = ${totals.promoCodeId}
+            AND ("usageLimit" IS NULL OR "usageCount" < "usageLimit")
+        `;
+        if (claimed === 0) throw new PromoExhaustedError();
+      }
+
       return tx.registration.create({
         data: {
           eventId: event.id,
@@ -187,6 +204,12 @@ export async function POST(req: Request) {
         error: e.scope === "capacity"
           ? "This event just sold out."
           : "Not enough tickets remaining for that ticket type.",
+      }, { status: 409 });
+    }
+    if (e instanceof PromoExhaustedError) {
+      return NextResponse.json({
+        error: "Promo code usage limit reached",
+        fieldErrors: { promoCode: ["Promo code usage limit reached"] },
       }, { status: 409 });
     }
     if (e?.code === "P2002") {

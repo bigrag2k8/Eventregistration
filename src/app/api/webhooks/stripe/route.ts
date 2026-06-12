@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { issueTickets, releaseSeats } from "@/server/tickets";
+import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -138,7 +138,7 @@ export async function POST(req: Request) {
         });
         const reg = await prisma.registration.findUnique({
           where: { id: payment.registrationId },
-          select: { ticketTypeId: true, quantity: true },
+          select: { ticketTypeId: true, quantity: true, promoCodeId: true },
         });
         if (fullyRefunded) {
           // Conditional flip so only the FIRST delivery transitions to REFUNDED
@@ -154,6 +154,7 @@ export async function POST(req: Request) {
           });
           if (flipped.count === 1 && reg) {
             await releaseSeats(prisma, reg.ticketTypeId, reg.quantity);
+            await releasePromoUse(prisma, reg.promoCodeId);
           }
         } else {
           await prisma.registration.update({

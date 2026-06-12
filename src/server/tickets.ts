@@ -65,6 +65,23 @@ export async function releaseSeats(
   `;
 }
 
+/**
+ * Release a promo-code use claimed at registration creation. Call from the
+ * same places as releaseSeats, when the registration carried a promoCodeId.
+ * Clamped at zero like releaseSeats.
+ */
+export async function releasePromoUse(
+  client: { $executeRaw: typeof prisma.$executeRaw },
+  promoCodeId: string | null,
+) {
+  if (!promoCodeId) return;
+  await client.$executeRaw`
+    UPDATE promo_codes
+    SET "usageCount" = GREATEST("usageCount" - 1, 0)
+    WHERE id = ${promoCodeId}
+  `;
+}
+
 export async function renderQrPngDataUrl(token: string) {
   return QRCode.toDataURL(token, { errorCorrectionLevel: "M", margin: 1, width: 320 });
 }

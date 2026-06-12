@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { stripe, stripeConfigured } from "@/lib/stripe";
+import { releaseSeats, releasePromoUse } from "@/server/tickets";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -193,20 +194,18 @@ export async function cancelRegistrationAction(formData: FormData) {
   // Already-released states: cancelling again must not free a seat twice.
   if (reg.status === "CANCELLED" || reg.status === "REFUNDED") return;
 
-  await prisma.$transaction([
-    prisma.registration.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.registration.update({
       where: { id: reg.id },
       data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "organizer_cancel" },
-    }),
-    prisma.ticket.updateMany({
+    });
+    await tx.ticket.updateMany({
       where: { registrationId: reg.id },
       data: { isValid: false, invalidatedAt: new Date(), invalidReason: "registration_cancelled" },
-    }),
-    prisma.ticketType.update({
-      where: { id: reg.ticketTypeId },
-      data: { quantitySold: { decrement: reg.quantity } },
-    }),
-  ]);
+    });
+    await releaseSeats(tx, reg.ticketTypeId, reg.quantity);
+    await releasePromoUse(tx, reg.promoCodeId);
+  });
 
   await audit({
     organizationId: event.organizationId, eventId: event.id, userId: session.sub,
@@ -237,15 +236,13 @@ export async function deleteRegistrationAction(formData: FormData) {
   // (fully) REFUNDED regs already released theirs, so don't double-decrement.
   const wasActive = reg.status !== "CANCELLED" && reg.status !== "REFUNDED";
 
-  await prisma.$transaction([
-    prisma.registration.delete({ where: { id: reg.id } }),
-    ...(wasActive
-      ? [prisma.ticketType.update({
-          where: { id: reg.ticketTypeId },
-          data: { quantitySold: { decrement: reg.quantity } },
-        })]
-      : []),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.registration.delete({ where: { id: reg.id } });
+    if (wasActive) {
+      await releaseSeats(tx, reg.ticketTypeId, reg.quantity);
+      await releasePromoUse(tx, reg.promoCodeId);
+    }
+  });
 
   await audit({
     organizationId: event.organizationId, eventId: event.id, userId: session.sub,
