@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
@@ -77,11 +78,36 @@ export async function clearSessionCookie() {
   cookies().delete(COOKIE_NAME);
 }
 
-export async function getSession(): Promise<JwtPayload | null> {
+/**
+ * Verifies the session cookie AND re-validates the user against the database,
+ * so removing a team member or changing their role takes effect immediately
+ * instead of whenever their 7-day JWT happens to expire. Role/orgId/email come
+ * from the DB, not the (possibly stale) token claims.
+ *
+ * Wrapped in React cache() so repeated calls within one request cost a single
+ * primary-key lookup. Prisma is imported dynamically to keep it out of the
+ * edge middleware bundle (middleware imports verifySession from this module).
+ */
+export const getSession = cache(async (): Promise<JwtPayload | null> => {
   const tok = cookies().get(COOKIE_NAME)?.value;
   if (!tok) return null;
-  return verifySession(tok);
-}
+  const claims = await verifySession(tok);
+  if (!claims) return null;
+
+  const { prisma } = await import("@/lib/db");
+  const user = await prisma.user.findUnique({
+    where: { id: claims.sub },
+    select: { id: true, email: true, role: true, organizationId: true, deletedAt: true },
+  });
+  if (!user || user.deletedAt) return null;
+
+  return {
+    sub: user.id,
+    role: user.role,
+    orgId: user.organizationId ?? undefined,
+    email: user.email,
+  };
+});
 
 export function requireRole(allowed: Role[], session: JwtPayload | null) {
   if (!session) throw new Error("UNAUTHORIZED");
