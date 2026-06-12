@@ -141,6 +141,46 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
   },
 };
 
+/** Numeric plan limits a SUPERADMIN can override per-org. */
+export const OVERRIDABLE_LIMITS = [
+  "monthlyEventLimit",
+  "registrationLimitPerEvent",
+  "emailCampaignsPerEvent",
+] as const;
+export type OverridableLimit = (typeof OVERRIDABLE_LIMITS)[number];
+
+/**
+ * Per-org overrides set by a SUPERADMIN (stored in Organization.planOverrides).
+ * A present key replaces the catalog value for that org; `null` means unlimited.
+ * An absent key falls back to the plan default.
+ */
+export type PlanOverrides = Partial<Record<OverridableLimit, number | null>>;
+
+/** Defensively coerce the raw Json blob into a clean PlanOverrides object. */
+export function parseOverrides(raw: unknown): PlanOverrides {
+  if (!raw || typeof raw !== "object") return {};
+  const src = raw as Record<string, unknown>;
+  const out: PlanOverrides = {};
+  for (const key of OVERRIDABLE_LIMITS) {
+    if (!(key in src)) continue;
+    const v = src[key];
+    if (v === null) out[key] = null;                              // explicit unlimited
+    else if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[key] = Math.floor(v);
+    // anything else (undefined / garbage) → no override for this key
+  }
+  return out;
+}
+
+/** Layer per-org overrides on top of a catalog plan, returning a new PlanInfo. */
+export function applyOverrides(plan: PlanInfo, overrides: PlanOverrides): PlanInfo {
+  if (!overrides || Object.keys(overrides).length === 0) return plan;
+  const next = { ...plan };
+  for (const key of OVERRIDABLE_LIMITS) {
+    if (key in overrides) next[key] = overrides[key] ?? null;
+  }
+  return next;
+}
+
 /** Days a PAST_DUE org keeps paid features past its period end before dropping to FREE. */
 const PAST_DUE_GRACE_DAYS = 7;
 
@@ -158,15 +198,23 @@ export function effectivePlan(org: {
   subscriptionPlan: string;
   subscriptionStatus: string;
   subscriptionCurrentPeriodEnd: Date | null;
+  planOverrides?: unknown;
 }): PlanInfo {
-  const plan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
-  if (plan.cadence !== "monthly") return plan;
-  if (org.subscriptionStatus === "ACTIVE" || org.subscriptionStatus === "TRIALING") return plan;
-  if (org.subscriptionStatus === "PAST_DUE") {
-    const periodEnd = org.subscriptionCurrentPeriodEnd?.getTime() ?? 0;
-    if (Date.now() < periodEnd + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000) return plan;
+  const base = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+
+  // Resolve the entitled catalog plan first (monthly plans can lapse to FREE)…
+  let resolved = base;
+  if (base.cadence === "monthly") {
+    let granted = org.subscriptionStatus === "ACTIVE" || org.subscriptionStatus === "TRIALING";
+    if (!granted && org.subscriptionStatus === "PAST_DUE") {
+      const periodEnd = org.subscriptionCurrentPeriodEnd?.getTime() ?? 0;
+      granted = Date.now() < periodEnd + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+    }
+    resolved = granted ? base : PLANS.FREE;
   }
-  return PLANS.FREE;
+
+  // …then layer any SUPERADMIN per-org overrides on top of whatever is in force.
+  return applyOverrides(resolved, parseOverrides(org.planOverrides));
 }
 
 /**

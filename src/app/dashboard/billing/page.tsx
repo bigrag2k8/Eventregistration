@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
-import { PLANS, PlanInfo } from "@/lib/plans";
+import { PLANS, PlanInfo, effectivePlan } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BillingActions } from "@/components/BillingActions";
 import { activateFreePlanAction } from "./actions";
@@ -18,7 +18,9 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
 
   const isFirstTime = !org.planSelected;
 
-  const currentPlan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+  // Use the entitled plan (PAST_DUE downgrade + any SUPERADMIN per-org overrides)
+  // so the usage limits shown here match what's actually enforced.
+  const currentPlan = effectivePlan(org);
 
   // Usage stats: events created in current month
   const startOfMonth = new Date();

@@ -170,6 +170,10 @@ model Organization {
   singleEventCredits          Int      @default(0)
   /// false = org just signed up and hasn't picked a plan yet. While false, the dashboard locks them to /dashboard/billing.
   planSelected                Boolean  @default(true)
+  /// Per-org plan limit overrides set by a SUPERADMIN (see effectivePlan / applyOverrides in src/lib/plans.ts).
+  /// Shape: { monthlyEventLimit?, registrationLimitPerEvent?, emailCampaignsPerEvent? } where a present key
+  /// replaces the catalog value (null = unlimited) and an absent key falls back to the plan default.
+  planOverrides               Json?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

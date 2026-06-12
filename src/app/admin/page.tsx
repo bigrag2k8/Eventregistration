@@ -84,7 +84,10 @@ export default async function AdminHome() {
                   <td className="px-4 py-3 text-right">{o._count.events}</td>
                   <td className="px-4 py-3 text-slate-500">{o.createdAt.toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/o/${o.slug}`} target="_blank" className="text-brand-700 hover:underline">View public ↗</Link>
+                    <div className="flex items-center justify-end gap-3">
+                      <Link href={`/admin/orgs/${o.id}`} className="font-medium text-brand-700 hover:underline">Manage</Link>
+                      <Link href={`/o/${o.slug}`} target="_blank" className="text-slate-500 hover:underline">View public ↗</Link>
+                    </div>
                   </td>
                 </tr>
               ))}
