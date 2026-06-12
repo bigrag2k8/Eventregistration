@@ -65,6 +65,8 @@ export async function POST(req: Request) {
       eventId: app.eventId,
       organizationId: org.id,
       platformFeePercent: String(PLATFORM_FEE_PERCENT),
+      // Exact application fee applied; persisted on the Payment row by finalizeVendor.
+      platformFeeCents: String(connect?.application_fee_amount ?? 0),
     },
     payment_intent_data: {
       metadata: { vendorApplicationId: app.id, organizationId: org.id },

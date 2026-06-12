@@ -124,6 +124,9 @@ export async function POST(req: Request) {
         eventId: reg.eventId,
         organizationId: org.id,
         platformFeePercent: String(PLATFORM_FEE_PERCENT),
+        // Exact application fee applied to this charge, persisted on the Payment
+        // row by the webhook so platform earnings are queryable without Stripe.
+        platformFeeCents: String(connect?.application_fee_amount ?? 0),
       },
       payment_intent_data: {
         metadata: { registrationId: reg.id, organizationId: org.id },

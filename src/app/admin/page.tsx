@@ -39,6 +39,7 @@ export default async function AdminHome() {
           </div>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin">Overview</Link>
+            <Link href="/admin/financials" className="opacity-80 hover:opacity-100">Financials</Link>
             <Link href="/admin/orgs/new" className="rounded-lg bg-white px-3 py-1 text-slate-900 hover:bg-slate-100">+ Invite organization</Link>
             <Link href="/admin/audit" className="opacity-80 hover:opacity-100">Audit log</Link>
             <Link href="/dashboard" className="opacity-80 hover:opacity-100">Back to my dashboard</Link>

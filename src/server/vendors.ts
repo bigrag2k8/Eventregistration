@@ -43,6 +43,7 @@ export interface VendorPaymentInfo {
   paymentIntentId?: string | null;
   amountCents?: number | null;
   currency?: string | null;
+  platformFeeCents?: number | null;
 }
 
 export async function finalizeVendor(appId: string, payment?: VendorPaymentInfo) {
@@ -139,6 +140,7 @@ export async function finalizeVendor(appId: string, payment?: VendorPaymentInfo)
           data: {
             registrationId: reg.id,
             amountCents: payment.amountCents ?? priceCents,
+            platformFeeCents: payment.platformFeeCents ?? 0,
             currency: (payment.currency ?? "usd").toUpperCase(),
             status: "SUCCEEDED",
             stripePaymentIntentId: payment.paymentIntentId,

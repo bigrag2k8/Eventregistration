@@ -82,6 +82,7 @@ export async function POST(req: Request) {
           paymentIntentId: session.payment_intent ?? null,
           amountCents: session.amount_total ?? null,
           currency: session.currency ?? null,
+          platformFeeCents: Number(session.metadata?.platformFeeCents ?? 0) || 0,
         });
         break;
       }
@@ -107,6 +108,7 @@ export async function POST(req: Request) {
           data: {
             registrationId: regId,
             amountCents: session.amount_total ?? reg.totalCents,
+            platformFeeCents: Number(session.metadata?.platformFeeCents ?? 0) || 0,
             currency: (session.currency ?? reg.currency).toUpperCase(),
             status: "SUCCEEDED",
             stripePaymentIntentId: session.payment_intent ?? null,

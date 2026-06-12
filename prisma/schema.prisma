@@ -492,6 +492,10 @@ model Payment {
   registrationId        String
   registration          Registration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   amountCents           Int
+  /// Our platform cut on this charge (Stripe application_fee_amount, in cents).
+  /// 0 for pre-fee-tracking rows and for charges that carried no application fee.
+  /// On refund the fee is reversed proportionally; net revenue prorates by amount refunded.
+  platformFeeCents      Int           @default(0)
   currency              String        @default("USD")
   status                PaymentStatus @default(PENDING)
   stripePaymentIntentId String?       @unique

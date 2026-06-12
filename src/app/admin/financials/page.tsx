@@ -1,0 +1,278 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { PLANS } from "@/lib/plans";
+
+export const dynamic = "force-dynamic";
+
+const PAID_STATUSES = "('SUCCEEDED','PARTIALLY_REFUNDED','REFUNDED')";
+
+// Net-fee proration: on refund the application fee is reversed proportionally
+// (refund_application_fee: true), so net fee = fee × (1 − refunded / amount).
+const NET_FEE = `"platformFeeCents" * (1 - LEAST("refundedAmountCents","amountCents")::numeric / NULLIF("amountCents",0))`;
+const NET_FEE_P = `p."platformFeeCents" * (1 - LEAST(p."refundedAmountCents", p."amountCents")::numeric / NULLIF(p."amountCents",0))`;
+
+/** Preset windows. `interval` is a trusted Postgres interval literal; `bucket`/`fmt` drive the chart. */
+const PRESETS: Record<string, { short: string; label: string; interval: string | null; bucket: string; fmt: string }> = {
+  "1h": { short: "1H", label: "Last hour", interval: "1 hour", bucket: "minute", fmt: "HH24:MI" },
+  "1d": { short: "1D", label: "Last 24 hours", interval: "24 hours", bucket: "hour", fmt: "HH24:MI" },
+  "1w": { short: "1W", label: "Last 7 days", interval: "7 days", bucket: "day", fmt: "MM-DD" },
+  "1m": { short: "1M", label: "Last 30 days", interval: "30 days", bucket: "day", fmt: "MM-DD" },
+  "1y": { short: "1Y", label: "Last 12 months", interval: "12 months", bucket: "month", fmt: "YYYY-MM" },
+  all: { short: "All", label: "All time", interval: null, bucket: "month", fmt: "YYYY-MM" },
+};
+const PRESET_ORDER = ["1h", "1d", "1w", "1m", "1y", "all"];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function fmt(cents: number): string {
+  return "$" + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtCompact(cents: number): string {
+  return "$" + Math.round(cents / 100).toLocaleString();
+}
+const num = (v: bigint | number | null): number => Number(v ?? 0);
+
+export default async function AdminFinancialsPage({
+  searchParams,
+}: {
+  searchParams: { range?: string; from?: string; to?: string };
+}) {
+  const session = await getSession();
+  if (!session) redirect("/signin");
+  if (session.role !== "SUPERADMIN") redirect("/dashboard");
+
+  // ── Resolve the selected time window ────────────────────────────────────
+  const rawRange = searchParams?.range ?? "all";
+  const from = searchParams?.from && DATE_RE.test(searchParams.from) ? searchParams.from : undefined;
+  const to = searchParams?.to && DATE_RE.test(searchParams.to) ? searchParams.to : undefined;
+  const customActive = rawRange === "custom" && (!!from || !!to);
+
+  let preset = PRESETS[rawRange] ? rawRange : "all";
+  let bucket: string, labelFmt: string, rangeLabel: string;
+
+  /** Build the time predicate for a given timestamp column. All inputs are whitelisted/validated. */
+  function timeClause(col: string): string {
+    if (customActive) {
+      const parts: string[] = [];
+      if (from) parts.push(`${col} >= '${from}'::date`);
+      if (to) parts.push(`${col} < ('${to}'::date + interval '1 day')`);
+      return parts.length ? " AND " + parts.join(" AND ") : "";
+    }
+    const p = PRESETS[preset] ?? PRESETS.all;
+    return p.interval ? ` AND ${col} >= now() - interval '${p.interval}'` : "";
+  }
+
+  if (customActive) {
+    const span = from && to ? (Date.parse(to) - Date.parse(from)) / 86_400_000 : 60;
+    bucket = span <= 2 ? "hour" : span <= 62 ? "day" : "month";
+    labelFmt = bucket === "hour" ? "MM-DD HH24:MI" : bucket === "day" ? "MM-DD" : "YYYY-MM";
+    rangeLabel = `${from ?? "…"} → ${to ?? "…"}`;
+  } else {
+    if (rawRange === "custom") preset = "all"; // custom chosen but no valid dates → fall back
+    const p = PRESETS[preset];
+    bucket = p.bucket;
+    labelFmt = p.fmt;
+    rangeLabel = p.label;
+  }
+  const whereTime = timeClause(`"createdAt"`);
+  const whereTimeP = timeClause(`p."createdAt"`);
+
+  // ── Queries ─────────────────────────────────────────────────────────────
+  const [totalsRows, trend, leaderboard, subs] = await Promise.all([
+    prisma.$queryRawUnsafe<Array<{ gross: bigint; refunded: bigint; fee_net: bigint; txns: bigint }>>(`
+      SELECT
+        COALESCE(SUM("amountCents"),0)::bigint AS gross,
+        COALESCE(SUM("refundedAmountCents"),0)::bigint AS refunded,
+        COALESCE(ROUND(SUM(${NET_FEE})),0)::bigint AS fee_net,
+        COUNT(*)::bigint AS txns
+      FROM payments
+      WHERE status IN ${PAID_STATUSES}${whereTime}
+    `),
+    prisma.$queryRawUnsafe<Array<{ label: string; net_fee: bigint }>>(`
+      SELECT to_char(date_trunc('${bucket}', "createdAt"), '${labelFmt}') AS label,
+        COALESCE(ROUND(SUM(${NET_FEE})),0)::bigint AS net_fee
+      FROM payments
+      WHERE status IN ${PAID_STATUSES}${whereTime}
+      GROUP BY date_trunc('${bucket}', "createdAt")
+      ORDER BY date_trunc('${bucket}', "createdAt")
+    `),
+    prisma.$queryRawUnsafe<Array<{ id: string; name: string; slug: string; net_gmv: bigint; net_fee: bigint }>>(`
+      SELECT o.id, o.name, o.slug,
+        COALESCE(SUM(p."amountCents" - p."refundedAmountCents"),0)::bigint AS net_gmv,
+        COALESCE(ROUND(SUM(${NET_FEE_P})),0)::bigint AS net_fee
+      FROM payments p
+      JOIN registrations r ON r.id = p."registrationId"
+      JOIN events e ON e.id = r."eventId"
+      JOIN organizations o ON o.id = e."organizationId"
+      WHERE p.status IN ${PAID_STATUSES}${whereTimeP}
+      GROUP BY o.id, o.name, o.slug
+      ORDER BY net_fee DESC
+      LIMIT 10
+    `),
+    prisma.organization.groupBy({
+      by: ["subscriptionPlan", "subscriptionStatus"],
+      where: { deletedAt: null },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const t = totalsRows[0] ?? { gross: 0n, refunded: 0n, fee_net: 0n, txns: 0n };
+  const grossCents = num(t.gross);
+  const refundedCents = num(t.refunded);
+  const feeNetCents = num(t.fee_net);
+  const netGmvCents = grossCents - refundedCents;
+  const takeRate = netGmvCents > 0 ? (feeNetCents / netGmvCents) * 100 : 0;
+
+  // MRR / subscription status are current snapshots — not affected by the window.
+  let mrrCents = 0;
+  const statusCounts: Record<string, number> = {};
+  for (const row of subs) {
+    const c = row._count._all;
+    statusCounts[row.subscriptionStatus] = (statusCounts[row.subscriptionStatus] ?? 0) + c;
+    const plan = PLANS[row.subscriptionPlan as keyof typeof PLANS];
+    const active = row.subscriptionStatus === "ACTIVE" || row.subscriptionStatus === "TRIALING";
+    if (plan && plan.cadence === "monthly" && active) mrrCents += c * plan.priceCents;
+  }
+  const arrCents = mrrCents * 12;
+
+  const maxFee = Math.max(1, ...trend.map((m) => num(m.net_fee)));
+  const labelStep = Math.max(1, Math.ceil(trend.length / 12)); // keep x-axis readable
+
+  const presetCls = (active: boolean) =>
+    `rounded-lg px-3 py-1 text-sm ${active ? "bg-brand-600 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`;
+
+  return (
+    <main>
+      <header className="border-b bg-slate-900 text-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link href="/admin" className="font-bold">Platform Admin</Link>
+            <span className="rounded-full bg-red-500/30 px-2 py-0.5 text-xs">SUPERADMIN</span>
+          </div>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/admin" className="opacity-80 hover:opacity-100">Overview</Link>
+            <Link href="/admin/financials">Financials</Link>
+            <Link href="/admin/audit" className="opacity-80 hover:opacity-100">Audit log</Link>
+          </nav>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-6xl px-4 py-8">
+        <h1 className="text-2xl font-bold">Platform financials</h1>
+        <p className="text-sm text-slate-500">
+          Showing <strong className="text-slate-700">{rangeLabel}</strong> · transaction times in UTC
+        </p>
+
+        {/* Time range selector */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {PRESET_ORDER.map((key) => (
+            <Link key={key} href={`/admin/financials?range=${key}`} className={presetCls(!customActive && preset === key)}>
+              {PRESETS[key].short}
+            </Link>
+          ))}
+          <form method="get" className="ml-2 flex items-center gap-2">
+            <input type="hidden" name="range" value="custom" />
+            <input type="date" name="from" defaultValue={from} className="input !py-1 text-sm" aria-label="From date" />
+            <span className="text-slate-400">→</span>
+            <input type="date" name="to" defaultValue={to} className="input !py-1 text-sm" aria-label="To date" />
+            <button type="submit" className={presetCls(customActive)}>Apply</button>
+          </form>
+        </div>
+
+        {/* Headline (windowed) */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Net GMV processed" value={fmt(netGmvCents)} hint="Ticket + vendor sales, net of refunds" />
+          <Stat label="Platform fee revenue" value={fmt(feeNetCents)} hint={`Your cut · ${rangeLabel.toLowerCase()}`} accent />
+          <Stat label="Take rate" value={`${takeRate.toFixed(2)}%`} hint="Fee revenue ÷ net GMV" />
+          <Stat label="MRR" value={fmt(mrrCents)} hint={`ARR ${fmtCompact(arrCents)} · current run-rate`} />
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Gross processed" value={fmt(grossCents)} small />
+          <Stat label="Refunds" value={fmt(refundedCents)} small />
+          <Stat label="Paid transactions" value={num(t.txns).toLocaleString()} small />
+          <Stat label="Active subscriptions" value={String((statusCounts.ACTIVE ?? 0) + (statusCounts.TRIALING ?? 0))} small hint="current" />
+        </div>
+
+        {/* Trend (windowed + bucketed) */}
+        <div className="mt-8 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+          <h2 className="text-lg font-semibold">Platform fee revenue — {rangeLabel.toLowerCase()}</h2>
+          {trend.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">No transactions in this window.</p>
+          ) : (
+            <div className="mt-5 flex h-40 items-end gap-1">
+              {trend.map((m, i) => {
+                const v = num(m.net_fee);
+                const pct = Math.max(2, (v / maxFee) * 100);
+                return (
+                  <div key={`${m.label}-${i}`} className="flex flex-1 flex-col items-center gap-1" title={`${m.label}: ${fmt(v)}`}>
+                    <div className="w-full rounded-t bg-brand-500" style={{ height: `${pct}%` }} />
+                    <div className="h-3 text-[9px] text-slate-400">{i % labelStep === 0 ? m.label : ""}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {/* Org leaderboard (windowed) */}
+          <div className="rounded-xl bg-white ring-1 ring-slate-200">
+            <div className="border-b px-5 py-3"><h2 className="font-semibold">Top organizations by fee revenue</h2></div>
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                <tr><th className="px-5 py-2">Organization</th><th className="px-5 py-2 text-right">Net GMV</th><th className="px-5 py-2 text-right">Fee revenue</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {leaderboard.map((o) => (
+                  <tr key={o.id}>
+                    <td className="px-5 py-2"><Link href={`/admin/orgs/${o.id}`} className="font-medium text-brand-700 hover:underline">{o.name}</Link></td>
+                    <td className="px-5 py-2 text-right text-slate-600">{fmt(num(o.net_gmv))}</td>
+                    <td className="px-5 py-2 text-right font-medium">{fmt(num(o.net_fee))}</td>
+                  </tr>
+                ))}
+                {leaderboard.length === 0 && (
+                  <tr><td colSpan={3} className="px-5 py-6 text-center text-slate-500">No paid transactions in this window.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Subscription health (current) */}
+          <div className="rounded-xl bg-white ring-1 ring-slate-200">
+            <div className="border-b px-5 py-3"><h2 className="font-semibold">Subscription status <span className="text-xs font-normal text-slate-400">· current</span></h2></div>
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100">
+                {["ACTIVE", "TRIALING", "PAST_DUE", "CANCELED", "INCOMPLETE", "NONE"].map((s) => (
+                  <tr key={s}>
+                    <td className="px-5 py-2">
+                      {s === "PAST_DUE" ? <span className="font-medium text-amber-700">{s} (revenue at risk)</span> : <span className="text-slate-600">{s}</span>}
+                    </td>
+                    <td className="px-5 py-2 text-right font-medium">{statusCounts[s] ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p className="mt-6 text-xs text-slate-400">
+          Platform fee figures are tracked from the deploy that added fee persistence forward; transactions
+          recorded before that show $0 fee until backfilled from Stripe. MRR/ARR and subscription status are
+          current snapshots (not affected by the selected window).
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function Stat({ label, value, hint, accent, small }: { label: string; value: string; hint?: string; accent?: boolean; small?: boolean }) {
+  return (
+    <div className={`rounded-xl p-4 ring-1 ${accent ? "bg-brand-50 ring-brand-200" : "bg-white ring-slate-200"}`}>
+      <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+      <div className={`mt-1 font-bold ${small ? "text-xl" : "text-2xl"} ${accent ? "text-brand-800" : "text-slate-900"}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
+    </div>
+  );
+}
