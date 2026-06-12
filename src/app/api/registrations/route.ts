@@ -3,8 +3,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { computeTotals } from "@/server/pricing";
-import { issueTickets } from "@/server/tickets";
+import { issueTickets, releaseSeats } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
+
+/** Thrown inside the reservation transaction when seats can't be claimed. */
+class SoldOutError extends Error {
+  constructor(public scope: "ticket" | "capacity") {
+    super(scope);
+  }
+}
 
 const FIELD_LABELS: Record<string, string> = {
   firstName: "First name",
@@ -87,15 +94,18 @@ export async function POST(req: Request) {
       }, { status: 409 });
     }
     // PENDING / CANCELLED → cascade delete the old row to free the (eventId, email) unique slot.
-    // Expire its Stripe session first so the orphaned session can't be paid
-    // against a registration that no longer exists. (If one slips through, the
-    // webhook auto-refunds it.)
-    if (dupe.stripeSessionId && dupe.status === "PENDING") {
-      try {
-        await stripe.checkout.sessions.expire(dupe.stripeSessionId);
-      } catch {
-        // already expired/completed — webhook orphan-refund is the backstop
+    if (dupe.status === "PENDING") {
+      // Expire its Stripe session first so the orphaned session can't be paid
+      // against a registration that no longer exists (the webhook auto-refunds
+      // if one slips through), and release the seat it was holding.
+      if (dupe.stripeSessionId) {
+        try {
+          await stripe.checkout.sessions.expire(dupe.stripeSessionId);
+        } catch {
+          // already expired/completed — webhook orphan-refund is the backstop
+        }
       }
+      await releaseSeats(prisma, dupe.ticketTypeId, dupe.quantity);
     }
     await prisma.registration.delete({ where: { id: dupe.id } }).catch(() => {});
   }
@@ -114,34 +124,80 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg, fieldErrors: fieldHints }, { status: 400 });
   }
 
-  const reg = await prisma.registration.create({
-    data: {
-      eventId: event.id,
-      ticketTypeId: input.ticketTypeId,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      phone: input.phone,
-      company: input.company,
-      jobTitle: input.jobTitle,
-      dietary: input.dietary,
-      accessibility: input.accessibility,
-      specialRequests: input.specialRequests,
-      quantity: input.quantity,
-      subtotalCents: totals.subtotal,
-      discountCents: totals.discount,
-      taxCents: totals.tax,
-      feeCents: totals.fee,
-      totalCents: totals.total,
-      currency: totals.currency,
-      promoCodeId: totals.promoCodeId,
-      status: totals.total === 0 ? "CONFIRMED" : "PENDING",
-      confirmedAt: totals.total === 0 ? new Date() : null,
-      answers: input.answers
-        ? { create: input.answers.map((a) => ({ questionId: a.questionId, answer: a.answer })) }
-        : undefined,
-    },
-  });
+  // Reserve the seats and create the registration in one transaction so the
+  // inventory claim and the row are all-or-nothing. The conditional UPDATE makes
+  // overselling impossible: two buyers of the last seat can't both succeed.
+  let reg;
+  try {
+    reg = await prisma.$transaction(async (tx) => {
+      // Serialize concurrent reservations for this event so the capacity sum
+      // below can't be raced by simultaneous buyers of other ticket types.
+      await tx.$executeRaw`SELECT id FROM events WHERE id = ${event.id} FOR UPDATE`;
+
+      // Per-ticket-type claim. Affected-row count of 0 means it didn't fit.
+      const reserved = await tx.$executeRaw`
+        UPDATE ticket_types
+        SET "quantitySold" = "quantitySold" + ${input.quantity}
+        WHERE id = ${input.ticketTypeId}
+          AND ("quantityTotal" IS NULL OR "quantitySold" + ${input.quantity} <= "quantityTotal")
+      `;
+      if (reserved === 0) throw new SoldOutError("ticket");
+
+      // Event-wide capacity across all ticket types.
+      if (event.capacity != null) {
+        const rows = await tx.$queryRaw<{ total: bigint }[]>`
+          SELECT COALESCE(SUM("quantitySold"), 0)::bigint AS total
+          FROM ticket_types WHERE "eventId" = ${event.id}
+        `;
+        if (Number(rows[0].total) > event.capacity) throw new SoldOutError("capacity");
+      }
+
+      return tx.registration.create({
+        data: {
+          eventId: event.id,
+          ticketTypeId: input.ticketTypeId,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: input.email,
+          phone: input.phone,
+          company: input.company,
+          jobTitle: input.jobTitle,
+          dietary: input.dietary,
+          accessibility: input.accessibility,
+          specialRequests: input.specialRequests,
+          quantity: input.quantity,
+          subtotalCents: totals.subtotal,
+          discountCents: totals.discount,
+          taxCents: totals.tax,
+          feeCents: totals.fee,
+          totalCents: totals.total,
+          currency: totals.currency,
+          promoCodeId: totals.promoCodeId,
+          status: totals.total === 0 ? "CONFIRMED" : "PENDING",
+          confirmedAt: totals.total === 0 ? new Date() : null,
+          answers: input.answers
+            ? { create: input.answers.map((a) => ({ questionId: a.questionId, answer: a.answer })) }
+            : undefined,
+        },
+      });
+    });
+  } catch (e: any) {
+    if (e instanceof SoldOutError) {
+      return NextResponse.json({
+        error: e.scope === "capacity"
+          ? "This event just sold out."
+          : "Not enough tickets remaining for that ticket type.",
+      }, { status: 409 });
+    }
+    if (e?.code === "P2002") {
+      // A concurrent submission with the same email won the unique slot.
+      return NextResponse.json({
+        error: "This email is already registered for this event. Check your inbox for your ticket, or use a different email.",
+        fieldErrors: { email: ["Already registered for this event"] },
+      }, { status: 409 });
+    }
+    throw e;
+  }
 
   if (reg.status === "CONFIRMED") {
     try {

@@ -15,9 +15,16 @@ export async function computeTotals(input: ComputeTotalsInput) {
   const tt = input.event.ticketTypes.find((t) => t.id === input.ticketTypeId);
   if (!tt) return { error: "Ticket type not found" as const };
 
-  // Capacity check
+  // Capacity check (fast, friendly pre-check; the authoritative guard is the
+  // atomic reservation at registration creation).
   if (tt.quantityTotal && tt.quantitySold + input.quantity > tt.quantityTotal) {
     return { error: "Not enough tickets remaining" as const };
+  }
+  if (input.event.capacity != null) {
+    const eventSold = input.event.ticketTypes.reduce((s, t) => s + t.quantitySold, 0);
+    if (eventSold + input.quantity > input.event.capacity) {
+      return { error: "This event is sold out" as const };
+    }
   }
   // Sales window
   const now = new Date();

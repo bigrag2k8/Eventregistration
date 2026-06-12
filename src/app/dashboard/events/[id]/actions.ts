@@ -190,7 +190,8 @@ export async function cancelRegistrationAction(formData: FormData) {
     where: { id: registrationId, eventId: event.id },
   });
   if (!reg) throw new Error("Registration not found");
-  if (reg.status === "CANCELLED") return;
+  // Already-released states: cancelling again must not free a seat twice.
+  if (reg.status === "CANCELLED" || reg.status === "REFUNDED") return;
 
   await prisma.$transaction([
     prisma.registration.update({
@@ -232,8 +233,9 @@ export async function deleteRegistrationAction(formData: FormData) {
   });
   if (!reg) throw new Error("Registration not found");
 
-  // Only decrement if it was counting against the sold count
-  const wasActive = reg.status !== "CANCELLED";
+  // Only release a seat if this reg was still holding one. CANCELLED and
+  // (fully) REFUNDED regs already released theirs, so don't double-decrement.
+  const wasActive = reg.status !== "CANCELLED" && reg.status !== "REFUNDED";
 
   await prisma.$transaction([
     prisma.registration.delete({ where: { id: reg.id } }),

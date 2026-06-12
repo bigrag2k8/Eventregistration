@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { issueTickets } from "@/server/tickets";
+import { issueTickets, releaseSeats } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -136,14 +136,29 @@ export async function POST(req: Request) {
             stripeRefundId: charge.refunds?.data?.[0]?.id,
           },
         });
-        await prisma.registration.update({
+        const reg = await prisma.registration.findUnique({
           where: { id: payment.registrationId },
-          data: { status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED" },
+          select: { ticketTypeId: true, quantity: true },
         });
         if (fullyRefunded) {
+          // Conditional flip so only the FIRST delivery transitions to REFUNDED
+          // (charge.refunded is redelivered at-least-once). releaseSeats then
+          // runs exactly once, not on every retry.
+          const flipped = await prisma.registration.updateMany({
+            where: { id: payment.registrationId, status: { not: "REFUNDED" } },
+            data: { status: "REFUNDED" },
+          });
           await prisma.ticket.updateMany({
             where: { registrationId: payment.registrationId },
             data: { isValid: false, invalidatedAt: new Date(), invalidReason: "refund" },
+          });
+          if (flipped.count === 1 && reg) {
+            await releaseSeats(prisma, reg.ticketTypeId, reg.quantity);
+          }
+        } else {
+          await prisma.registration.update({
+            where: { id: payment.registrationId },
+            data: { status: "PARTIALLY_REFUNDED" },
           });
         }
       }

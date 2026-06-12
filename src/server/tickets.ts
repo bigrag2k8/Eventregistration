@@ -6,6 +6,10 @@ import { signTicketToken } from "@/lib/auth";
 /**
  * Idempotently issues one Ticket row per quantity unit on a CONFIRMED Registration.
  * Generates a signed JWT QR token and stores its SHA-256 hash for fast lookup.
+ *
+ * Does NOT touch ticketType.quantitySold: seats are reserved atomically when the
+ * registration is created (see reserveSeats in the registration/vendor flows),
+ * so incrementing here would double-count.
  */
 export async function issueTickets(registrationId: string) {
   const reg = await prisma.registration.findUnique({
@@ -40,13 +44,25 @@ export async function issueTickets(registrationId: string) {
     created.push(t);
   }
 
-  // increment sold count
-  await prisma.ticketType.update({
-    where: { id: reg.ticketTypeId },
-    data: { quantitySold: { increment: needed } },
-  });
-
   return created;
+}
+
+/**
+ * Release reserved seats back to a ticket type — call when a held registration
+ * leaves the held state (abandoned, cancelled, deleted, or fully refunded).
+ * Clamped at zero so an accounting slip can never push availability negative.
+ * Accepts a Prisma client or an interactive-transaction client.
+ */
+export async function releaseSeats(
+  client: { $executeRaw: typeof prisma.$executeRaw },
+  ticketTypeId: string,
+  quantity: number,
+) {
+  await client.$executeRaw`
+    UPDATE ticket_types
+    SET "quantitySold" = GREATEST("quantitySold" - ${quantity}, 0)
+    WHERE id = ${ticketTypeId}
+  `;
 }
 
 export async function renderQrPngDataUrl(token: string) {

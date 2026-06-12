@@ -5,7 +5,7 @@
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { sendReminderEmail } from "@/lib/email";
-import { issueTickets } from "@/server/tickets";
+import { issueTickets, releaseSeats } from "@/server/tickets";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -82,6 +82,8 @@ async function purgeAbandonedCarts() {
       }
     }
     await prisma.registration.update({ where: { id: r.id }, data: { status: "CANCELLED", cancelReason: "abandoned" } });
+    // Release the seat this abandoned reg was holding so it reopens for sale.
+    await releaseSeats(prisma, r.ticketTypeId, r.quantity);
     await prisma.abandonedCart.upsert({
       where: { id: r.id },
       update: {},
