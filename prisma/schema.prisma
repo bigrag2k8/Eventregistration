@@ -747,3 +747,15 @@ model AuditLog {
   @@index([userId])
   @@map("audit_logs")
 }
+
+/// Stripe delivers webhooks at-least-once; this table dedupes redeliveries.
+/// A row is claimed (insert) before processing and removed if the handler
+/// fails, so Stripe's retry can reprocess. Unique stripeEventId is the lock.
+model WebhookEvent {
+  id            String   @id @default(cuid())
+  stripeEventId String   @unique
+  type          String
+  processedAt   DateTime @default(now())
+
+  @@map("webhook_events")
+}

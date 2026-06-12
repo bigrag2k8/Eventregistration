@@ -46,6 +46,19 @@ export async function POST(req: Request) {
     return new NextResponse(`Webhook signature failure: ${e.message}`, { status: 400 });
   }
 
+  // Stripe delivers at-least-once: claim this event id before processing so a
+  // redelivery no-ops instead of re-running side effects (duplicate credit
+  // grants, duplicate confirmation emails). P2002 means already processed.
+  try {
+    await prisma.webhookEvent.create({ data: { stripeEventId: event.id, type: event.type } });
+  } catch (e: any) {
+    if (e?.code === "P2002") return NextResponse.json({ received: true, duplicate: true });
+    throw e;
+  }
+
+  // Run the actual handler inside a wrapper: on failure, release the claim so
+  // Stripe's retry can reprocess rather than being swallowed as a duplicate.
+  const handleEvent = async () => {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as any;
@@ -213,6 +226,14 @@ export async function POST(req: Request) {
       }
       break;
     }
+  }
+  };
+
+  try {
+    await handleEvent();
+  } catch (e) {
+    await prisma.webhookEvent.delete({ where: { stripeEventId: event.id } }).catch(() => {});
+    throw e;
   }
 
   return NextResponse.json({ received: true });
