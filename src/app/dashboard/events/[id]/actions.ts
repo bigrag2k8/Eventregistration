@@ -261,14 +261,14 @@ export async function deleteRegistrationAction(formData: FormData) {
  * Refund a paid registration through Stripe Connect.
  *
  * With Destination Charges (Phase B), the original payment had:
- *   - application_fee_amount = our 3.5% platform cut
+ *   - application_fee_amount = our 4.5% platform cut
  *   - transfer_data.destination = the organizer's connected account
  *
  * On refund we set:
  *   - reverse_transfer: true          → claw the funds back from the connected
  *                                       account (otherwise the organizer keeps
  *                                       the money and we're out the refund)
- *   - refund_application_fee: true    → also refund our 3.5% fee proportionally
+ *   - refund_application_fee: true    → also refund our 4.5% fee proportionally
  *                                       so the customer is made whole
  *
  * Stripe's `charge.refunded` webhook fires after this and the existing handler

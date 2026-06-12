@@ -13,7 +13,7 @@ Users: attendees, organizers, vendors, staff/volunteers, platform admin.
 - **Database:** PostgreSQL via Prisma ORM. Container runs `prisma db push` at boot — no migrations folder. The `--accept-data-loss` flag was removed: additive changes still auto-apply, but a destructive change (column/model rename, type change, new required column) now FAILS the deploy instead of silently dropping data. Make destructive changes deliberately (run `db push --accept-data-loss` once by hand against the DB).
 - **Cache / rate limit:** ioredis against Railway Redis
 - **Auth:** JWT in HttpOnly cookies (`src/lib/auth.ts`), bcrypt (cost 12)
-- **Payments:** Stripe + Stripe Connect Express. Destination Charges with `application_fee_amount`. Platform fee = **3.5%**.
+- **Payments:** Stripe + Stripe Connect Express. Destination Charges with `application_fee_amount`. Platform fee = **4.5%**.
 - **Email:** Resend
 - **Images:** Cloudinary, browser → CDN direct via unsigned upload preset
 
@@ -54,7 +54,7 @@ where: { id: params.id, ...orgScope(session), deletedAt: null }
 
 ### Stripe Connect (Phase B is live)
 Helpers in `src/lib/connect.ts`:
-- `PLATFORM_FEE_PERCENT` = **3.5**
+- `PLATFORM_FEE_PERCENT` = **4.5**
 - `platformFeeCents(amountCents)`
 - `connectChargeParams(org, totalCents)` → returns `payment_intent_data` slice or `null` if not Connect-ready
 - `canAcceptPayments(org)` → guard before ANY paid checkout
@@ -137,7 +137,7 @@ Must be a **stable literal string** in Railway, NOT a `${{secret(...)}}` templat
 - Self-serve signup with live slug availability check, suggestions, URL preview (`/api/auth/check-slug`)
 - Plan-selected gate (new orgs locked to `/dashboard/billing` until they pick FREE or paid)
 - Stripe Connect Phase A: Express onboarding with deferred KYC (`business_type: individual`, MCC 7922, daily payouts, `collection_options=currently_due`)
-- Stripe Connect Phase B: attendee + vendor checkouts routed via Destination Charges with 3.5% application fee; refunds use `reverse_transfer + refund_application_fee`; paid ticket types blocked when org not Connect-ready
+- Stripe Connect Phase B: attendee + vendor checkouts routed via Destination Charges with 4.5% application fee; refunds use `reverse_transfer + refund_application_fee`; paid ticket types blocked when org not Connect-ready
 - Cloudinary banner uploads via `BannerImageInput` (direct browser→CDN, never touches server)
 - Public event landing page with hero overlay
 - Homepage search above featured events (no duplicate cards)

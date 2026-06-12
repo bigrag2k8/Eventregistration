@@ -6,8 +6,8 @@
  * application_fee_amount on every transaction.
  */
 
-/** Platform fee charged to organizers — 3.5% of the total payment. */
-export const PLATFORM_FEE_PERCENT = 3.5;
+/** Platform fee charged to organizers — 4.5% of the total payment. */
+export const PLATFORM_FEE_PERCENT = 4.5;
 
 /** Compute the application fee (in cents) we collect on a payment. */
 export function platformFeeCents(amountCents: number): number {
