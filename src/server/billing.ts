@@ -62,6 +62,15 @@ export async function handleSubscriptionEvent(sub: any, eventType: string) {
   const org = await prisma.organization.findUnique({ where: { stripeCustomerId: customerId } });
   if (!org) return;
 
+  // Ordering guard: Stripe delivers events with no guaranteed order, so a
+  // delayed `updated` for an already-cancelled subscription could otherwise
+  // resurrect a dead plan. An `updated`/`deleted` only acts on the subscription
+  // we currently track; a brand-new subscription always arrives via `created`
+  // (and checkout.session.completed), which is allowed through.
+  const isCreate = eventType === "customer.subscription.created";
+  if (!isCreate && org.stripeSubscriptionId && sub.id !== org.stripeSubscriptionId) return;
+  if (!isCreate && !org.stripeSubscriptionId) return;
+
   // What plan does this subscription represent?
   const priceId = sub.items?.data?.[0]?.price?.id;
   const planKey = planFromPriceId(priceId) ?? org.subscriptionPlan;

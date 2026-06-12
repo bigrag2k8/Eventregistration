@@ -30,7 +30,9 @@ export async function POST(req: Request) {
     return NextResponse.redirect(new URL("/dashboard/billing?canceled=existing_subscription", req.url), 303);
   }
 
-  // Ensure org has a Stripe Customer
+  // Ensure org has a Stripe Customer. Two concurrent billing clicks could each
+  // create one, so we claim the slot with a conditional update; if we lost the
+  // race, delete the customer we just made and reuse the winner's.
   let customerId = org.stripeCustomerId;
   if (!customerId) {
     const customer = await stripe.customers.create({
@@ -38,11 +40,20 @@ export async function POST(req: Request) {
       name: org.name,
       metadata: { organizationId: org.id },
     });
-    customerId = customer.id;
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: { stripeCustomerId: customerId },
+    const claimed = await prisma.organization.updateMany({
+      where: { id: org.id, stripeCustomerId: null },
+      data: { stripeCustomerId: customer.id },
     });
+    if (claimed.count === 1) {
+      customerId = customer.id;
+    } else {
+      // Someone else set it first — discard our duplicate, use the existing one.
+      await stripe.customers.del(customer.id).catch(() => {});
+      const fresh = await prisma.organization.findUnique({
+        where: { id: org.id }, select: { stripeCustomerId: true },
+      });
+      customerId = fresh?.stripeCustomerId ?? customer.id;
+    }
   }
 
   const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?upgraded=${plan.key}`;

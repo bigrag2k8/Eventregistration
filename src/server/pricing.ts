@@ -15,6 +15,18 @@ export async function computeTotals(input: ComputeTotalsInput) {
   const tt = input.event.ticketTypes.find((t) => t.id === input.ticketTypeId);
   if (!tt) return { error: "Ticket type not found" as const };
 
+  // Per-order quantity limits (enforced server-side, not just the form). The
+  // ticket type's own min/max win; otherwise fall back to the event-wide
+  // maxPerOrder, then the absolute zod cap of 20.
+  const minPer = tt.minPerOrder ?? 1;
+  const maxPer = tt.maxPerOrder ?? input.event.maxPerOrder ?? 20;
+  if (input.quantity < minPer) {
+    return { error: `Minimum ${minPer} ticket${minPer > 1 ? "s" : ""} per order for this type` as const };
+  }
+  if (input.quantity > maxPer) {
+    return { error: `Maximum ${maxPer} ticket${maxPer > 1 ? "s" : ""} per order for this type` as const };
+  }
+
   // Capacity check (fast, friendly pre-check; the authoritative guard is the
   // atomic reservation at registration creation).
   if (tt.quantityTotal && tt.quantitySold + input.quantity > tt.quantityTotal) {

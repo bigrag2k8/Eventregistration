@@ -60,9 +60,13 @@ export async function POST(req: Request) {
     }
   }
 
-  const unitAmount = Math.round((reg.totalCents - reg.feeCents - reg.taxCents) / reg.quantity);
-  if (unitAmount <= 0) {
-    console.error("[checkout] computed unit_amount is non-positive", { totalCents: reg.totalCents, feeCents: reg.feeCents, taxCents: reg.taxCents, quantity: reg.quantity });
+  // The ticket line is the exact discounted subtotal (= sale value), billed as
+  // ONE line item with the quantity in the description. Charging unit_amount ×
+  // quantity instead loses a few cents to rounding whenever a discount doesn't
+  // divide evenly, drifting Stripe's total away from reg.totalCents.
+  const feeBaseCents = Math.max(0, reg.subtotalCents - reg.discountCents);
+  if (feeBaseCents <= 0) {
+    console.error("[checkout] computed ticket amount is non-positive", { subtotalCents: reg.subtotalCents, discountCents: reg.discountCents });
     return NextResponse.json({
       error: "Ticket amount is invalid. Please contact the organizer.",
     }, { status: 400 });
@@ -73,11 +77,10 @@ export async function POST(req: Request) {
   const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/success?reg=${reg.id}${reg.accessToken ? `&key=${reg.accessToken}` : ""}`;
   const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/register`;
 
-  // Connect routing: take PLATFORM_FEE_PERCENT% of the SALE VALUE (subtotal
-  // minus discount — NOT tax or the processing fee, which are pass-throughs),
-  // route the remainder to the organizer. on_behalf_of makes the customer's
-  // statement read as the organizer.
-  const feeBaseCents = Math.max(0, reg.subtotalCents - reg.discountCents);
+  // Connect routing: take PLATFORM_FEE_PERCENT% of the sale value (feeBaseCents
+  // above — NOT tax or the processing fee, which are pass-throughs), route the
+  // remainder to the organizer. on_behalf_of makes the customer's statement
+  // read as the organizer.
   const connect = connectChargeParams(org, feeBaseCents);
 
   try {
@@ -86,13 +89,13 @@ export async function POST(req: Request) {
       payment_method_types: ["card"], // Apple/Google Pay auto-enabled when wallets supported
       line_items: [
         {
-          quantity: reg.quantity,
+          quantity: 1,
           price_data: {
             currency: reg.currency.toLowerCase(),
-            unit_amount: unitAmount,
+            unit_amount: feeBaseCents,
             product_data: {
               name: `${reg.event.name} — ${reg.ticketType.name}`,
-              description: `Registration ${reg.id}`,
+              description: `${reg.quantity} × ${reg.ticketType.name}${reg.discountCents > 0 ? " (discount applied)" : ""} · Reg ${reg.id}`,
             },
           },
         },

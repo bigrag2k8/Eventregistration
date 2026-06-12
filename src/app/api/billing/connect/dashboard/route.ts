@@ -49,9 +49,12 @@ export async function GET() {
         stripeAccountChargesEnabled: acct.charges_enabled,
         stripeAccountPayoutsEnabled: acct.payouts_enabled,
         stripeAccountDetailsSubmitted: acct.details_submitted,
+        // Canonical vocab (matches handleConnectAccountUpdated in server/billing.ts):
+        // verified | restricted | pending_review | in_progress | not_started
         stripeAccountStatus: acct.charges_enabled && acct.payouts_enabled ? "verified"
-          : acct.details_submitted ? "pending"
-          : "incomplete",
+          : acct.requirements?.disabled_reason ? "restricted"
+          : acct.details_submitted ? "pending_review"
+          : "in_progress",
       },
     });
     return NextResponse.json({
