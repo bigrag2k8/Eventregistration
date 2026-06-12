@@ -77,7 +77,12 @@ export async function POST(req: Request) {
       const vendorAppId = session.metadata?.vendorApplicationId;
       if (vendorAppId) {
         const { finalizeVendor } = await import("@/server/vendors");
-        await finalizeVendor(vendorAppId);
+        await finalizeVendor(vendorAppId, {
+          sessionId: session.id,
+          paymentIntentId: session.payment_intent ?? null,
+          amountCents: session.amount_total ?? null,
+          currency: session.currency ?? null,
+        });
         break;
       }
 

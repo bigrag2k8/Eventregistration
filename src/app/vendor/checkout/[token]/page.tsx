@@ -26,7 +26,14 @@ export default async function VendorCheckoutPage({ params, searchParams }: Props
       const session = await stripe.checkout.sessions.retrieve(searchParams.session_id);
       const sessionVendorId = (session.metadata as any)?.vendorApplicationId;
       if (sessionVendorId === app.id && session.payment_status === "paid") {
-        await finalizeVendor(app.id);
+        await finalizeVendor(app.id, {
+          sessionId: session.id,
+          paymentIntentId: typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
+          amountCents: session.amount_total ?? null,
+          currency: session.currency ?? null,
+        });
         // Re-read so the success branch below renders
         const refreshed = await prisma.vendorApplication.findUnique({
           where: { paymentLinkToken: params.token },

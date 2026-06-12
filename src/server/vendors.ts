@@ -37,7 +37,14 @@ export async function getOrCreateVendorTicketType(eventId: string) {
  *    so a concurrent INSERT will fail with P2002. We catch that and look
  *    up the existing row instead of erroring.
  */
-export async function finalizeVendor(appId: string) {
+export interface VendorPaymentInfo {
+  sessionId?: string | null;
+  paymentIntentId?: string | null;
+  amountCents?: number | null;
+  currency?: string | null;
+}
+
+export async function finalizeVendor(appId: string, payment?: VendorPaymentInfo) {
   const app = await prisma.vendorApplication.findUnique({ where: { id: appId } });
   if (!app) return;
   if (app.status === "PAID") return; // fast path
@@ -114,6 +121,32 @@ export async function finalizeVendor(appId: string) {
       where: { id: tt.id },
       data: { quantitySold: { increment: 1 } },
     });
+    // Record the money so vendor refunds work: store the PaymentIntent on the
+    // Registration (the refund action reads it from Payment) and create the
+    // Payment row (the charge.refunded webhook syncs status through it).
+    if (payment?.paymentIntentId) {
+      try {
+        await prisma.registration.update({
+          where: { id: reg.id },
+          data: {
+            stripeSessionId: payment.sessionId ?? null,
+            stripePaymentIntentId: payment.paymentIntentId,
+          },
+        });
+        await prisma.payment.create({
+          data: {
+            registrationId: reg.id,
+            amountCents: payment.amountCents ?? priceCents,
+            currency: (payment.currency ?? "usd").toUpperCase(),
+            status: "SUCCEEDED",
+            stripePaymentIntentId: payment.paymentIntentId,
+          },
+        });
+      } catch (e: any) {
+        // P2002 on the unique PI = a concurrent call already recorded it; fine.
+        if (e?.code !== "P2002") console.error("[vendor] payment record failed:", e);
+      }
+    }
     try { await issueTickets(reg.id); } catch (e) { console.error("[vendor] issueTickets failed:", e); }
     try { await sendConfirmationEmail(reg.id); } catch (e) { console.error("[vendor] confirmation email failed:", e); }
   }
