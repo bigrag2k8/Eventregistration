@@ -3,9 +3,29 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "dev-secret-change-me-please-32-bytes!"
-);
+const DEV_FALLBACK_SECRET = "dev-secret-change-me-please-32-bytes!";
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Fail closed in production: a missing secret silently falls back to the
+// public, in-repo dev value below, which would let anyone forge a SUPERADMIN
+// session or a valid QR ticket (the same key signs both). Skip the check during
+// `next build`, where runtime secrets aren't injected yet.
+if (
+  process.env.NEXT_PHASE !== "phase-production-build" &&
+  process.env.NODE_ENV === "production" &&
+  (!JWT_SECRET || JWT_SECRET === DEV_FALLBACK_SECRET)
+) {
+  throw new Error(
+    "JWT_SECRET is missing or set to the public dev fallback. Refusing to start: " +
+      "a known signing key lets anyone forge sessions and QR tickets. Set a strong JWT_SECRET.",
+  );
+}
+if (JWT_SECRET && JWT_SECRET.length < 32) {
+  // eslint-disable-next-line no-console
+  console.warn("[auth] JWT_SECRET is shorter than 32 chars — consider a longer, random secret.");
+}
+
+const SECRET = new TextEncoder().encode(JWT_SECRET ?? DEV_FALLBACK_SECRET);
 const COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "eventflow_session";
 
 export interface JwtPayload {
