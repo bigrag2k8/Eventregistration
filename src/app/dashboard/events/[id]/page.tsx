@@ -4,6 +4,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
+import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
 import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
@@ -37,6 +38,15 @@ export default async function EventManagePage({ params, searchParams }: { params
     _sum: { amountCents: true },
   });
 
+  const [evSplit, byType] = await Promise.all([
+    revenueSplit({ eventId: event.id }),
+    perTicketTypeBreakdown(event.id),
+  ]);
+  const evGross = evSplit.ticket.grossCents + evSplit.vendor.grossCents;
+  const evRefunds = evSplit.ticket.refundedCents + evSplit.vendor.refundedCents;
+  const evFees = evSplit.ticket.feeCents + evSplit.vendor.feeCents;
+  const evNet = evSplit.ticket.netCents + evSplit.vendor.netCents;
+
   // Use the event's org, not the session's, so SUPERADMIN viewing another org's event gets the right public slug.
   const org = await prisma.organization.findUnique({ where: { id: event.organizationId } });
   const publicUrl = `/o/${org?.slug ?? "_"}/events/${event.slug}`;
@@ -69,6 +79,47 @@ export default async function EventManagePage({ params, searchParams }: { params
           <Stat label="Revenue" value={money(totalRevenue._sum.amountCents ?? 0)} />
           <Stat label="Capacity" value={event.capacity ? `${event._count.registrations} / ${event.capacity}` : "Unlimited"} />
         </div>
+
+        {/* Financials */}
+        <section className="card">
+          <h2 className="text-lg font-semibold">Financials</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MiniStat label="Ticket revenue" value={money(evSplit.ticket.netCents)} hint={`${evSplit.ticket.count} sold`} />
+            <MiniStat label="Vendor revenue" value={money(evSplit.vendor.netCents)} hint={`${evSplit.vendor.count} booth${evSplit.vendor.count === 1 ? "" : "s"}`} />
+            <MiniStat label="Total net" value={money(evNet)} />
+            <MiniStat label="Net payout" value={money(evNet - evFees)} hint="After platform fee" />
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+            <div>Gross collected: <strong>{money(evGross)}</strong></div>
+            <div>Refunds: <strong>{money(evRefunds)}</strong></div>
+            <div>Platform fee: <strong>{money(evFees)}</strong></div>
+          </div>
+          {byType.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-2">Ticket type</th>
+                    <th className="px-3 py-2 text-right">Sold</th>
+                    <th className="px-3 py-2 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {byType.map((t) => (
+                    <tr key={t.id}>
+                      <td className="px-3 py-2 font-medium">
+                        {t.name}
+                        {t.isVendor && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">vendor</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600">{t.qty}</td>
+                      <td className="px-3 py-2 text-right">{money(t.netCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         {/* Publish / unpublish + actions */}
         <section className="card flex flex-wrap items-center justify-between gap-3">
@@ -302,6 +353,16 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="card">
       <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
       <div className="mt-1 text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+      <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+      <div className="mt-1 text-xl font-bold">{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
     </div>
   );
 }

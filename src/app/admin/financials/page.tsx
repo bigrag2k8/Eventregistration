@@ -31,7 +31,7 @@ function fmt(cents: number): string {
 function fmtCompact(cents: number): string {
   return "$" + Math.round(cents / 100).toLocaleString();
 }
-const num = (v: bigint | number | null): number => Number(v ?? 0);
+const num = (v: bigint | number | null | undefined): number => Number(v ?? 0);
 
 export default async function AdminFinancialsPage({
   searchParams,
@@ -79,7 +79,7 @@ export default async function AdminFinancialsPage({
   const whereTimeP = timeClause(`p."createdAt"`);
 
   // ── Queries ─────────────────────────────────────────────────────────────
-  const [totalsRows, trend, leaderboard, subs, subRevRows, disputeRows, connectIncomplete] = await Promise.all([
+  const [totalsRows, trend, leaderboard, subs, subRevRows, disputeRows, connectIncomplete, timingRows] = await Promise.all([
     prisma.$queryRawUnsafe<Array<{ gross: bigint; refunded: bigint; fee_net: bigint; txns: bigint }>>(`
       SELECT
         COALESCE(SUM("amountCents"),0)::bigint AS gross,
@@ -132,6 +132,18 @@ export default async function AdminFinancialsPage({
       orderBy: { createdAt: "desc" },
       take: 25,
     }),
+    // Revenue split by whether the event is upcoming or already past (windowed by txn time).
+    prisma.$queryRawUnsafe<Array<{ upcoming: boolean; net_gmv: bigint; net_fee: bigint; events: number }>>(`
+      SELECT (e."startAt" >= now()) AS upcoming,
+        COALESCE(SUM(p."amountCents"-p."refundedAmountCents"),0)::bigint AS net_gmv,
+        COALESCE(ROUND(SUM(${NET_FEE_P})),0)::bigint AS net_fee,
+        COUNT(DISTINCT e.id)::int AS events
+      FROM payments p
+      JOIN registrations r ON r.id = p."registrationId"
+      JOIN events e ON e.id = r."eventId"
+      WHERE p.status IN ${PAID_STATUSES}${whereTimeP}
+      GROUP BY (e."startAt" >= now())
+    `),
   ]);
 
   const t = totalsRows[0] ?? { gross: 0n, refunded: 0n, fee_net: 0n, txns: 0n };
@@ -144,6 +156,8 @@ export default async function AdminFinancialsPage({
   const totalPlatformRevCents = feeNetCents + subRevCents;
   const disputeCount = num(disputeRows[0]?.cnt);
   const disputeAmtCents = num(disputeRows[0]?.amt);
+  const upcoming = timingRows.find((r) => r.upcoming);
+  const past = timingRows.find((r) => !r.upcoming);
 
   // MRR / subscription status are current snapshots — not affected by the window.
   let mrrCents = 0;
@@ -285,6 +299,25 @@ export default async function AdminFinancialsPage({
           </div>
         </div>
 
+        {/* Upcoming vs past event revenue (windowed by transaction time) */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <TimingCard
+            title="Upcoming events"
+            subtitle="Revenue for events not yet held"
+            netGmv={fmt(num(upcoming?.net_gmv))}
+            netFee={fmt(num(upcoming?.net_fee))}
+            events={num(upcoming?.events)}
+            accent
+          />
+          <TimingCard
+            title="Past events"
+            subtitle="Revenue for events already held"
+            netGmv={fmt(num(past?.net_gmv))}
+            netFee={fmt(num(past?.net_fee))}
+            events={num(past?.events)}
+          />
+        </div>
+
         {/* Payments-disabled orgs (current snapshot — lost revenue) */}
         <div className="mt-6 rounded-xl bg-white ring-1 ring-slate-200">
           <div className="border-b px-5 py-3">
@@ -317,6 +350,28 @@ export default async function AdminFinancialsPage({
         </p>
       </section>
     </main>
+  );
+}
+
+function TimingCard({ title, subtitle, netGmv, netFee, events, accent }: { title: string; subtitle: string; netGmv: string; netFee: string; events: number; accent?: boolean }) {
+  return (
+    <div className={`rounded-xl p-5 ring-1 ${accent ? "bg-brand-50 ring-brand-200" : "bg-white ring-slate-200"}`}>
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">{title}</h2>
+        <span className="text-xs text-slate-400">{events} event{events === 1 ? "" : "s"}</span>
+      </div>
+      <p className="text-xs text-slate-500">{subtitle}</p>
+      <div className="mt-3 flex gap-6">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-slate-500">Net GMV</div>
+          <div className="mt-0.5 text-xl font-bold">{netGmv}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider text-slate-500">Fee revenue</div>
+          <div className="mt-0.5 text-xl font-bold text-brand-800">{netFee}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -183,6 +183,7 @@ function DashboardShell({ children, role }: { children: React.ReactNode; role: s
             <Link href="/dashboard">Dashboard</Link>
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/events/new">+ New event</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/team">Team</Link>}
+            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/financials">Financials</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/billing">Billing</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/audit">Audit log</Link>}
             {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/settings">Settings</Link>}
