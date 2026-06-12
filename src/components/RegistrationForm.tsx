@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface TicketType {
@@ -34,12 +34,52 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
+  // All money math lives on the server (same computeTotals the registration
+  // uses) — the client previously recomputed it with drifting formulas and
+  // never showed the promo discount, so the Pay button lied about the charge.
   const tt = event.ticketTypes.find((t) => t.id === ticketTypeId);
-  const subtotal = (tt?.priceCents ?? 0) * quantity;
-  const taxRate = Number(event.taxRatePct ?? 0);
-  const tax = Math.round((subtotal * taxRate) / 100);
-  const fee = event.passProcessingFee && subtotal > 0 ? Math.round(subtotal * 0.029) + 30 : 0;
-  const total = subtotal + tax + fee;
+  const localSubtotal = (tt?.priceCents ?? 0) * quantity;
+  interface Quote { subtotal: number; discount: number; tax: number; fee: number; total: number }
+  const [quote, setQuote] = useState<Quote>({ subtotal: localSubtotal, discount: 0, tax: 0, fee: 0, total: localSubtotal });
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [promoNote, setPromoNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!ticketTypeId) return;
+    let cancelled = false;
+    setQuoteLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/registrations/quote", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventId: event.id, ticketTypeId, quantity, promoCode: form.promoCode || undefined }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok) {
+          setQuote(data);
+          setPromoNote(form.promoCode ? (data.discount > 0 ? "Code applied" : null) : null);
+        } else if (form.promoCode && typeof data.error === "string" && data.error.toLowerCase().includes("promo")) {
+          // Invalid/expired/exhausted code: quote without it so totals stay
+          // visible, and surface the reason next to the promo field.
+          setPromoNote(data.error);
+          const retry = await fetch("/api/registrations/quote", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ eventId: event.id, ticketTypeId, quantity }),
+          });
+          const retryData = await retry.json().catch(() => ({}));
+          if (!cancelled && retry.ok) setQuote(retryData);
+        }
+      } catch {
+        // network hiccup — keep the last quote on screen
+      } finally {
+        if (!cancelled) setQuoteLoading(false);
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [event.id, ticketTypeId, quantity, form.promoCode]);
+
+  const { subtotal, discount, tax, fee, total } = quote;
 
   function setField<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -63,12 +103,14 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
         if (data.fieldErrors && typeof data.fieldErrors === "object") setFieldErrors(data.fieldErrors);
         // scroll to top so user sees the banner
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        setSubmitting(false);
         return;
       }
 
       if (data.status === "CONFIRMED") {
         const url = successHref ?? `/events/${event.slug}/success`;
         router.push(`${url}?reg=${data.id}${data.key ? `&key=${data.key}` : ""}`);
+        return; // keep the button disabled while navigation completes
       } else {
         const c = await fetch("/api/checkout/session", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -77,13 +119,14 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
         const cData = await c.json().catch(() => ({}));
         if (!c.ok || !cData.url) {
           setError(cData.error ?? "Couldn't start checkout. Please try again.");
+          setSubmitting(false);
           return;
         }
         window.location.href = cData.url;
+        return; // keep the button disabled while Stripe redirect happens
       }
     } catch (e: any) {
       setError(e.message ?? "Network error. Check your connection and try again.");
-    } finally {
       setSubmitting(false);
     }
   }
@@ -217,13 +260,19 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
           onChange={(e) => setField("promoCode", e.target.value)}
         />
         {fieldErr("promoCode")}
+        {promoNote && (
+          <p className={`mt-1 text-xs ${promoNote === "Code applied" ? "text-emerald-600" : "text-red-600"}`}>
+            {promoNote}
+          </p>
+        )}
       </section>
 
       <section className="card">
         <h2 className="text-lg font-semibold">5. Order summary</h2>
-        <dl className="mt-3 space-y-1 text-sm">
+        <dl className={`mt-3 space-y-1 text-sm ${quoteLoading ? "opacity-60" : ""}`}>
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{fmt(subtotal)}</dd></div>
-          {tax > 0 && <div className="flex justify-between"><dt>Tax ({taxRate}%)</dt><dd>{fmt(tax)}</dd></div>}
+          {discount > 0 && <div className="flex justify-between text-emerald-700"><dt>Discount</dt><dd>-{fmt(discount)}</dd></div>}
+          {tax > 0 && <div className="flex justify-between"><dt>Tax</dt><dd>{fmt(tax)}</dd></div>}
           {fee > 0 && <div className="flex justify-between"><dt>Processing fee</dt><dd>{fmt(fee)}</dd></div>}
           <div className="mt-2 flex justify-between border-t pt-2 text-base font-semibold">
             <dt>Total</dt><dd>{fmt(total)}</dd>
@@ -231,7 +280,7 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
         </dl>
       </section>
 
-      <button type="submit" disabled={submitting} className="btn-primary w-full">
+      <button type="submit" disabled={submitting || quoteLoading} className="btn-primary w-full">
         {submitting ? "Processing…" : total === 0 ? "Complete registration" : `Pay ${fmt(total)} & register`}
       </button>
     </form>
