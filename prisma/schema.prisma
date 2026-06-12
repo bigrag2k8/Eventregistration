@@ -427,8 +427,11 @@ model Registration {
 
   /// Random secret required to view tickets on the success page / download ICS.
   /// Registration ids are cuids (guessable-ish, leak via logs/referrers); this
-  /// token is the actual authorization to retrieve QR tickets.
-  accessToken       String?            @unique
+  /// token is the actual authorization to retrieve QR tickets. Deliberately NOT
+  /// @unique: it's only compared against a row fetched by id, and adding a
+  /// unique constraint makes `prisma db push` (flagless at boot) refuse the
+  /// migration as potentially lossy.
+  accessToken       String?
 
   ipAddress         String?
   userAgent         String?
