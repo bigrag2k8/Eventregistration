@@ -121,6 +121,24 @@ export function requireRole(allowed: Role[], session: JwtPayload | null) {
 }
 
 /**
+ * For API routes: catch the bare errors requireRole throws and turn them into
+ * a proper JSON 401/403 instead of an HTML 500 page (which breaks clients that
+ * do res.json(), e.g. the check-in scanner). Returns the session on success,
+ * or a NextResponse to return immediately.
+ *
+ *   const gate = await requireRoleApi([...]);
+ *   if (gate instanceof NextResponse) return gate;
+ *   // gate is the session
+ */
+export async function requireRoleApi(allowed: Role[]) {
+  const { NextResponse } = await import("next/server");
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!allowed.includes(session.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  return session;
+}
+
+/**
  * Returns a Prisma `where` snippet that scopes a query to the caller's
  * organization, EXCEPT for SUPERADMIN, who can view/manage records across
  * every organization. Use anywhere we currently inline

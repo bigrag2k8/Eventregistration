@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { requireRoleApi } from "@/lib/auth";
 
 const querySchema = z.object({
   q: z.string().optional(),
@@ -52,7 +52,8 @@ const createSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  const session = await requireRoleApi(["ORGANIZER", "ADMIN"]);
+  if (session instanceof NextResponse) return session;
   if (!session.orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
 
   const parsed = createSchema.safeParse(await req.json().catch(() => null));

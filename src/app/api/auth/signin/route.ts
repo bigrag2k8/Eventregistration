@@ -18,6 +18,11 @@ export async function POST(req: Request) {
   if (!user?.passwordHash || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
+  // A soft-deleted user must not be able to sign in (same generic message so
+  // it isn't an account-enumeration oracle).
+  if (user.deletedAt) {
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
 
   const token = await signSession({
     sub: user.id,

@@ -6,6 +6,7 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 import { effectivePlan } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { SubmitButton } from "@/components/SubmitButton";
 import { sendCampaignAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -101,11 +102,11 @@ export default async function CampaignsPage({ params, searchParams }: { params: 
               </p>
             </div>
             <div className="flex items-center justify-end">
-              <button type="submit" className="btn-primary"
+              <SubmitButton className="btn-primary" pendingText="Sending…"
                       disabled={confirmedCount === 0}
                       title={confirmedCount === 0 ? "No confirmed registrants to send to yet." : undefined}>
                 Send to {confirmedCount} {confirmedCount === 1 ? "person" : "people"}
-              </button>
+              </SubmitButton>
             </div>
           </form>
         )}

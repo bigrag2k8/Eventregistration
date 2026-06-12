@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     where: { id: input.eventId },
     include: { ticketTypes: true, promoCodes: true, organization: true },
   });
-  if (!event || event.status !== "PUBLISHED") {
+  if (!event || event.status !== "PUBLISHED" || event.deletedAt || event.organization?.deletedAt) {
     return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
   }
 

@@ -31,6 +31,7 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
   const [manualToken, setManualToken] = useState("");
   const [checked, setChecked] = useState(initialChecked);
   const [scanning, setScanning] = useState(true);
+  const [scannerSupported, setScannerSupported] = useState(true);
   const cooldownRef = useRef<number>(0);
 
   // Find-attendee state
@@ -43,20 +44,30 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
   // Camera + barcode detector
   useEffect(() => {
     if (!scanning) return;
-    if (typeof window === "undefined" || !("BarcodeDetector" in window)) return;
+    // Older iOS Safari has no BarcodeDetector — fall back to Find/manual entry
+    // instead of leaving a dead black square with no explanation.
+    if (typeof window === "undefined" || !("BarcodeDetector" in window)) {
+      setScannerSupported(false);
+      return;
+    }
 
-    let stream: MediaStream;
+    let stream: MediaStream | null = null;
     let stopped = false;
     const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+    const stop = () => { stream?.getTracks().forEach((t) => t.stop()); stream = null; };
 
     async function start() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const s = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment" }, audio: false,
         });
+        // The component may have unmounted while getUserMedia was resolving —
+        // if so, stop the just-acquired stream so the camera light goes off.
+        if (stopped) { s.getTracks().forEach((t) => t.stop()); return; }
+        stream = s;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+          await videoRef.current.play().catch(() => {});
         }
         const loop = async () => {
           if (stopped) return;
@@ -74,30 +85,37 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
         };
         loop();
       } catch (e) {
-        console.error(e);
+        // Permission denied / no camera — surface the fallback UI.
+        console.error("[checkin] camera start failed:", e);
+        if (!stopped) setScannerSupported(false);
       }
     }
     start();
-    return () => { stopped = true; stream?.getTracks().forEach((t) => t.stop()); };
+    return () => { stopped = true; stop(); };
   }, [scanning]);
 
   async function submitToken(token: string) {
     const cleaned = token.trim();
     if (!cleaned) return;
-    const res = await fetch("/api/checkin", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: cleaned, eventId }),
-    });
-    const data = await res.json();
-    setResult(data);
-    if (data.status === "CHECKED_IN") {
-      setChecked((n) => n + 1);
-      // Mark in the cached attendee list too if open
-      setAttendees((list) => list?.map((a) =>
-        // We don't have ticketId in the token response; refresh list silently
-        a
-      ) ?? null);
-      if (findOpen) loadAttendees();
+    // Never let a network error or a non-JSON 500 throw an unhandled rejection
+    // out of the scan loop — that freezes the scanner mid-event.
+    try {
+      const res = await fetch("/api/checkin", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: cleaned, eventId }),
+      });
+      if (res.status === 401 || res.status === 403) {
+        setResult({ status: "INVALID", reason: "Session expired — sign in again" });
+        return;
+      }
+      const data = await res.json().catch(() => ({ status: "INVALID", reason: "server_error" }));
+      setResult(data);
+      if (data.status === "CHECKED_IN") {
+        setChecked((n) => n + 1);
+        if (findOpen) loadAttendees();
+      }
+    } catch {
+      setResult({ status: "INVALID", reason: "Network error — check connection and retry" });
     }
   }
 
@@ -126,7 +144,7 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketId, eventId }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ status: "INVALID", reason: "server_error" }));
       setResult(data.status === "CHECKED_IN"
         ? { status: "CHECKED_IN", attendee: attendeeName, email: data.email }
         : data);
@@ -136,6 +154,8 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
           a.ticketId === ticketId ? { ...a, checkedIn: true, checkedInAt: new Date().toISOString() } : a
         ) ?? null);
       }
+    } catch {
+      setResult({ status: "INVALID", reason: "Network error — check connection and retry" });
     } finally {
       setBusyId(null);
     }
@@ -170,6 +190,13 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
         <div className="relative mx-auto mt-2 aspect-square w-full max-w-md overflow-hidden rounded-2xl bg-black">
           <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
           <div className="pointer-events-none absolute inset-8 rounded-lg ring-2 ring-white/60" />
+          {!scannerSupported && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 p-6 text-center text-sm">
+              <div className="text-2xl">📷</div>
+              <p className="font-medium">QR scanning isn&apos;t available on this device or browser.</p>
+              <p className="opacity-80">Use “Find attendee &amp; check in” below, or paste the QR token manually. Tip: Chrome on Android supports live scanning.</p>
+            </div>
+          )}
         </div>
 
         {result && (

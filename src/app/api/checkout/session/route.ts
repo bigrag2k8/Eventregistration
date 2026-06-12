@@ -17,6 +17,11 @@ export async function POST(req: Request) {
   if (!reg || reg.status !== "PENDING") {
     return NextResponse.json({ error: "Registration not pending" }, { status: 400 });
   }
+  // Don't take payment for an event the organizer has cancelled/deleted or an
+  // org that's been removed since the registration was created.
+  if (reg.event.deletedAt || reg.event.status !== "PUBLISHED" || reg.event.organization?.deletedAt) {
+    return NextResponse.json({ error: "This event is no longer available." }, { status: 410 });
+  }
 
   // Sanity checks before talking to Stripe
   if (!process.env.STRIPE_SECRET_KEY) {

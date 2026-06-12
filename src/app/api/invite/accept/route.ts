@@ -30,35 +30,47 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
 
-  const { user } = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        email: invite.email,
-        passwordHash: await hashPassword(password),
-        firstName,
-        lastName,
-        role: invite.role,
-        organizationId: invite.organizationId,
-        emailVerified: true, // they clicked a single-use link to their inbox
-      },
-    });
-    // If the invite was scoped to a specific event, create an assignment
-    if (invite.eventId) {
-      await tx.eventAssignment.create({
+  let user;
+  try {
+    ({ user } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
         data: {
-          eventId: invite.eventId,
-          userId: user.id,
-          roleDescription: invite.roleDescription,
-          assignedBy: invite.invitedBy,
+          email: invite.email,
+          passwordHash: await hashPassword(password),
+          firstName,
+          lastName,
+          role: invite.role,
+          organizationId: invite.organizationId,
+          emailVerified: true, // they clicked a single-use link to their inbox
         },
       });
+      // If the invite was scoped to a specific event, create an assignment
+      if (invite.eventId) {
+        await tx.eventAssignment.create({
+          data: {
+            eventId: invite.eventId,
+            userId: user.id,
+            roleDescription: invite.roleDescription,
+            assignedBy: invite.invitedBy,
+          },
+        });
+      }
+      await tx.pendingInvite.update({
+        where: { id: invite.id },
+        data: { status: "ACCEPTED", acceptedAt: new Date(), acceptedByUserId: user.id },
+      });
+      return { user };
+    }));
+  } catch (e: any) {
+    // The account was created between the pre-check and now (double submit, or
+    // a concurrent signup) — surface the same friendly 409.
+    if (e?.code === "P2002") {
+      return NextResponse.json({
+        error: "An account with this email already exists. Please sign in instead — you may need to ask your organization admin to switch you over.",
+      }, { status: 409 });
     }
-    await tx.pendingInvite.update({
-      where: { id: invite.id },
-      data: { status: "ACCEPTED", acceptedAt: new Date(), acceptedByUserId: user.id },
-    });
-    return { user };
-  });
+    throw e;
+  }
 
   const sessionToken = await signSession({
     sub: user.id,

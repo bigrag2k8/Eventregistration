@@ -43,30 +43,45 @@ export async function POST(req: Request) {
   if (existingUser) return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
   if (existingOrg) return NextResponse.json({ error: `The URL slug "${orgSlug}" is already taken. Try another.` }, { status: 409 });
 
-  const { user, org } = await prisma.$transaction(async (tx) => {
-    const org = await tx.organization.create({
-      data: {
-        name: orgName,
-        slug: orgSlug,
-        contactEmail: email,
-        planSelected: false, // Locks dashboard until they pick a plan
-        subscriptionPlan: "FREE",
-        subscriptionStatus: "NONE",
-      },
-    });
-    const user = await tx.user.create({
-      data: {
-        email,
-        passwordHash: await hashPassword(password),
-        firstName,
-        lastName,
-        role: "ORGANIZER",
-        organizationId: org.id,
-        emailVerified: false,
-      },
-    });
-    return { user, org };
-  });
+  let user, org;
+  try {
+    ({ user, org } = await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name: orgName,
+          slug: orgSlug,
+          contactEmail: email,
+          planSelected: false, // Locks dashboard until they pick a plan
+          subscriptionPlan: "FREE",
+          subscriptionStatus: "NONE",
+        },
+      });
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash: await hashPassword(password),
+          firstName,
+          lastName,
+          role: "ORGANIZER",
+          organizationId: org.id,
+          emailVerified: false,
+        },
+      });
+      return { user, org };
+    }));
+  } catch (e: any) {
+    // Two simultaneous signups can both pass the pre-checks above; the loser
+    // hits the unique constraint on email or slug. Return the same friendly
+    // 409 instead of a generic 500.
+    if (e?.code === "P2002") {
+      const field = (e.meta?.target as string[] | undefined)?.join(",") ?? "";
+      const msg = field.includes("slug")
+        ? `The URL slug "${orgSlug}" is already taken. Try another.`
+        : "An account with this email already exists.";
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
+    throw e;
+  }
 
   const token = await signSession({ sub: user.id, role: user.role, email: user.email, orgId: org.id });
   await setSessionCookie(token);

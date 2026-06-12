@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { requireRoleApi, orgScope } from "@/lib/auth";
 
 export async function GET(req: Request) {
-  const session = requireRole(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRoleApi(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"]);
+  if (session instanceof NextResponse) return session;
   const url = new URL(req.url);
   const eventId = url.searchParams.get("eventId");
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { requireRoleApi, orgScope } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -15,7 +15,8 @@ const schema = z.object({
  * The staff member is already authenticated and verified to belong to this org.
  */
 export async function POST(req: Request) {
-  const session = requireRole(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRoleApi(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"]);
+  if (session instanceof NextResponse) return session;
   const ip = req.headers.get("x-forwarded-for") ?? "anon";
   const rl = await rateLimit(`checkin-manual:${session.sub}:${ip}`, 120, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many check-ins" }, { status: 429 });
