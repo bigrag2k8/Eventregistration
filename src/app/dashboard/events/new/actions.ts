@@ -69,7 +69,10 @@ export async function createEventAction(formData: FormData) {
 
   const startAt = new Date(data.startAt);
   const endAt = new Date(data.endAt);
-  if (endAt <= startAt) throw new Error("End time must be after start time");
+  // Friendly inline error instead of a server-side exception page
+  if (endAt <= startAt) {
+    redirect("/dashboard/events/new?error=date_order");
+  }
 
   // Enforce plan limits on event creation
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });

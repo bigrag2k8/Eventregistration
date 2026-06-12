@@ -9,7 +9,7 @@ import { BannerImageInput } from "@/components/BannerImageInput";
 
 export const dynamic = "force-dynamic";
 
-export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string } }) {
+export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
 
   const event = await prisma.event.findFirst({
@@ -91,6 +91,11 @@ export default async function EventManagePage({ params, searchParams }: { params
         {searchParams?.saved && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Changes saved. Your public event page reflects them immediately.
+          </div>
+        )}
+        {searchParams?.error === "date_order" && (
+          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
+            ⚠ End time must be after the start time. Your other changes were not saved.
           </div>
         )}
 

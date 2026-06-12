@@ -83,7 +83,10 @@ export async function updateBasicsAction(formData: FormData) {
   const data = basicsSchema.parse(Object.fromEntries(formData.entries()));
   const startAt = new Date(data.startAt);
   const endAt = new Date(data.endAt);
-  if (endAt <= startAt) throw new Error("End must be after start");
+  // Friendly inline error instead of a server-side exception page
+  if (endAt <= startAt) {
+    redirect(`/dashboard/events/${event.id}?error=date_order`);
+  }
 
   await prisma.event.update({
     where: { id: event.id },

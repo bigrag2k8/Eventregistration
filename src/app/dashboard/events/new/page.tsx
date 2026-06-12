@@ -22,7 +22,7 @@ const CATEGORIES = [
   "Networking", "Workshop", "Conference", "Training", "Other",
 ];
 
-export default async function NewEventPage() {
+export default async function NewEventPage({ searchParams }: { searchParams: { error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   await requirePlanSelected(session);
   if (!session.orgId) {
@@ -55,6 +55,11 @@ export default async function NewEventPage() {
       </header>
 
       <form action={createEventAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        {searchParams?.error === "date_order" && (
+          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
+            ⚠ End time must be after the start time. Please fix the dates and submit again.
+          </div>
+        )}
         <section className="card">
           <h2 className="text-lg font-semibold">Basics</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
