@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { issueTickets } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
@@ -70,6 +71,7 @@ export async function finalizeVendor(appId: string, payment?: VendorPaymentInfo)
           currency: "USD",
           status: "CONFIRMED",
           confirmedAt: new Date(),
+          accessToken: crypto.randomBytes(24).toString("base64url"),
         },
       });
     } catch (e: any) {

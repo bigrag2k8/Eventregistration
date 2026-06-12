@@ -68,7 +68,7 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
 
       if (data.status === "CONFIRMED") {
         const url = successHref ?? `/events/${event.slug}/success`;
-        router.push(`${url}?reg=${data.id}`);
+        router.push(`${url}?reg=${data.id}${data.key ? `&key=${data.key}` : ""}`);
       } else {
         const c = await fetch("/api/checkout/session", {
           method: "POST", headers: { "Content-Type": "application/json" },

@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
   // Build the org-scoped success/cancel URLs (legacy /events/[slug] still 307-redirects)
   const orgSlug = org.slug;
-  const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/success?reg=${reg.id}`;
+  const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/success?reg=${reg.id}${reg.accessToken ? `&key=${reg.accessToken}` : ""}`;
   const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/register`;
 
   // Connect routing: take PLATFORM_FEE_PERCENT% of the total, route the

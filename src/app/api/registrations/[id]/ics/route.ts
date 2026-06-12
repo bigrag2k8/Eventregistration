@@ -2,12 +2,20 @@ import { NextResponse } from "next/server";
 import { createEvent } from "ics";
 import { prisma } from "@/lib/db";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const reg = await prisma.registration.findUnique({
     where: { id: params.id },
     include: { event: { include: { location: true } } },
   });
   if (!reg) return new NextResponse("Not found", { status: 404 });
+
+  // Require the registration's access key. Legacy rows without a token are
+  // allowed through (ICS leaks only event info, and their email links lack a
+  // key) — every new registration gets one and is enforced.
+  if (reg.accessToken) {
+    const key = new URL(req.url).searchParams.get("key");
+    if (key !== reg.accessToken) return new NextResponse("Not found", { status: 404 });
+  }
 
   const { event: e } = reg;
   const start = e.startAt;

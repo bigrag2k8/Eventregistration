@@ -425,6 +425,11 @@ model Registration {
   stripeSessionId   String?
   stripePaymentIntentId String?
 
+  /// Random secret required to view tickets on the success page / download ICS.
+  /// Registration ids are cuids (guessable-ish, leak via logs/referrers); this
+  /// token is the actual authorization to retrieve QR tickets.
+  accessToken       String?            @unique
+
   ipAddress         String?
   userAgent         String?
 

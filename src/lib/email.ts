@@ -107,7 +107,7 @@ function renderConfirmation(reg: any) {
 
       <p style="margin-top:24px">Your QR ticket${reg.tickets.length>1?"s are":" is"} attached. Show it at the door — it's scanned for entry.</p>
 
-      <a href="${process.env.NEXT_PUBLIC_APP_URL}/api/registrations/${reg.id}/ics"
+      <a href="${process.env.NEXT_PUBLIC_APP_URL}/api/registrations/${reg.id}/ics${reg.accessToken ? `?key=${reg.accessToken}` : ""}"
          style="display:inline-block;background:${brand};color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;margin-top:8px">
          Add to Calendar
       </a>

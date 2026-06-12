@@ -5,13 +5,15 @@ export const dynamic = "force-dynamic";
 
 export default async function LegacySuccessRedirect({
   params, searchParams,
-}: { params: { slug: string }; searchParams: { reg?: string } }) {
+}: { params: { slug: string }; searchParams: { reg?: string; key?: string } }) {
   const event = await prisma.event.findFirst({
     where: { slug: params.slug, deletedAt: null },
     include: { organization: true },
     orderBy: { publishedAt: "asc" },
   });
   if (!event) return notFound();
-  const q = searchParams.reg ? `?reg=${searchParams.reg}` : "";
+  const q = searchParams.reg
+    ? `?reg=${searchParams.reg}${searchParams.key ? `&key=${searchParams.key}` : ""}`
+    : "";
   redirect(`/o/${event.organization.slug}/events/${event.slug}/success${q}`);
 }

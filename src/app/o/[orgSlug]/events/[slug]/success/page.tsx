@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SuccessPage({
   params, searchParams,
-}: { params: { orgSlug: string; slug: string }; searchParams: { reg?: string } }) {
+}: { params: { orgSlug: string; slug: string }; searchParams: { reg?: string; key?: string } }) {
   if (!searchParams.reg) return notFound();
   const reg = await prisma.registration.findUnique({
     where: { id: searchParams.reg },
@@ -17,7 +17,15 @@ export default async function SuccessPage({
   if (!reg) return notFound();
   if (reg.event.organization.slug !== params.orgSlug) return notFound();
 
-  const qrs = await Promise.all(reg.tickets.map((t) => renderQrPngDataUrl(t.qrToken)));
+  // QR tokens ARE the tickets — only render them for someone holding the
+  // access key (delivered via the registration response / Stripe redirect),
+  // not anyone who learns the registration id (leaks via logs, referrers).
+  // Older registrations (no accessToken) fall back to email-only delivery.
+  const canViewTickets = !!reg.accessToken && searchParams.key === reg.accessToken;
+  const qrs = canViewTickets
+    ? await Promise.all(reg.tickets.map((t) => renderQrPngDataUrl(t.qrToken)))
+    : [];
+  const icsHref = `/api/registrations/${reg.id}/ics${canViewTickets ? `?key=${reg.accessToken}` : ""}`;
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -32,24 +40,31 @@ export default async function SuccessPage({
           <div className="text-sm text-slate-600">Total: {money(reg.totalCents, reg.currency)}</div>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {reg.tickets.map((t, i) => (
-            <div key={t.id} className="rounded-xl ring-1 ring-slate-200 p-4">
-              <div className="text-xs font-medium text-slate-500">Ticket #{i + 1}</div>
-              <div className="mt-2 font-medium">{t.attendeeName}</div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrs[i]} alt="QR" className="mx-auto mt-3 h-44 w-44" />
-              <a href={qrs[i]} download={`ticket-${i + 1}.png`} className="btn-secondary mt-3 inline-block">Download</a>
-              <details className="mt-3 text-left">
-                <summary className="cursor-pointer text-xs text-slate-500">Show QR token (for manual entry)</summary>
-                <textarea readOnly className="mt-2 w-full break-all rounded border border-slate-200 bg-slate-50 p-2 font-mono text-[10px]" rows={4} defaultValue={t.qrToken} />
-              </details>
-            </div>
-          ))}
-        </div>
+        {canViewTickets ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {reg.tickets.map((t, i) => (
+              <div key={t.id} className="rounded-xl ring-1 ring-slate-200 p-4">
+                <div className="text-xs font-medium text-slate-500">Ticket #{i + 1}</div>
+                <div className="mt-2 font-medium">{t.attendeeName}</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrs[i]} alt="QR" className="mx-auto mt-3 h-44 w-44" />
+                <a href={qrs[i]} download={`ticket-${i + 1}.png`} className="btn-secondary mt-3 inline-block">Download</a>
+                <details className="mt-3 text-left">
+                  <summary className="cursor-pointer text-xs text-slate-500">Show QR token (for manual entry)</summary>
+                  <textarea readOnly className="mt-2 w-full break-all rounded border border-slate-200 bg-slate-50 p-2 font-mono text-[10px]" rows={4} defaultValue={t.qrToken} />
+                </details>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+            Your QR tickets were sent to <strong>{reg.email}</strong>. For security,
+            tickets can't be displayed from this link — check your inbox.
+          </div>
+        )}
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <a className="btn-secondary" href={`/api/registrations/${reg.id}/ics`}>Add to Calendar</a>
+          {canViewTickets && <a className="btn-secondary" href={icsHref}>Add to Calendar</a>}
           <Link className="btn-secondary" href={`/o/${params.orgSlug}/events/${reg.event.slug}`}>Event page</Link>
         </div>
       </div>

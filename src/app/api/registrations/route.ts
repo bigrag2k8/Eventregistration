@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -192,6 +193,9 @@ export async function POST(req: Request) {
           promoCodeId: totals.promoCodeId,
           status: totals.total === 0 ? "CONFIRMED" : "PENDING",
           confirmedAt: totals.total === 0 ? new Date() : null,
+          // Secret for retrieving tickets on the success page / ICS download —
+          // possession of the (guessable-ish) registration id alone is not enough.
+          accessToken: crypto.randomBytes(24).toString("base64url"),
           answers: input.answers
             ? { create: input.answers.map((a) => ({ questionId: a.questionId, answer: a.answer })) }
             : undefined,
@@ -236,5 +240,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ id: reg.id, status: reg.status });
+  return NextResponse.json({ id: reg.id, status: reg.status, key: reg.accessToken });
 }
