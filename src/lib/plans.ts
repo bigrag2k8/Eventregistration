@@ -141,6 +141,34 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
   },
 };
 
+/** Days a PAST_DUE org keeps paid features past its period end before dropping to FREE. */
+const PAST_DUE_GRACE_DAYS = 7;
+
+/**
+ * The plan an org is ACTUALLY entitled to right now. Plan gates must use this,
+ * not org.subscriptionPlan alone — a subscription whose payment failed stays
+ * PAST_DUE (or worse) indefinitely on Stripe's side, and the raw plan field
+ * would keep granting paid features forever.
+ *
+ * FREE/ENTERPRISE/one-time plans have no subscription to lapse and pass
+ * through; monthly plans require ACTIVE/TRIALING, or PAST_DUE within a short
+ * grace window after the paid period ended.
+ */
+export function effectivePlan(org: {
+  subscriptionPlan: string;
+  subscriptionStatus: string;
+  subscriptionCurrentPeriodEnd: Date | null;
+}): PlanInfo {
+  const plan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+  if (plan.cadence !== "monthly") return plan;
+  if (org.subscriptionStatus === "ACTIVE" || org.subscriptionStatus === "TRIALING") return plan;
+  if (org.subscriptionStatus === "PAST_DUE") {
+    const periodEnd = org.subscriptionCurrentPeriodEnd?.getTime() ?? 0;
+    if (Date.now() < periodEnd + PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000) return plan;
+  }
+  return PLANS.FREE;
+}
+
 /**
  * Map a Stripe price ID back to a plan key (used by webhook handler).
  */

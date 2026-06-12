@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { esc } from "@/lib/email";
-import { PLANS } from "@/lib/plans";
+import { effectivePlan } from "@/lib/plans";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 
@@ -52,7 +52,7 @@ export async function sendCampaignAction(formData: FormData) {
 
   // Plan limit enforcement
   const org = event.organization;
-  const plan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+  const plan = effectivePlan(org);
   const limit = plan.emailCampaignsPerEvent;
   if (limit !== null) {
     const sentCount = await prisma.emailCampaign.count({

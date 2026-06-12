@@ -6,6 +6,7 @@ import { stripe } from "@/lib/stripe";
 import { computeTotals } from "@/server/pricing";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
+import { effectivePlan } from "@/lib/plans";
 
 /** Thrown inside the reservation transaction when seats can't be claimed. */
 class SoldOutError extends Error {
@@ -75,6 +76,21 @@ export async function POST(req: Request) {
   });
   if (!event || event.status !== "PUBLISHED") {
     return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
+  }
+
+  // Enforce the organizer's plan registration cap (e.g. FREE = 50/event).
+  // Counted in tickets (sum of quantity) across active registrations.
+  const planLimit = effectivePlan(event.organization).registrationLimitPerEvent;
+  if (planLimit !== null) {
+    const agg = await prisma.registration.aggregate({
+      where: { eventId: event.id, status: { in: ["PENDING", "CONFIRMED", "PARTIALLY_REFUNDED"] } },
+      _sum: { quantity: true },
+    });
+    if ((agg._sum.quantity ?? 0) + input.quantity > planLimit) {
+      return NextResponse.json({
+        error: "This event has reached its registration limit.",
+      }, { status: 409 });
+    }
   }
 
   // Duplicate email per event:

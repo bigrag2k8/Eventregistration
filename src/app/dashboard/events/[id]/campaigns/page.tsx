@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
-import { PLANS } from "@/lib/plans";
+import { effectivePlan } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { sendCampaignAction } from "./actions";
@@ -17,11 +17,11 @@ export default async function CampaignsPage({ params, searchParams }: { params: 
 
   const event = await prisma.event.findFirst({
     where: { id: params.id, ...orgScope(session), deletedAt: null },
-    include: { organization: { select: { name: true, subscriptionPlan: true } } },
+    include: { organization: { select: { name: true, subscriptionPlan: true, subscriptionStatus: true, subscriptionCurrentPeriodEnd: true } } },
   });
   if (!event) return notFound();
 
-  const plan = PLANS[event.organization.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+  const plan = effectivePlan(event.organization);
   const limit = plan.emailCampaignsPerEvent;
 
   const [campaigns, sentCount, confirmedCount] = await Promise.all([

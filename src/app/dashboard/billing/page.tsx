@@ -60,7 +60,9 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
         )}
         {searchParams.canceled && (
           <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-            Checkout was canceled. No charge was made.
+            {searchParams.canceled === "existing_subscription"
+              ? "You already have an active subscription. To change plans, use “Manage billing” below — starting a second subscription would double-bill you."
+              : "Checkout was canceled. No charge was made."}
           </div>
         )}
 

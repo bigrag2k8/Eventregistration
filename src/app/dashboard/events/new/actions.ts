@@ -5,7 +5,7 @@ import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
-import { PLANS } from "@/lib/plans";
+import { effectivePlan } from "@/lib/plans";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
@@ -83,7 +83,7 @@ export async function createEventAction(formData: FormData) {
   // Enforce plan limits on event creation
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) throw new Error("Organization not found");
-  const plan = PLANS[org.subscriptionPlan as keyof typeof PLANS] ?? PLANS.FREE;
+  const plan = effectivePlan(org);
   if (plan.monthlyEventLimit !== null && org.singleEventCredits === 0) {
     const startOfMonth = new Date();
     startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);

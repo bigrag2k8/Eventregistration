@@ -18,6 +18,18 @@ export async function POST(req: Request) {
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) return NextResponse.redirect(new URL("/dashboard", req.url), 303);
 
+  // One live subscription per org: starting a second Checkout while one exists
+  // double-bills (Stripe happily creates both; our webhook just overwrites
+  // with whichever event lands last). Plan changes go through the Billing
+  // Portal instead. One-time credits are unaffected.
+  if (
+    plan.cadence === "monthly" &&
+    org.stripeSubscriptionId &&
+    ["ACTIVE", "TRIALING", "PAST_DUE"].includes(org.subscriptionStatus)
+  ) {
+    return NextResponse.redirect(new URL("/dashboard/billing?canceled=existing_subscription", req.url), 303);
+  }
+
   // Ensure org has a Stripe Customer
   let customerId = org.stripeCustomerId;
   if (!customerId) {
