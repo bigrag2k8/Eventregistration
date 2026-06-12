@@ -6,12 +6,17 @@
  * application_fee_amount on every transaction.
  */
 
-/** Platform fee charged to organizers — 4.5% of the total payment. */
+/**
+ * Platform fee charged to organizers — 4.5% of the SALE VALUE
+ * (ticket subtotal minus discounts). It is NOT charged on sales tax (a
+ * government pass-through the organizer remits) or the processing fee (a
+ * Stripe pass-through), matching how Eventbrite's service fee works.
+ */
 export const PLATFORM_FEE_PERCENT = 4.5;
 
-/** Compute the application fee (in cents) we collect on a payment. */
-export function platformFeeCents(amountCents: number): number {
-  return Math.max(0, Math.round(amountCents * (PLATFORM_FEE_PERCENT / 100)));
+/** Compute the application fee (in cents) from the fee base (the sale value). */
+export function platformFeeCents(feeBaseCents: number): number {
+  return Math.max(0, Math.round(feeBaseCents * (PLATFORM_FEE_PERCENT / 100)));
 }
 
 /**
@@ -32,7 +37,7 @@ export interface ConnectReadyOrg {
 
 export function connectChargeParams(
   org: ConnectReadyOrg,
-  totalCents: number,
+  feeBaseCents: number,
 ): {
   application_fee_amount: number;
   transfer_data: { destination: string };
@@ -40,7 +45,9 @@ export function connectChargeParams(
 } | null {
   if (!org.stripeAccountId || !org.stripeAccountChargesEnabled) return null;
   return {
-    application_fee_amount: platformFeeCents(totalCents),
+    // Fee is on the sale value, NOT the charged total — the caller passes the
+    // sale value (subtotal - discount), never the tax/fee-inclusive total.
+    application_fee_amount: platformFeeCents(feeBaseCents),
     transfer_data: { destination: org.stripeAccountId },
     on_behalf_of: org.stripeAccountId,
   };

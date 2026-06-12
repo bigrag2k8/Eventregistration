@@ -73,10 +73,12 @@ export async function POST(req: Request) {
   const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/success?reg=${reg.id}${reg.accessToken ? `&key=${reg.accessToken}` : ""}`;
   const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}/register`;
 
-  // Connect routing: take PLATFORM_FEE_PERCENT% of the total, route the
-  // remainder to the organizer's Stripe account. on_behalf_of makes the
-  // customer's statement read as the organizer.
-  const connect = connectChargeParams(org, reg.totalCents);
+  // Connect routing: take PLATFORM_FEE_PERCENT% of the SALE VALUE (subtotal
+  // minus discount — NOT tax or the processing fee, which are pass-throughs),
+  // route the remainder to the organizer. on_behalf_of makes the customer's
+  // statement read as the organizer.
+  const feeBaseCents = Math.max(0, reg.subtotalCents - reg.discountCents);
+  const connect = connectChargeParams(org, feeBaseCents);
 
   try {
     const session = await stripe.checkout.sessions.create({

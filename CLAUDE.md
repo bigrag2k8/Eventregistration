@@ -13,7 +13,7 @@ Users: attendees, organizers, vendors, staff/volunteers, platform admin.
 - **Database:** PostgreSQL via Prisma ORM. Container runs `prisma db push` at boot — no migrations folder. The `--accept-data-loss` flag was removed: additive changes still auto-apply, but a destructive change (column/model rename, type change, new required column) now FAILS the deploy instead of silently dropping data. Make destructive changes deliberately (run `db push --accept-data-loss` once by hand against the DB).
 - **Cache / rate limit:** ioredis against Railway Redis
 - **Auth:** JWT in HttpOnly cookies (`src/lib/auth.ts`), bcrypt (cost 12)
-- **Payments:** Stripe + Stripe Connect Express. Destination Charges with `application_fee_amount`. Platform fee = **4.5%**.
+- **Payments:** Stripe + Stripe Connect Express. Destination Charges with `application_fee_amount`. Platform fee = **4.5% of the sale value** (subtotal − discount, excluding tax & processing fee).
 - **Email:** Resend
 - **Images:** Cloudinary, browser → CDN direct via unsigned upload preset
 
@@ -54,14 +54,15 @@ where: { id: params.id, ...orgScope(session), deletedAt: null }
 
 ### Stripe Connect (Phase B is live)
 Helpers in `src/lib/connect.ts`:
-- `PLATFORM_FEE_PERCENT` = **4.5**
-- `platformFeeCents(amountCents)`
-- `connectChargeParams(org, totalCents)` → returns `payment_intent_data` slice or `null` if not Connect-ready
+- `PLATFORM_FEE_PERCENT` = **4.5** — charged on the **sale value** (subtotal − discount), NOT on tax or the processing fee (both pass-throughs)
+- `platformFeeCents(feeBaseCents)`
+- `connectChargeParams(org, feeBaseCents)` → returns `payment_intent_data` slice or `null` if not Connect-ready. **Pass the sale value, never the tax/fee-inclusive total.**
 - `canAcceptPayments(org)` → guard before ANY paid checkout
 
 Pattern in checkout routes:
 ```ts
-const connect = connectChargeParams(org, total);
+const feeBaseCents = Math.max(0, reg.subtotalCents - reg.discountCents);
+const connect = connectChargeParams(org, feeBaseCents);
 if (!connect) return error503("Organizer hasn't finished payouts.");
 const session = await stripe.checkout.sessions.create({
   ...,
