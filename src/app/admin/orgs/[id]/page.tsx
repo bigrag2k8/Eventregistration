@@ -78,6 +78,14 @@ export default async function AdminOrgPage({
               <h1 className="text-2xl font-bold">{org.name}</h1>
               <p className="font-mono text-xs text-slate-500">{org.slug}</p>
               {org.contactEmail && <p className="mt-1 text-sm text-slate-600">{org.contactEmail}</p>}
+              <p className="mt-1 text-sm">
+                Payments:{" "}
+                {org.stripeAccountChargesEnabled ? (
+                  <span className="font-medium text-emerald-700">enabled</span>
+                ) : (
+                  <span className="font-medium text-amber-700">disabled ({org.stripeAccountStatus ?? "not_started"})</span>
+                )}
+              </p>
             </div>
             <div className="text-right text-sm text-slate-500">
               <div>{org._count.members} member{org._count.members === 1 ? "" : "s"}</div>

@@ -179,10 +179,12 @@ model Organization {
   updatedAt    DateTime @updatedAt
   deletedAt    DateTime?
 
-  members        User[]
-  events         Event[]
-  auditLogs      AuditLog[]
-  pendingInvites PendingInvite[]
+  members         User[]
+  events          Event[]
+  auditLogs       AuditLog[]
+  pendingInvites  PendingInvite[]
+  billingInvoices BillingInvoice[]
+  disputes        Dispute[]
 
   @@map("organizations")
 }
@@ -507,8 +509,56 @@ model Payment {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
+  disputes              Dispute[]
+
   @@index([registrationId])
   @@map("payments")
+}
+
+/// Subscription / one-time billing invoices paid by organizations (from Stripe `invoice.paid`).
+/// This is the platform's subscription revenue ledger — distinct from per-ticket platform fees.
+model BillingInvoice {
+  id               String        @id @default(cuid())
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  stripeInvoiceId  String        @unique
+  stripeCustomerId String?
+  /// Plan key inferred from the invoice line price, best-effort.
+  planKey          String?
+  amountPaidCents  Int           @default(0)
+  currency         String        @default("USD")
+  status           String        // 'paid'
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  /// Set to the Stripe invoice's paid/created time so financial windows are accurate.
+  createdAt        DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("billing_invoices")
+}
+
+/// Card disputes / chargebacks (from Stripe `charge.dispute.*`). Pull money + fees back
+/// and carry Stripe penalties, so they're tracked as a financial-risk line.
+model Dispute {
+  id                    String        @id @default(cuid())
+  stripeDisputeId       String        @unique
+  organizationId        String?
+  organization          Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  paymentId             String?
+  payment               Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  stripePaymentIntentId String?
+  stripeChargeId        String?
+  amountCents           Int           @default(0)
+  currency              String        @default("USD")
+  reason                String?
+  /// Stripe dispute status: needs_response, under_review, won, lost, warning_*, etc.
+  status                String
+  /// Set to the Stripe dispute creation time.
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@map("disputes")
 }
 
 model PromoCode {

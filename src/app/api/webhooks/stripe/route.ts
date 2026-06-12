@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
+import { notifyOps } from "@/lib/alert";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,14 @@ async function refundOrphanSession(session: any, regId: string, paymentIntentId:
     console.error("[webhook] FAILED to auto-refund orphan session — manual reconciliation may be needed", {
       sessionId: session.id, registrationId: regId, paymentIntent: paymentIntentId, error: e?.message,
     });
+    // Page the platform team — a stuck charge needs a human, and a console line
+    // in a webhook is easy to miss. Non-throwing, so it can't worsen the failure.
+    await notifyOps(
+      "Orphan-session auto-refund FAILED — manual reconciliation needed",
+      `A paid Checkout session had no registration to attach to, and the automatic refund failed.\n\n` +
+        `Session: ${session.id}\nPaymentIntent: ${paymentIntentId}\nRegistration: ${regId}\nError: ${e?.message}\n\n` +
+        `The customer may have been charged with nothing delivered. Refund manually in the Stripe dashboard.`,
+    );
   }
 }
 
@@ -197,6 +206,30 @@ export async function POST(req: Request) {
       const inv = event.data.object as any;
       const { handleInvoicePaymentFailed } = await import("@/server/billing");
       await handleInvoicePaymentFailed(inv);
+      break;
+    }
+    case "invoice.paid": {
+      // Subscription / one-time billing revenue — record it to the invoice ledger.
+      const inv = event.data.object as any;
+      const { handleInvoicePaid } = await import("@/server/billing");
+      await handleInvoicePaid(inv);
+      break;
+    }
+    case "charge.dispute.created":
+    case "charge.dispute.updated":
+    case "charge.dispute.closed": {
+      const dispute = event.data.object as any;
+      const { handleDisputeEvent } = await import("@/server/billing");
+      const ctx = await handleDisputeEvent(dispute);
+      // Alert the team the moment a dispute opens — it pulls funds + fees back.
+      if (event.type === "charge.dispute.created" && ctx) {
+        await notifyOps(
+          `New card dispute opened — ${(ctx.amountCents / 100).toFixed(2)} ${(dispute.currency ?? "usd").toUpperCase()}`,
+          `A chargeback was filed.\n\nDispute: ${dispute.id}\nReason: ${ctx.reason ?? "unknown"}\n` +
+            `Amount: ${(ctx.amountCents / 100).toFixed(2)}\nOrg: ${ctx.organizationId ?? "unresolved"}\n` +
+            `PaymentIntent: ${dispute.payment_intent ?? "n/a"}\n\nRespond in the Stripe dashboard before the evidence deadline.`,
+        );
+      }
       break;
     }
     case "account.updated":

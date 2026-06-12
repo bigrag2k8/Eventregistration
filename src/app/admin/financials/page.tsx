@@ -79,7 +79,7 @@ export default async function AdminFinancialsPage({
   const whereTimeP = timeClause(`p."createdAt"`);
 
   // ── Queries ─────────────────────────────────────────────────────────────
-  const [totalsRows, trend, leaderboard, subs] = await Promise.all([
+  const [totalsRows, trend, leaderboard, subs, subRevRows, disputeRows, connectIncomplete] = await Promise.all([
     prisma.$queryRawUnsafe<Array<{ gross: bigint; refunded: bigint; fee_net: bigint; txns: bigint }>>(`
       SELECT
         COALESCE(SUM("amountCents"),0)::bigint AS gross,
@@ -115,6 +115,23 @@ export default async function AdminFinancialsPage({
       where: { deletedAt: null },
       _count: { _all: true },
     }),
+    // Subscription revenue (windowed by invoice paid time).
+    prisma.$queryRawUnsafe<Array<{ sub_rev: bigint }>>(`
+      SELECT COALESCE(SUM("amountPaidCents"),0)::bigint AS sub_rev
+      FROM billing_invoices WHERE TRUE${whereTime}
+    `),
+    // Disputes / chargebacks (windowed by dispute creation time).
+    prisma.$queryRawUnsafe<Array<{ cnt: bigint; amt: bigint }>>(`
+      SELECT COUNT(*)::bigint AS cnt, COALESCE(SUM("amountCents"),0)::bigint AS amt
+      FROM disputes WHERE TRUE${whereTime}
+    `),
+    // Orgs that can't accept payments (current snapshot — silent lost revenue).
+    prisma.organization.findMany({
+      where: { deletedAt: null, OR: [{ stripeAccountId: null }, { stripeAccountChargesEnabled: false }] },
+      select: { id: true, name: true, slug: true, stripeAccountId: true, stripeAccountStatus: true },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+    }),
   ]);
 
   const t = totalsRows[0] ?? { gross: 0n, refunded: 0n, fee_net: 0n, txns: 0n };
@@ -123,6 +140,10 @@ export default async function AdminFinancialsPage({
   const feeNetCents = num(t.fee_net);
   const netGmvCents = grossCents - refundedCents;
   const takeRate = netGmvCents > 0 ? (feeNetCents / netGmvCents) * 100 : 0;
+  const subRevCents = num(subRevRows[0]?.sub_rev);
+  const totalPlatformRevCents = feeNetCents + subRevCents;
+  const disputeCount = num(disputeRows[0]?.cnt);
+  const disputeAmtCents = num(disputeRows[0]?.amt);
 
   // MRR / subscription status are current snapshots — not affected by the window.
   let mrrCents = 0;
@@ -182,17 +203,24 @@ export default async function AdminFinancialsPage({
 
         {/* Headline (windowed) */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Net GMV processed" value={fmt(netGmvCents)} hint="Ticket + vendor sales, net of refunds" />
-          <Stat label="Platform fee revenue" value={fmt(feeNetCents)} hint={`Your cut · ${rangeLabel.toLowerCase()}`} accent />
-          <Stat label="Take rate" value={`${takeRate.toFixed(2)}%`} hint="Fee revenue ÷ net GMV" />
-          <Stat label="MRR" value={fmt(mrrCents)} hint={`ARR ${fmtCompact(arrCents)} · current run-rate`} />
+          <Stat label="Total platform revenue" value={fmt(totalPlatformRevCents)} hint={`Fees + subscriptions · ${rangeLabel.toLowerCase()}`} accent />
+          <Stat label="Platform fee revenue" value={fmt(feeNetCents)} hint="Ticket/vendor cut, net of refunds" />
+          <Stat label="Subscription revenue" value={fmt(subRevCents)} hint="Org plan invoices paid" />
+          <Stat label="Net GMV processed" value={fmt(netGmvCents)} hint="Sales volume, net of refunds" />
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Take rate" value={`${takeRate.toFixed(2)}%`} hint="Fee revenue ÷ net GMV" small />
+          <Stat label="MRR" value={fmt(mrrCents)} hint={`ARR ${fmtCompact(arrCents)} · current`} small />
+          <Stat label="Paid transactions" value={num(t.txns).toLocaleString()} small />
+          <Stat label="Disputes" value={String(disputeCount)} hint={disputeCount ? `${fmt(disputeAmtCents)} disputed` : "none in window"} small />
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Gross processed" value={fmt(grossCents)} small />
           <Stat label="Refunds" value={fmt(refundedCents)} small />
-          <Stat label="Paid transactions" value={num(t.txns).toLocaleString()} small />
           <Stat label="Active subscriptions" value={String((statusCounts.ACTIVE ?? 0) + (statusCounts.TRIALING ?? 0))} small hint="current" />
+          <Stat label="Payments-disabled orgs" value={String(connectIncomplete.length)} small hint="can't transact" />
         </div>
 
         {/* Trend (windowed + bucketed) */}
@@ -257,10 +285,35 @@ export default async function AdminFinancialsPage({
           </div>
         </div>
 
+        {/* Payments-disabled orgs (current snapshot — lost revenue) */}
+        <div className="mt-6 rounded-xl bg-white ring-1 ring-slate-200">
+          <div className="border-b px-5 py-3">
+            <h2 className="font-semibold">
+              Payments-disabled organizations <span className="text-xs font-normal text-slate-400">· current · lost revenue</span>
+            </h2>
+          </div>
+          {connectIncomplete.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-slate-500">All organizations can accept payments.</p>
+          ) : (
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100">
+                {connectIncomplete.map((o) => (
+                  <tr key={o.id}>
+                    <td className="px-5 py-2"><Link href={`/admin/orgs/${o.id}`} className="font-medium text-brand-700 hover:underline">{o.name}</Link></td>
+                    <td className="px-5 py-2 text-slate-500">{o.stripeAccountId ? "onboarding incomplete" : "no Stripe account"}</td>
+                    <td className="px-5 py-2 text-right text-xs text-slate-400">{o.stripeAccountStatus ?? "not_started"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
         <p className="mt-6 text-xs text-slate-400">
           Platform fee figures are tracked from the deploy that added fee persistence forward; transactions
-          recorded before that show $0 fee until backfilled from Stripe. MRR/ARR and subscription status are
-          current snapshots (not affected by the selected window).
+          recorded before that show $0 fee until backfilled from Stripe (run scripts/backfill-platform-fees.ts).
+          Subscription revenue comes from paid Stripe invoices. MRR/ARR, subscription status, and the
+          payments-disabled list are current snapshots (not affected by the selected window).
         </p>
       </section>
     </main>

@@ -119,6 +119,97 @@ export async function handleInvoicePaymentFailed(invoice: any) {
 }
 
 /**
+ * Called for invoice.paid — record the subscription/one-time invoice as platform
+ * subscription revenue. Idempotent via the unique stripeInvoiceId (Stripe redelivers).
+ */
+export async function handleInvoicePaid(invoice: any) {
+  const stripeInvoiceId: string | undefined = invoice.id;
+  if (!stripeInvoiceId) return;
+  // Skip $0 invoices (trials, fully-credited) — no revenue to record.
+  if ((invoice.amount_paid ?? 0) <= 0) return;
+
+  const customerId: string | null = invoice.customer ?? null;
+  const org = customerId
+    ? await prisma.organization.findUnique({ where: { stripeCustomerId: customerId } })
+    : null;
+
+  const line = invoice.lines?.data?.[0];
+  const planKey = planFromPriceId(line?.price?.id) ?? null;
+  const paidAtUnix = invoice.status_transitions?.paid_at ?? invoice.created;
+  const createdAt = paidAtUnix ? new Date(paidAtUnix * 1000) : new Date();
+  const periodStart = line?.period?.start ? new Date(line.period.start * 1000) : null;
+  const periodEnd = line?.period?.end ? new Date(line.period.end * 1000) : null;
+
+  await prisma.billingInvoice.upsert({
+    where: { stripeInvoiceId },
+    create: {
+      stripeInvoiceId,
+      organizationId: org?.id ?? null,
+      stripeCustomerId: customerId,
+      planKey,
+      amountPaidCents: invoice.amount_paid ?? 0,
+      currency: (invoice.currency ?? "usd").toUpperCase(),
+      status: invoice.status ?? "paid",
+      periodStart,
+      periodEnd,
+      createdAt,
+    },
+    update: {
+      amountPaidCents: invoice.amount_paid ?? 0,
+      status: invoice.status ?? "paid",
+      organizationId: org?.id ?? undefined,
+    },
+  });
+}
+
+/**
+ * Called for charge.dispute.{created,updated,closed} — persist the dispute and
+ * resolve the affected org via the disputed PaymentIntent. Idempotent via the
+ * unique stripeDisputeId. Returns the resolved context so the webhook can alert.
+ */
+export async function handleDisputeEvent(dispute: any) {
+  const stripeDisputeId: string | undefined = dispute.id;
+  if (!stripeDisputeId) return null;
+  const piId: string | null = dispute.payment_intent ?? null;
+  const chargeId: string | null = dispute.charge ?? null;
+
+  const payment = piId
+    ? await prisma.payment.findFirst({ where: { stripePaymentIntentId: piId } })
+    : null;
+  let organizationId: string | null = null;
+  if (payment) {
+    const reg = await prisma.registration.findUnique({
+      where: { id: payment.registrationId },
+      include: { event: { select: { organizationId: true } } },
+    });
+    organizationId = reg?.event?.organizationId ?? null;
+  }
+  const createdAt = dispute.created ? new Date(dispute.created * 1000) : new Date();
+
+  await prisma.dispute.upsert({
+    where: { stripeDisputeId },
+    create: {
+      stripeDisputeId,
+      organizationId,
+      paymentId: payment?.id ?? null,
+      stripePaymentIntentId: piId,
+      stripeChargeId: chargeId,
+      amountCents: dispute.amount ?? 0,
+      currency: (dispute.currency ?? "usd").toUpperCase(),
+      reason: dispute.reason ?? null,
+      status: dispute.status ?? "needs_response",
+      createdAt,
+    },
+    update: {
+      status: dispute.status ?? undefined,
+      amountCents: dispute.amount ?? undefined,
+    },
+  });
+
+  return { organizationId, amountCents: dispute.amount ?? 0, reason: dispute.reason ?? null };
+}
+
+/**
  * Called for account.updated — keeps the org's Connect account status in sync.
  * Fires every time an organizer makes progress in Stripe's hosted onboarding.
  */
