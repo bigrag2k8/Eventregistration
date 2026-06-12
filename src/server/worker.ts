@@ -3,6 +3,7 @@
  * Run via `npm run worker`. Use a process manager (PM2 / Docker) in production.
  */
 import { prisma } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
 import { sendReminderEmail } from "@/lib/email";
 import { issueTickets } from "@/server/tickets";
 
@@ -64,6 +65,22 @@ async function purgeAbandonedCarts() {
     take: 500,
   });
   for (const r of stale) {
+    // Kill the Stripe session BEFORE cancelling, so a late payer can't pay a
+    // session whose registration we just cancelled (which would leave money
+    // with no ticket). If expire fails because the session was already paid,
+    // skip cancellation and let the webhook confirm it.
+    if (r.stripeSessionId) {
+      try {
+        await stripe.checkout.sessions.expire(r.stripeSessionId);
+      } catch {
+        try {
+          const s = await stripe.checkout.sessions.retrieve(r.stripeSessionId);
+          if (s.status === "complete" || s.payment_status === "paid") continue;
+        } catch {
+          // couldn't determine state — fall through and cancel
+        }
+      }
+    }
     await prisma.registration.update({ where: { id: r.id }, data: { status: "CANCELLED", cancelReason: "abandoned" } });
     await prisma.abandonedCart.upsert({
       where: { id: r.id },

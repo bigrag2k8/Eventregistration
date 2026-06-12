@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
 import { computeTotals } from "@/server/pricing";
 import { issueTickets } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
@@ -85,7 +86,17 @@ export async function POST(req: Request) {
         fieldErrors: { email: ["Previously refunded — contact organizer"] },
       }, { status: 409 });
     }
-    // PENDING / CANCELLED → cascade delete the old row to free the (eventId, email) unique slot
+    // PENDING / CANCELLED → cascade delete the old row to free the (eventId, email) unique slot.
+    // Expire its Stripe session first so the orphaned session can't be paid
+    // against a registration that no longer exists. (If one slips through, the
+    // webhook auto-refunds it.)
+    if (dupe.stripeSessionId && dupe.status === "PENDING") {
+      try {
+        await stripe.checkout.sessions.expire(dupe.stripeSessionId);
+      } catch {
+        // already expired/completed — webhook orphan-refund is the backstop
+      }
+    }
     await prisma.registration.delete({ where: { id: dupe.id } }).catch(() => {});
   }
 

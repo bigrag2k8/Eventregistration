@@ -41,6 +41,20 @@ export async function POST(req: Request) {
     }, { status: 503 });
   }
 
+  // Reuse an existing open session rather than minting a second payable one.
+  // Two live sessions for one registration can both be paid -> double charge
+  // with only one Payment row recorded.
+  if (reg.stripeSessionId) {
+    try {
+      const existing = await stripe.checkout.sessions.retrieve(reg.stripeSessionId);
+      if (existing.status === "open" && existing.url) {
+        return NextResponse.json({ url: existing.url });
+      }
+    } catch {
+      // session not retrievable (expired/garbage) — fall through and create a fresh one
+    }
+  }
+
   const unitAmount = Math.round((reg.totalCents - reg.feeCents - reg.taxCents) / reg.quantity);
   if (unitAmount <= 0) {
     console.error("[checkout] computed unit_amount is non-positive", { totalCents: reg.totalCents, feeCents: reg.feeCents, taxCents: reg.taxCents, quantity: reg.quantity });
