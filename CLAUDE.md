@@ -10,7 +10,7 @@ Users: attendees, organizers, vendors, staff/volunteers, platform admin.
 ## Stack
 
 - **Framework:** Next.js 14 App Router, React 18, TypeScript, Tailwind CSS
-- **Database:** PostgreSQL via Prisma ORM. Container runs `prisma db push --accept-data-loss` at boot — no migrations folder.
+- **Database:** PostgreSQL via Prisma ORM. Container runs `prisma db push` at boot — no migrations folder. The `--accept-data-loss` flag was removed: additive changes still auto-apply, but a destructive change (column/model rename, type change, new required column) now FAILS the deploy instead of silently dropping data. Make destructive changes deliberately (run `db push --accept-data-loss` once by hand against the DB).
 - **Cache / rate limit:** ioredis against Railway Redis
 - **Auth:** JWT in HttpOnly cookies (`src/lib/auth.ts`), bcrypt (cost 12)
 - **Payments:** Stripe + Stripe Connect Express. Destination Charges with `application_fee_amount`. Platform fee = **3.5%**.
@@ -122,7 +122,7 @@ Must be a **stable literal string** in Railway, NOT a `${{secret(...)}}` templat
 - **Read before editing.** Always.
 - **Edit directly with Edit/Write.** Don't dump diffs in chat for the user to copy-paste.
 - **The user pushes from their Windows terminal.** After committing locally, give them the exact 2-3 lines they need to run.
-- **Schema changes:** edit `prisma/schema.prisma`. Container runs `db push` at boot, no migration file needed.
+- **Schema changes:** edit `prisma/schema.prisma`. Container runs `db push` at boot, no migration file needed. Additive changes apply automatically. A DESTRUCTIVE change (rename, type change, new required column) will fail the deploy by design — flag it to the user so they can apply it deliberately rather than have data silently dropped.
 - **Multi-step work:** use the TodoWrite tool to track progress.
 - **No emojis** in code or files unless explicitly requested.
 
