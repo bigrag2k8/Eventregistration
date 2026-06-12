@@ -1,59 +1,66 @@
 # Handoff to Claude Code — Your Events App
 
-This file has two parts:
+Two parts:
 
-1. **Setup** — install Claude Code, point it at your repo, start a session.
-2. **Handoff prompt** — paste this into the first message of a fresh Claude Code session so it picks up where Cowork left off.
+1. **Setup steps** — install Claude Code + VSCode extensions
+2. **Handoff prompt** — paste this as the first message in a fresh Claude Code session
 
 ---
 
 ## Part 1 — Setup
 
-### 1.1 Install Claude Code
+### 1.1 Pull the latest from GitHub
 
-Requires Node.js 18+. Open PowerShell and run:
+```
+cd "C:\Users\Daddy\Documents\Claude\Projects\Build an Event Registration Platform MVP\eventflow"
+git pull
+```
+
+This gets you `CLAUDE.md`, `.env.example`, `.vscode/`, this file, and everything else built so far.
+
+### 1.2 Install Claude Code
+
+Requires Node.js 18+. In PowerShell:
 
 ```
 npm install -g @anthropic-ai/claude-code
-```
-
-Verify:
-
-```
 claude --version
 ```
 
-### 1.2 Open the project in Claude Code
+### 1.3 Open in VSCode + install recommended extensions
 
 ```
-cd C:\Users\Daddy\Documents\Claude\Projects\Build an Event Registration Platform MVP\eventflow
-claude
+code .
 ```
 
-The first run will ask you to authenticate via browser. Once logged in, you'll get a prompt inside the project folder.
+VSCode will prompt to install the recommended extensions from `.vscode/extensions.json` (Claude Code, Prisma, Tailwind IntelliSense, ESLint, Prettier, Stripe, Docker, etc.). Click **Install All**.
 
-### 1.3 Local dev (so Claude Code can run/test things)
-
-Create `.env.local` in the `eventflow` folder with the same values you have in Railway. At minimum:
+### 1.4 Local env
 
 ```
-DATABASE_URL=postgresql://...           # use Railway's connection string OR a local Postgres
-REDIS_URL=redis://localhost:6379         # or your Railway Redis
-JWT_SECRET=some-32-byte-random-string
-JWT_ISSUER=yourevents
-SESSION_COOKIE_NAME=eventflow_session
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-RESEND_API_KEY=re_...
-EMAIL_FROM=events@yourevents.app
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=...
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=...
-NEXT_PUBLIC_GOOGLE_MAPS_KEY=...
+copy .env.example .env.local
 ```
 
-Run:
+Open `.env.local` and fill in values from Railway → EventReg → web service → Variables. At minimum:
+
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Railway Postgres public connection string, OR local postgres |
+| `REDIS_URL` | Railway Redis public URL, OR `redis://localhost:6379` |
+| `JWT_SECRET` | Same literal value you set in Railway (must match prod) |
+| `JWT_ISSUER` | `yourevents` |
+| `SESSION_COOKIE_NAME` | `eventflow_session` |
+| `STRIPE_SECRET_KEY` | https://dashboard.stripe.com/test/apikeys |
+| `STRIPE_PUBLISHABLE_KEY` | same page |
+| `STRIPE_WEBHOOK_SECRET` | from `stripe listen` (see 1.6) |
+| `RESEND_API_KEY` | https://resend.com/api-keys |
+| `EMAIL_FROM` | `events@yourevents.app` |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary dashboard top of page |
+| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Cloudinary → Settings → Upload presets |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |
+| `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | Google Cloud Console |
+
+### 1.5 Boot the app
 
 ```
 npm install
@@ -61,88 +68,80 @@ npx prisma generate
 npm run dev
 ```
 
-App boots on `http://localhost:3000`.
+App on http://localhost:3000.
 
-### 1.4 Optional but recommended
+### 1.6 Stripe CLI for local webhooks
 
-- Install Stripe CLI (you started this earlier — finish via `winget install stripe.stripe-cli`) so Claude Code can forward webhooks: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`.
-- Add a `CLAUDE.md` at repo root so every session loads the conventions automatically. Claude Code reads it on launch. You can copy the "Conventions" section of the handoff prompt below into `CLAUDE.md`.
+```
+winget install stripe.stripe-cli
+stripe login
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+The `whsec_...` it prints goes into `.env.local` as `STRIPE_WEBHOOK_SECRET`.
+
+### 1.7 Start Claude Code
+
+From the same folder:
+
+```
+claude
+```
+
+First run prompts you to authenticate in browser. Claude Code auto-loads `CLAUDE.md` on every start — you don't need to re-paste conventions.
+
+### 1.8 Paste the handoff prompt (one time, first message)
+
+Copy everything between the two horizontal rules in Part 2 below and paste as your first message. After this, every future session just needs you to type what you want to build.
 
 ---
 
 ## Part 2 — Handoff prompt
 
-Paste everything between the two horizontal rules into Claude Code as your first message.
+Paste the block below into Claude Code as your first message.
 
 ---
 
-You are picking up an in-flight project from a previous Cowork session. Read this brief carefully before doing any work.
+You are picking up an in-flight project. `CLAUDE.md` at the repo root has the full conventions — read it before any work.
 
-**Project:** Your Events App — multi-tenant event registration SaaS at `www.yourevents.app`. Eventbrite competitor for organizations, nonprofits, clubs, conferences. Supports attendee tickets, vendor booth applications, QR check-in, organizer dashboard, platform admin.
+**Project at a glance:** Your Events App, a multi-tenant event registration SaaS at `www.yourevents.app`. Eventbrite competitor. Multi-org with attendees, organizers, vendors, staff/volunteers, and a platform admin role.
 
-**Repo & deploy:**
-- GitHub: `bigrag2k8/Eventregistration` (branch `main`)
-- Hosting: Railway project `EventReg` (auto-deploys from `main`)
-- Services: web (Next.js), worker (reminder emails), Postgres, Redis
-- Custom domain: `www.yourevents.app`
+**Where things stand right now:**
+- Repo: `bigrag2k8/Eventregistration` (main branch), Railway project `EventReg` auto-deploys from main, custom domain `www.yourevents.app` live
+- Stripe Connect Phase A (Express onboarding with deferred KYC, business_type=individual, MCC 7922, daily payouts) AND Phase B (attendee + vendor checkouts via Destination Charges with 3.5% application_fee_amount, refunds with reverse_transfer + refund_application_fee, paid ticket types blocked when org not Connect-ready) are shipped
+- Cloudinary banner uploads working (direct browser→CDN), Cloudinary env vars set in Railway and in the Dockerfile build stage as ARGs
+- JWT_SECRET on Railway is a stable literal (not `${{secret()}}` — that would log everyone out on each deploy)
+- Self-serve signup with live slug availability check at `/api/auth/check-slug`
+- Plan-selected gate locks new orgs to `/dashboard/billing` until they pick FREE or paid; FREE activation works on first-time billing page
+- KYC banner only fires when actual paid revenue is waiting (free events do not trigger it)
+- Private event toggle on Event (hides from homepage + org public page; direct link still works)
+- Factory reset endpoint on `/admin` (SUPERADMIN-only, "WIPE EVERYTHING" confirmation phrase)
+- Audit log UI at `/dashboard/audit`
+- Reminder-email worker deployed on Railway as service `worker`
+- "Changes saved" emerald banner on event manage form; date-order errors render as inline red banners instead of the Next.js crash page
 
-**Stack:**
-- Next.js 14 App Router, React 18, TypeScript, Tailwind
-- Prisma ORM against Postgres (uses `prisma db push` at boot — no migrations folder)
-- ioredis for rate limiting
-- JWT auth in HttpOnly cookies (`src/lib/auth.ts`), bcrypt (cost 12)
-- Stripe + Stripe Connect Express (Destination Charges, 3.5% platform fee)
-- Resend for transactional email
-- Cloudinary for image uploads (unsigned preset, browser → CDN direct)
+**Pending / good candidates for next work** (don't start any of these without my OK):
+- KYC reminder emails (first-paid-ticket-sold; balance ≥ $100; T-7d before event)
+- Sales tax + processing fee toggles wired into checkout math (schema has `Event.taxRatePct` + `Event.passProcessingFee`, currently ignored)
+- Group ticket type kind (schema has `TicketTypeKind.GROUP`, registration math doesn't)
+- Custom questions UI (schemas `CustomQuestion` and `CustomAnswer` exist)
+- Photo gallery + speaker management UI (schemas exist)
+- Promo codes UI
 
-**Repo conventions you must follow:**
-- Roles are `ATTENDEE | ORGANIZER | STAFF | VOLUNTEER | ADMIN | SUPERADMIN`. Gate routes with `requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession())` from `@/lib/auth`.
-- For cross-org queries, use `orgScope(session)` (also from `@/lib/auth`). It returns `{}` for SUPERADMIN and `{ organizationId }` for everyone else. Spread it into Prisma `where` clauses.
-- Plan limits live in `src/lib/plans.ts`. Gate event creation, campaigns, etc. via `requirePlanSelected(session)` and the `PLANS[org.subscriptionPlan]` map.
-- Public org pages are `/o/[orgSlug]/events/[slug]`. Legacy `/events/[slug]` 307-redirects.
-- Stripe Connect helpers are in `src/lib/connect.ts`:
-  - `PLATFORM_FEE_PERCENT` (currently 3.5)
-  - `platformFeeCents(amountCents)`
-  - `connectChargeParams(org, totalCents)` → returns the `payment_intent_data` slice (destination + fee + on_behalf_of) or null if not Connect-ready
-  - `canAcceptPayments(org)` → guard before any paid checkout
-- Webhook handler at `src/app/api/webhooks/stripe/route.ts`. Handles `checkout.session.completed`, `charge.refunded`, `customer.subscription.*`, `invoice.payment_failed`, `account.updated`, `capability.updated`, `account.application.deauthorized`. **Adding new events?** Also register them in the Stripe Dashboard webhook config.
-- Audit log: write to `prisma.auditLog` for any admin-significant action. Helper at `src/lib/audit.ts`.
-- Reminder emails run in the worker service (`src/server/worker.ts`).
+**Working style I expect:**
+- Be concise. No "Let me…" preambles. No recaps after every change.
+- Read files before editing. Always.
+- Edit directly with Edit/Write — don't dump diffs in chat for me to copy-paste.
+- I push to GitHub from my own Windows terminal — you don't have credentials. After committing locally, give me the exact 2–3 lines to run.
+- Schema changes: edit `prisma/schema.prisma`. The Railway container runs `prisma db push --accept-data-loss` at boot — no migration file needed.
+- Use TodoWrite for any multi-step work.
+- No emojis in code or files unless I ask.
 
-**Recent work shipped (commits on `main`):**
-1. Phase A Connect onboarding (Express, deferred KYC `currently_due`, `business_type: individual`, MCC 7922, daily payouts)
-2. Phase B Connect payment routing (attendee + vendor checkouts via Destination Charges with 3.5% application_fee_amount, block paid ticket types when org not Connect-ready, refund flow with `reverse_transfer: true, refund_application_fee: true`)
-3. Upgrade-to-business endpoint at `/api/billing/connect/upgrade-to-business` (gated at $20K lifetime sales, SUPERADMIN can override)
-4. Cloudinary banner uploads via `BannerImageInput` component (direct-to-CDN, never touches our server). Wired into create-event and event manage forms. Hero overlay on public event page.
-5. Race-safe `finalizeVendor` (catches Prisma P2002, uses atomic updateMany for status flip)
-6. `orgScope` helper rolled out across dashboard pages so SUPERADMIN sees events from any org
-7. Homepage search above featured events (no duplicate cards when searching)
-8. Factory reset endpoint at `/admin` (SUPERADMIN-only, `WIPE EVERYTHING` confirmation phrase)
-9. KycBanner on dashboard overview when org has revenue but `payoutsEnabled=false`
+**First action when you start:**
+1. Run `git status` and `git log -8 --oneline` so you see HEAD
+2. Skim `prisma/schema.prisma` for the data model
+3. Ask me what I want to work on. Don't pick from the pending list unprompted.
 
-**Dockerfile gotcha:** `NEXT_PUBLIC_*` env vars must be declared as `ARG` in the build stage and re-exported as `ENV` before `npm run build`, otherwise Next.js inlines them as `undefined`. Already done for `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_KEY`, `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`. **Add any new `NEXT_PUBLIC_*` var to the Dockerfile too** or it won't reach the client bundle.
-
-**Pending / next up:**
-- KYC reminder emails: cron logic exists in `src/server/worker.ts`; need to add: (a) when first ticket sells and `payoutsEnabled=false`, (b) when Stripe balance ≥ $100, (c) 7 days before event if still not verified.
-- Sales tax + organizer-side payment fee toggles (`Event.taxRatePct`, `Event.passProcessingFee` already in schema but not wired into checkout math).
-- Group ticket type kind (`TicketTypeKind.GROUP`) is in the schema but not implemented in registration math.
-- Custom questions on registration (`CustomQuestion` / `CustomAnswer` schemas exist; UI not built).
-- Photo gallery + speaker management UI (schemas exist).
-- Promo codes UI (schema + relation exists; admin UI missing).
-
-**How I work (please match):**
-- Be concise. The user prefers terse responses, no preamble like "Let me…", no recap after each change.
-- Read files before editing them. Always.
-- Make file edits directly with the Edit / Write tools. Don't generate diffs in the chat for the user to copy-paste.
-- After making changes, the user pushes from their Windows terminal. Don't try to `git push` yourself (no creds in sandbox). After committing locally, give them the exact 2-3 lines they need to run.
-- Schema changes: edit `prisma/schema.prisma`. Container runs `prisma db push --accept-data-loss` at boot, so no migration file needed.
-- For multi-step work, use the TodoWrite tool to track progress.
-
-**First action when starting:**
-1. `git status` and `git log -5 --oneline` so you know the current HEAD.
-2. Skim `prisma/schema.prisma` so you know the data model.
-3. Ask the user what they want to work on next — do not dive into a pending item unprompted.
-
-Now wait for the user's first request.
+Now wait for my next message.
 
 ---
