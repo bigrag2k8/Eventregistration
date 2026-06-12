@@ -22,6 +22,14 @@ export async function POST(req: Request) {
   if (invite.status !== "PENDING") return NextResponse.json({ error: `This invite is ${invite.status.toLowerCase()}.` }, { status: 410 });
   if (invite.expiresAt < new Date()) return NextResponse.json({ error: "This invite has expired." }, { status: 410 });
 
+  // If the invite was scoped to a specific event and that event has since been
+  // deleted, accepting it would create no EventAssignment — silently widening
+  // an event-scoped staff role to org-wide access. Refuse instead.
+  if (invite.eventId) {
+    const ev = await prisma.event.findFirst({ where: { id: invite.eventId, deletedAt: null } });
+    if (!ev) return NextResponse.json({ error: "The event this invite was for is no longer available. Ask your organizer for a new invite." }, { status: 410 });
+  }
+
   // Email collision: if someone already has an account with this email, refuse rather than overwrite
   const existing = await prisma.user.findUnique({ where: { email: invite.email } });
   if (existing) {

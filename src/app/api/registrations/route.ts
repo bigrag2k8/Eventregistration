@@ -48,7 +48,6 @@ const schema = z.object({
   accessibility: z.string().optional(),
   specialRequests: z.string().optional(),
   promoCode: z.string().optional(),
-  referralCode: z.string().optional(),
   answers: z.array(z.object({ questionId: z.string(), answer: z.string() })).optional(),
 });
 

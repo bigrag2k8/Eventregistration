@@ -6,6 +6,10 @@ import { rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({ email: z.string().email(), password: z.string() });
 
+// A real bcrypt hash (of a random string) to compare against when no user is
+// found, so unknown-email sign-ins cost the same time as wrong-password ones.
+const DUMMY_BCRYPT_HASH = "$2a$12$7r5cxj083lr0O1bcXocwnOqty.XHYuKrbaQHrQGbSZUGE.O.Ks90C";
+
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for") ?? "anon";
   const rl = await rateLimit(`signin:${ip}`, 20, 60);
@@ -15,7 +19,11 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (!user?.passwordHash || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+  // Always run a bcrypt compare — even when the user/hash is missing — so the
+  // response time doesn't reveal whether an account exists (timing oracle).
+  const hashToCheck = user?.passwordHash ?? DUMMY_BCRYPT_HASH;
+  const passwordOk = await verifyPassword(parsed.data.password, hashToCheck);
+  if (!user?.passwordHash || !passwordOk) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
   // A soft-deleted user must not be able to sign in (same generic message so

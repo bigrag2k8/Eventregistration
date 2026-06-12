@@ -99,7 +99,10 @@ export default async function DashboardHome() {
       )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Revenue" value={money(totalRevenue._sum.amountCents ?? 0)} />
+        {/* Revenue is org-financial data — not for door staff/volunteers. */}
+        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
+          <Stat label="Revenue" value={money(totalRevenue._sum.amountCents ?? 0)} />
+        )}
         <Stat label="Registrations" value={String(totalRegs)} />
         <Stat label="Check-in rate" value={`${checkInRate}%`} />
         <Stat label="Events" value={String(events.length)} />

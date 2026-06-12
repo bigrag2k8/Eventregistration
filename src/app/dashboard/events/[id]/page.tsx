@@ -8,6 +8,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -284,7 +285,11 @@ export default async function EventManagePage({ params, searchParams }: { params
           <form action={deleteAction} className="mt-3 flex items-center justify-between">
             <p className="text-sm text-slate-600">Soft-delete this event. Existing registrations remain.</p>
             <input type="hidden" name="eventId" value={event.id} />
-            <button type="submit" className="btn-secondary text-red-700 hover:bg-red-50">Delete event</button>
+            <ConfirmButton
+              label="Delete event"
+              confirmText={`Delete "${event.name}"? It will be removed from all public listings. This can't be undone from here.`}
+              className="btn-secondary text-red-700 hover:bg-red-50"
+            />
           </form>
         </section>
       </div>

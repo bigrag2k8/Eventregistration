@@ -27,6 +27,37 @@ export default async function SuccessPage({
     : [];
   const icsHref = `/api/registrations/${reg.id}/ics${canViewTickets ? `?key=${reg.accessToken}` : ""}`;
 
+  // Don't claim success for a registration that isn't actually confirmed —
+  // a PENDING reg (payment still settling / webhook delayed) or a cancelled/
+  // refunded one would otherwise show "You're registered!" with no tickets.
+  if (reg.status !== "CONFIRMED") {
+    const pending = reg.status === "PENDING";
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-8">
+        <div className="card text-center">
+          <div className="text-3xl">{pending ? "⏳" : "ℹ️"}</div>
+          <h1 className="mt-2 text-2xl font-bold">
+            {pending ? "Finishing your registration…" : "Registration not active"}
+          </h1>
+          <p className="mt-2 text-slate-600">
+            {pending
+              ? "Your payment is being confirmed. This page will show your tickets once it completes — we'll also email them to "
+              : "This registration is "}
+            {pending ? <strong>{reg.email}</strong> : <strong>{reg.status.toLowerCase()}</strong>}
+            {pending ? ". You can refresh in a moment." : ". If you think this is a mistake, contact the organizer."}
+          </p>
+          <div className="mt-6 text-left text-sm text-slate-600">
+            <div className="font-medium text-slate-900">{reg.event.name}</div>
+            <div>{reg.ticketType.name} × {reg.quantity}</div>
+          </div>
+          <div className="mt-6">
+            <Link className="btn-secondary" href={`/o/${params.orgSlug}/events/${reg.event.slug}`}>Event page</Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <div className="card text-center">
