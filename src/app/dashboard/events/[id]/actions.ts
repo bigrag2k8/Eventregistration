@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
@@ -67,6 +68,7 @@ const basicsSchema = z.object({
   description: z.string().min(10),
   startAt: z.string(),
   endAt: z.string(),
+  timezone: z.string().optional(),
   capacity: z.string().optional(),
   contactEmail: z.string().optional(),
   refundPolicy: z.string().optional(),
@@ -81,8 +83,11 @@ export async function updateBasicsAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { event } = await authorizeEvent(eventId);
   const data = basicsSchema.parse(Object.fromEntries(formData.entries()));
-  const startAt = new Date(data.startAt);
-  const endAt = new Date(data.endAt);
+  // Wall-clock input is interpreted in the event's timezone (form value, or
+  // the existing one if the form didn't send it), then stored as a UTC instant.
+  const tz = data.timezone || event.timezone;
+  const startAt = fromZonedTime(data.startAt, tz);
+  const endAt = fromZonedTime(data.endAt, tz);
   // Friendly inline error instead of a server-side exception page
   if (endAt <= startAt) {
     redirect(`/dashboard/events/${event.id}?error=date_order`);
@@ -96,6 +101,7 @@ export async function updateBasicsAction(formData: FormData) {
       description: data.description,
       startAt,
       endAt,
+      timezone: tz,
       capacity: data.capacity ? parseInt(data.capacity) : null,
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
@@ -8,6 +9,13 @@ import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, dele
 import { BannerImageInput } from "@/components/BannerImageInput";
 
 export const dynamic = "force-dynamic";
+
+const TIMEZONES = [
+  "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York",
+  "America/Phoenix", "America/Anchorage", "Pacific/Honolulu",
+  "Europe/London", "Europe/Paris", "Europe/Berlin",
+  "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "UTC",
+];
 
 export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -118,11 +126,17 @@ export default async function EventManagePage({ params, searchParams }: { params
             </div>
             <div>
               <label className="label">Start</label>
-              <input name="startAt" type="datetime-local" required defaultValue={event.startAt.toISOString().slice(0, 16)} className="input" />
+              <input name="startAt" type="datetime-local" required defaultValue={formatInTimeZone(event.startAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className="input" />
             </div>
             <div>
               <label className="label">End</label>
-              <input name="endAt" type="datetime-local" required defaultValue={event.endAt.toISOString().slice(0, 16)} className="input" />
+              <input name="endAt" type="datetime-local" required defaultValue={formatInTimeZone(event.endAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className="input" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Timezone</label>
+              <select name="timezone" defaultValue={event.timezone} className="input">
+                {(TIMEZONES.includes(event.timezone) ? TIMEZONES : [event.timezone, ...TIMEZONES]).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <div>
               <label className="label">Capacity</label>

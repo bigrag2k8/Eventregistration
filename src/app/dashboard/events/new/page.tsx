@@ -35,14 +35,15 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
   }
 
   // Default start = next Saturday 9am local, end = same day 5pm
+  // Default to next Saturday. Build the datetime-local default as a literal
+  // wall-clock string (no toISOString — that would shift it by the server's
+  // UTC offset). The organizer reads it as a time in their chosen timezone.
   const now = new Date();
   const next = new Date(now);
   next.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7));
-  next.setHours(9, 0, 0, 0);
-  const defaultStart = next.toISOString().slice(0, 16);
-  const endDate = new Date(next);
-  endDate.setHours(17, 0, 0, 0);
-  const defaultEnd = endDate.toISOString().slice(0, 16);
+  const ymd = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+  const defaultStart = `${ymd}T09:00`;
+  const defaultEnd = `${ymd}T17:00`;
 
   return (
     <main>

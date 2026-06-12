@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { PLANS } from "@/lib/plans";
@@ -67,8 +68,11 @@ export async function createEventAction(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = schema.parse(raw);
 
-  const startAt = new Date(data.startAt);
-  const endAt = new Date(data.endAt);
+  // The form sends wall-clock strings (datetime-local, no offset) that mean
+  // "this time in the event's timezone". Convert to the correct UTC instant
+  // with the selected timezone — not the server's — before storing.
+  const startAt = fromZonedTime(data.startAt, data.timezone);
+  const endAt = fromZonedTime(data.endAt, data.timezone);
   // Friendly inline error instead of a server-side exception page
   if (endAt <= startAt) {
     redirect("/dashboard/events/new?error=date_order");
