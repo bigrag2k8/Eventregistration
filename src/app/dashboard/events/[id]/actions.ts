@@ -131,6 +131,58 @@ const ttSchema = z.object({
   quantity: z.string().optional(),
 });
 
+const presaleSchema = z.object({
+  presaleEnabled: z.string().optional(),
+  presalePercent: z.string().optional(),
+  presaleEndsAt: z.string().optional(),
+});
+
+/** Enable/disable the event's presale (early-bird) discount. */
+export async function updatePresaleAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const { session, event } = await authorizeEvent(eventId);
+  const parsed = presaleSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/events/${event.id}?error=validation`);
+  const data = parsed.data;
+
+  const enabled = data.presaleEnabled === "1";
+  let presalePercent: number | null = null;
+  let presaleEndsAt: Date | null = null;
+
+  if (enabled) {
+    // A presale on an event with only free tickets does nothing — refuse it so
+    // the organizer isn't left thinking a discount is running.
+    const paidTickets = await prisma.ticketType.count({
+      where: { eventId: event.id, isVendorTier: false, priceCents: { gt: 0 } },
+    });
+    if (paidTickets === 0) {
+      redirect(`/dashboard/events/${event.id}?error=presale_no_paid_tickets`);
+    }
+    const pct = parseFloat(data.presalePercent || "");
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+      redirect(`/dashboard/events/${event.id}?error=presale_percent`);
+    }
+    if (!data.presaleEndsAt) {
+      redirect(`/dashboard/events/${event.id}?error=presale_date`);
+    }
+    // Wall-clock expiry is interpreted in the event's timezone, stored as UTC.
+    presalePercent = pct;
+    presaleEndsAt = fromZonedTime(data.presaleEndsAt!, event.timezone);
+  }
+
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { presalePercent, presaleEndsAt },
+  });
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.presale_update", targetType: "Event", targetId: event.id,
+    metadata: { enabled, presalePercent, presaleEndsAt: presaleEndsAt?.toISOString() ?? null },
+  });
+  revalidatePath(`/dashboard/events/${event.id}`);
+  redirect(`/dashboard/events/${event.id}?saved=1`);
+}
+
 export async function addTicketTypeAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { event } = await authorizeEvent(eventId);

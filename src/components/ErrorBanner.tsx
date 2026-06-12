@@ -22,6 +22,9 @@ const MESSAGES: Record<string, string> = {
   remove_self: "You can't remove yourself from your own organization.",
   reserved_slug: "That slug is reserved. Pick another.",
   slug_taken: "That slug is already taken.",
+  presale_percent: "Presale discount must be a percentage between 1 and 100.",
+  presale_date: "Pick a date and time for when the presale ends.",
+  presale_no_paid_tickets: "Presale discounts apply to paid tickets — add a paid ticket type first.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

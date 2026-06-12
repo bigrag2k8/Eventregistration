@@ -45,8 +45,20 @@ export async function computeTotals(input: ComputeTotalsInput) {
 
   const subtotal = tt.priceCents * input.quantity;
 
-  // Promo code
-  let discount = 0;
+  // Presale (early-bird) discount: an automatic, code-free percentage off the
+  // ticket price while the presale window is open. Applies before any promo so
+  // a promo code stacks on the already-discounted early-bird price.
+  let presaleDiscount = 0;
+  const presalePct = input.event.presalePercent != null ? Number(input.event.presalePercent) : 0;
+  const presaleActive =
+    presalePct > 0 && input.event.presaleEndsAt != null && now < input.event.presaleEndsAt;
+  if (presaleActive) {
+    presaleDiscount = Math.floor((subtotal * presalePct) / 100);
+  }
+  const afterPresale = subtotal - presaleDiscount;
+
+  // Promo code (computed on the post-presale amount)
+  let promoDiscount = 0;
   let promoCodeId: string | undefined;
   if (input.promoCode) {
     const promo = input.event.promoCodes.find(
@@ -59,12 +71,15 @@ export async function computeTotals(input: ComputeTotalsInput) {
     }
     promoCodeId = promo.id;
     if (promo.discountType === "PERCENTAGE" && promo.percentage) {
-      discount = Math.floor(subtotal * Number(promo.percentage) / 100);
+      promoDiscount = Math.floor(afterPresale * Number(promo.percentage) / 100);
     } else if (promo.discountType === "FIXED" && promo.amountCents) {
-      discount = Math.min(subtotal, promo.amountCents);
+      promoDiscount = Math.min(afterPresale, promo.amountCents);
     }
   }
 
+  // Total reduction off the sale value — presale + promo. Stored as the single
+  // discountCents on the registration; the platform fee is charged on (subtotal − discount).
+  const discount = presaleDiscount + promoDiscount;
   const taxable = subtotal - discount;
   const taxRate = Number(input.event.taxRatePct ?? 0);
   const tax = Math.round((taxable * taxRate) / 100);

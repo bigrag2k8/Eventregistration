@@ -6,8 +6,10 @@ import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
 import { SignOutButton } from "@/components/SignOutButton";
-import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
+import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updatePresaleAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
+import { PresaleFields } from "@/components/PresaleFields";
+import { AddTicketFields } from "@/components/AddTicketFields";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -46,6 +48,17 @@ export default async function EventManagePage({ params, searchParams }: { params
   const evRefunds = evSplit.ticket.refundedCents + evSplit.vendor.refundedCents;
   const evFees = evSplit.ticket.feeCents + evSplit.vendor.feeCents;
   const evNet = evSplit.ticket.netCents + evSplit.vendor.netCents;
+
+  // Presale (early-bird) discount state for this event.
+  const hasPaidTickets = event.ticketTypes.some((t) => !t.isVendorTier && t.priceCents > 0);
+  const presalePct = event.presalePercent != null ? Number(event.presalePercent) : null;
+  const presaleEnabled = presalePct != null && presalePct > 0 && event.presaleEndsAt != null;
+  const presaleActive = presaleEnabled && event.presaleEndsAt! > new Date();
+  const presaleEndsLocal = event.presaleEndsAt
+    ? formatInTimeZone(event.presaleEndsAt, event.timezone, "yyyy-MM-dd'T'HH:mm")
+    : "";
+  const presalePrice = (cents: number) =>
+    presalePct != null ? Math.round(cents * (1 - presalePct / 100)) : cents;
 
   // Use the event's org, not the session's, so SUPERADMIN viewing another org's event gets the right public slug.
   const org = await prisma.organization.findUnique({ where: { id: event.organizationId } });
@@ -279,6 +292,7 @@ export default async function EventManagePage({ params, searchParams }: { params
                   <th className="px-3 py-2">Name</th>
                   <th className="px-3 py-2">Kind</th>
                   <th className="px-3 py-2 text-right">Price</th>
+                  {presaleEnabled && <th className="px-3 py-2 text-right">Presale</th>}
                   <th className="px-3 py-2 text-right">Sold / Total</th>
                   <th className="px-3 py-2"></th>
                 </tr>
@@ -289,6 +303,11 @@ export default async function EventManagePage({ params, searchParams }: { params
                     <td className="px-3 py-2 font-medium">{t.name}</td>
                     <td className="px-3 py-2 text-slate-500">{t.kind}</td>
                     <td className="px-3 py-2 text-right">{t.priceCents === 0 ? "Free" : money(t.priceCents)}</td>
+                    {presaleEnabled && (
+                      <td className="px-3 py-2 text-right font-medium text-emerald-700">
+                        {t.priceCents === 0 ? "Free" : money(presalePrice(t.priceCents))}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right">
                       {t.quantitySold} / {t.quantityTotal ?? "∞"}
                     </td>
@@ -310,23 +329,51 @@ export default async function EventManagePage({ params, searchParams }: { params
             </table>
           </div>
 
-          <form action={addTicketTypeAction} className="mt-6 grid gap-3 sm:grid-cols-5">
+          <form action={addTicketTypeAction} className={`mt-6 grid gap-3 ${presaleEnabled ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
             <input type="hidden" name="eventId" value={event.id} />
             <div className="sm:col-span-2">
               <label className="label">New ticket name</label>
               <input name="name" required className="input" placeholder="VIP" />
             </div>
-            <div>
-              <label className="label">Price ($)</label>
-              <input name="price" type="number" step="0.01" min="0" defaultValue="0" className="input" />
-            </div>
-            <div>
-              <label className="label">Quantity</label>
-              <input name="quantity" type="number" min="1" className="input" placeholder="∞" />
-            </div>
+            <AddTicketFields presalePercent={presaleEnabled ? presalePct : null} />
             <div className="flex items-end">
               <button type="submit" className="btn-primary w-full">Add ticket type</button>
             </div>
+          </form>
+        </section>
+
+        {/* Presale (early-bird) discount */}
+        <section className="card">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Presale discount</h2>
+            {presaleEnabled && (
+              <span className={`rounded-full px-2 py-0.5 text-xs ${presaleActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                {presaleActive
+                  ? `Active · ${presalePct}% off until ${formatInTimeZone(event.presaleEndsAt!, event.timezone, "MMM d, h:mm a")}`
+                  : "Expired — selling at regular price"}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            Reward early buyers with a limited-time discount on every ticket type. Set this up after you&rsquo;ve added your tickets.
+          </p>
+          <form action={updatePresaleAction} className="mt-4">
+            <input type="hidden" name="eventId" value={event.id} />
+            <PresaleFields
+              defaultEnabled={presaleEnabled}
+              defaultPercent={presalePct != null ? String(presalePct) : ""}
+              defaultEndsAt={presaleEndsLocal}
+              disabled={!hasPaidTickets}
+            />
+            {/* With no paid tickets the only useful submit is clearing a stale
+                presale (the disabled checkbox doesn't post, so saving clears). */}
+            {(hasPaidTickets || presaleEnabled) && (
+              <div className="mt-4">
+                <button type="submit" className="btn-primary">
+                  {hasPaidTickets ? "Save presale settings" : "Clear presale"}
+                </button>
+              </div>
+            )}
           </form>
         </section>
 

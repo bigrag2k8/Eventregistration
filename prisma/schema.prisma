@@ -251,6 +251,11 @@ model Event {
   cancellationPolicy String?     @db.Text
   taxRatePct         Decimal?    @db.Decimal(5, 2)
   passProcessingFee  Boolean     @default(false)
+  // Presale (early-bird) discount: while now < presaleEndsAt, ticket prices are
+  // reduced by presalePercent. After the date, pricing reverts to regular.
+  // Both null = no presale. Enabled = both set and percent > 0.
+  presalePercent     Decimal?    @db.Decimal(5, 2)
+  presaleEndsAt      DateTime?
   waitlistEnabled    Boolean     @default(true)
   bannerUrl          String?
   promoVideoUrl      String?

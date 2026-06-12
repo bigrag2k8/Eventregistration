@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { formatDateRange, money } from "@/lib/format";
 import { ShareBar } from "@/components/ShareBar";
@@ -31,6 +32,15 @@ export default async function EventLandingPage({ params }: Props) {
   const visibleTickets = event.ticketTypes.filter((t) => !t.isVendorTier);
   const minPrice = visibleTickets.length ? Math.min(...visibleTickets.map((t) => t.priceCents)) : 0;
   const totalSold = event.ticketTypes.reduce((a, t) => a + t.quantitySold, 0);
+
+  // Presale (early-bird) banner — only while the window is open and a paid
+  // ticket exists for the discount to apply to. Date shown in the event's timezone.
+  const presalePct = event.presalePercent != null ? Number(event.presalePercent) : 0;
+  const presaleActive =
+    presalePct > 0 &&
+    event.presaleEndsAt != null &&
+    event.presaleEndsAt > new Date() &&
+    visibleTickets.some((t) => t.priceCents > 0);
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
   const mapsSrc = event.location && mapsKey
@@ -189,6 +199,15 @@ export default async function EventLandingPage({ params }: Props) {
         </article>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
+          {presaleActive && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-50 p-4 ring-1 ring-emerald-200">
+              <span aria-hidden>🎉</span>
+              <p className="text-sm font-bold text-emerald-800">
+                All tickets shown include a {presalePct}% early-bird discount until{" "}
+                {formatInTimeZone(event.presaleEndsAt!, event.timezone, "MMM d, h:mm a zzz")} — prices return to regular after that.
+              </p>
+            </div>
+          )}
           <div className="card">
             <div className="text-sm text-slate-500">From</div>
             <div className="text-3xl font-bold">{minPrice === 0 ? "Free" : money(minPrice)}</div>

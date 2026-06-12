@@ -16,11 +16,13 @@ interface Event {
 
 interface Props {
   event: Event;
+  /** Pre-formatted early-bird banner (server-rendered in the event's timezone); shown above the ticket picker when the presale is active. */
+  presaleNote?: string;
   successHref?: string;   // override where to redirect after free registration
   backHref?: string;      // override where to send Stripe cancel
 }
 
-export function RegistrationForm({ event, successHref, backHref }: Props) {
+export function RegistrationForm({ event, presaleNote, successHref, backHref }: Props) {
   const router = useRouter();
   const [ticketTypeId, setTicketTypeId] = useState(event.ticketTypes[0]?.id);
   const [quantity, setQuantity] = useState(1);
@@ -152,6 +154,12 @@ export function RegistrationForm({ event, successHref, backHref }: Props) {
               <p className="mt-1 text-sm text-red-700">{error}</p>
             </div>
           </div>
+        </div>
+      )}
+      {presaleNote && (
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-4 ring-1 ring-emerald-200">
+          <span aria-hidden>🎉</span>
+          <p className="text-sm font-bold text-emerald-800">{presaleNote}</p>
         </div>
       )}
       <section className="card">
