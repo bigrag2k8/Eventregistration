@@ -4,6 +4,7 @@
  */
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { redis } from "@/lib/rate-limit";
 import { sendReminderEmail } from "@/lib/email";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 
@@ -25,12 +26,22 @@ async function sendReminders() {
     const regs = await prisma.registration.findMany({
       where: {
         status: "CONFIRMED",
-        event: { startAt: { gte: min, lte: max } },
-        emailLogs: { none: { kind: b.kind } },
+        event: { startAt: { gte: min, lte: max }, deletedAt: null, status: "PUBLISHED" },
+        // QUEUED/SENT logs block resend; FAILED ones don't, so a rejected send
+        // retries on later ticks — naturally bounded by the time window above.
+        emailLogs: { none: { kind: b.kind, status: { not: "FAILED" } } },
       },
       take: 200,
     });
-    for (const r of regs) await sendReminderEmail(r.id, b.kind);
+    for (const r of regs) {
+      try {
+        await sendReminderEmail(r.id, b.kind);
+      } catch (e: any) {
+        // One bad send must not abort the rest of the batch (previously a
+        // single throw starved every remaining reminder AND the other jobs).
+        console.error(`[worker] reminder ${b.kind} failed for reg ${r.id}:`, e?.message);
+      }
+    }
   }
 }
 
@@ -96,17 +107,37 @@ async function purgeAbandonedCarts() {
   }
 }
 
-async function tick() {
+const INTERVAL = 5 * 60 * 1000; // 5 minutes
+const LOCK_KEY = "worker:tick:lock";
+const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
+
+/**
+ * Best-effort distributed lock so an overlapping deploy (old + new worker both
+ * alive for a minute) or an accidental second replica doesn't double-send
+ * every reminder. Fails OPEN when Redis is down — a single worker keeps
+ * running, and the QUEUED-first EmailLog claim is the second line of defense.
+ */
+async function acquireTickLock(): Promise<boolean> {
   try {
-    await sendReminders();
-    await promoteWaitlist();
-    await purgeAbandonedCarts();
-  } catch (e) {
-    console.error("worker tick error", e);
+    const ok = await redis().set(LOCK_KEY, String(process.pid), "PX", LOCK_TTL_MS, "NX");
+    return ok === "OK";
+  } catch {
+    return true; // Redis unavailable — don't stop the only worker
   }
 }
 
-const INTERVAL = 5 * 60 * 1000; // 5 minutes
+async function tick() {
+  if (!(await acquireTickLock())) {
+    console.log("[worker] another worker holds the tick lock — skipping");
+    return;
+  }
+  // Run the jobs independently: a failure in one must not starve the others
+  // (previously one thrown send skipped waitlist promotion and cart purging).
+  try { await sendReminders(); } catch (e) { console.error("[worker] sendReminders error", e); }
+  try { await promoteWaitlist(); } catch (e) { console.error("[worker] promoteWaitlist error", e); }
+  try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); }
+}
+
 console.log("Your Events App worker started");
 tick();
 setInterval(tick, INTERVAL);

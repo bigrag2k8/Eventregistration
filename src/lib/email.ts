@@ -140,14 +140,38 @@ export async function sendReminderEmail(registrationId: string, kind: "REMINDER_
   if (!reg) return;
   const labels = { REMINDER_30D: "30 days", REMINDER_7D: "1 week", REMINDER_1D: "tomorrow", REMINDER_1H: "1 hour" };
   const orgSlug = reg.event.organization?.slug ?? "_";
-  const result = await resend().emails.send({
-    from: buildFrom(reg.event.organization),
-    to: reg.email,
-    subject: `Reminder: ${reg.event.name} is in ${labels[kind]}`,
-    html: `<p>Hi ${esc(reg.firstName)}, your event is coming up in ${labels[kind]}. See you there!</p>
-           <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}">View event</a></p>`,
+  const subject = `Reminder: ${reg.event.name} is in ${labels[kind]}`;
+
+  // Claim-first: write the log as QUEUED before sending. The worker's dedupe
+  // filter sees the claim, so a crash mid-send (or an overlapping worker)
+  // can't double-send. Then record the real outcome — previously this was
+  // hardcoded SENT even when Resend rejected, so failures were invisible AND
+  // never retried.
+  const log = await prisma.emailLog.create({
+    data: { registrationId: reg.id, toEmail: reg.email, kind, subject, status: "QUEUED" },
   });
-  await prisma.emailLog.create({
-    data: { registrationId: reg.id, toEmail: reg.email, kind, subject: `Reminder: ${reg.event.name}`, status: "SENT", providerId: result.data?.id, sentAt: new Date() },
-  });
+  try {
+    const result = await resend().emails.send({
+      from: buildFrom(reg.event.organization),
+      to: reg.email,
+      subject,
+      html: `<p>Hi ${esc(reg.firstName)}, your event is coming up in ${labels[kind]}. See you there!</p>
+             <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${reg.event.slug}">View event</a></p>`,
+    });
+    await prisma.emailLog.update({
+      where: { id: log.id },
+      data: {
+        status: result.data?.id ? "SENT" : "FAILED",
+        providerId: result.data?.id ?? null,
+        errorMessage: result.error?.message ?? null,
+        sentAt: new Date(),
+      },
+    });
+  } catch (e: any) {
+    await prisma.emailLog.update({
+      where: { id: log.id },
+      data: { status: "FAILED", errorMessage: e?.message ?? "send threw" },
+    }).catch(() => {});
+    throw e;
+  }
 }
