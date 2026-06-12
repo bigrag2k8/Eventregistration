@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { getSession, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { inviteTeamMemberAction } from "../actions";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 export const dynamic = "force-dynamic";
 
-export default async function InviteTeamMemberPage({ searchParams }: { searchParams: { eventId?: string } }) {
+export default async function InviteTeamMemberPage({ searchParams }: { searchParams: { eventId?: string; error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
   const [org, events] = await Promise.all([
@@ -32,6 +33,7 @@ export default async function InviteTeamMemberPage({ searchParams }: { searchPar
       </header>
 
       <form action={inviteTeamMemberAction} className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         <p className="text-slate-600">
           Invite a staff member, volunteer, or co-organizer to <strong>{org.name}</strong>.
           They'll receive an email with a link to set up their account.

@@ -30,7 +30,9 @@ export async function updateOrgSettingsAction(formData: FormData) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) throw new Error("No organization linked");
 
-  const data = schema.parse(Object.fromEntries(formData.entries()));
+  const parsed = schema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect("/dashboard/settings?error=validation");
+  const data = parsed.data;
 
   await prisma.organization.update({
     where: { id: session.orgId },

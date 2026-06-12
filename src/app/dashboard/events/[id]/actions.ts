@@ -23,7 +23,7 @@ export async function publishAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);
   const hasTicketTypes = await prisma.ticketType.count({ where: { eventId: event.id } });
-  if (!hasTicketTypes) throw new Error("Add at least one ticket type before publishing");
+  if (!hasTicketTypes) redirect(`/dashboard/events/${event.id}?error=no_ticket_types`);
   await prisma.event.update({
     where: { id: event.id },
     data: { status: "PUBLISHED", publishedAt: event.publishedAt ?? new Date() },
@@ -83,7 +83,9 @@ const basicsSchema = z.object({
 export async function updateBasicsAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { event } = await authorizeEvent(eventId);
-  const data = basicsSchema.parse(Object.fromEntries(formData.entries()));
+  const parsed = basicsSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/events/${event.id}?error=validation`);
+  const data = parsed.data;
   // Wall-clock input is interpreted in the event's timezone (form value, or
   // the existing one if the form didn't send it), then stored as a UTC instant.
   const tz = data.timezone || event.timezone;
@@ -132,7 +134,9 @@ const ttSchema = z.object({
 export async function addTicketTypeAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { event } = await authorizeEvent(eventId);
-  const data = ttSchema.parse(Object.fromEntries(formData.entries()));
+  const parsedTt = ttSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsedTt.success) redirect(`/dashboard/events/${event.id}?error=validation`);
+  const data = parsedTt.data;
   const priceCents = Math.round(parseFloat(data.price || "0") * 100);
   const qty = data.quantity ? parseInt(data.quantity) : null;
 
@@ -145,9 +149,7 @@ export async function addTicketTypeAction(formData: FormData) {
       select: { stripeAccountId: true, stripeAccountChargesEnabled: true },
     });
     if (!org?.stripeAccountId || !org.stripeAccountChargesEnabled) {
-      throw new Error(
-        "Set up payouts (Settings → Payouts) before adding paid ticket types. Free tiers are still allowed.",
-      );
+      redirect(`/dashboard/events/${event.id}?error=payouts_required`);
     }
   }
 
@@ -172,7 +174,7 @@ export async function deleteTicketTypeAction(formData: FormData) {
   const { event } = await authorizeEvent(eventId);
   const tt = await prisma.ticketType.findFirst({ where: { id: ticketTypeId, eventId: event.id } });
   if (!tt) throw new Error("Not found");
-  if (tt.quantitySold > 0) throw new Error("Ticket type has registrations — cannot delete");
+  if (tt.quantitySold > 0) redirect(`/dashboard/events/${event.id}?error=tt_has_regs`);
   await prisma.ticketType.delete({ where: { id: tt.id } });
   revalidatePath(`/dashboard/events/${event.id}`);
 }
@@ -277,7 +279,8 @@ export async function refundRegistrationAction(formData: FormData) {
   const registrationId = String(formData.get("registrationId"));
   const { session, event } = await authorizeEvent(eventId);
 
-  if (!stripeConfigured) throw new Error("Stripe is not configured.");
+  const errTo = `/dashboard/events/${event.id}/registrations`;
+  if (!stripeConfigured) redirect(`${errTo}?error=stripe_not_configured`);
 
   const reg = await prisma.registration.findFirst({
     where: { id: registrationId, eventId: event.id },
@@ -287,9 +290,11 @@ export async function refundRegistrationAction(formData: FormData) {
   if (reg.status === "REFUNDED") return; // idempotent
   const payment = reg.payments[0];
   if (!payment?.stripePaymentIntentId) {
-    throw new Error("No completed payment found for this registration.");
+    redirect(`${errTo}?error=refund_no_payment`);
   }
 
+  // redirect() throws internally — call it outside the catch, via a flag.
+  let refundFailed = false;
   try {
     await stripe.refunds.create({
       payment_intent: payment.stripePaymentIntentId,
@@ -299,8 +304,9 @@ export async function refundRegistrationAction(formData: FormData) {
     });
   } catch (e: any) {
     console.error("[refund] Stripe error:", { type: e?.type, code: e?.code, message: e?.message });
-    throw new Error(e?.message ?? "Refund failed. Please try again.");
+    refundFailed = true;
   }
+  if (refundFailed) redirect(`${errTo}?error=refund_failed`);
 
   // The webhook will flip Payment/Registration to REFUNDED and invalidate tickets.
   // We DO write the audit row immediately for the organizer dashboard.

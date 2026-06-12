@@ -1,4 +1,4 @@
-import { cache } from "react";
+import * as React from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
@@ -86,9 +86,14 @@ export async function clearSessionCookie() {
  *
  * Wrapped in React cache() so repeated calls within one request cost a single
  * primary-key lookup. Prisma is imported dynamically to keep it out of the
- * edge middleware bundle (middleware imports verifySession from this module).
+ * edge middleware bundle (middleware imports verifySession from this module),
+ * and cache() falls back to identity there — the client/edge React build
+ * doesn't export it, and middleware never calls getSession.
  */
-export const getSession = cache(async (): Promise<JwtPayload | null> => {
+const requestMemo: <T extends (...args: any[]) => any>(fn: T) => T =
+  typeof (React as any).cache === "function" ? (React as any).cache : (fn: any) => fn;
+
+export const getSession = requestMemo(async (): Promise<JwtPayload | null> => {
   const tok = cookies().get(COOKIE_NAME)?.value;
   if (!tok) return null;
   const claims = await verifySession(tok);

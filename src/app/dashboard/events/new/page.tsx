@@ -6,6 +6,7 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 import { SignOutButton } from "@/components/SignOutButton";
 import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -56,11 +57,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
       </header>
 
       <form action={createEventAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-        {searchParams?.error === "date_order" && (
-          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
-            ⚠ End time must be after the start time. Please fix the dates and submit again.
-          </div>
-        )}
+        <ErrorBanner code={searchParams?.error} />
         <section className="card">
           <h2 className="text-lg font-semibold">Basics</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

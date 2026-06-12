@@ -29,15 +29,17 @@ const inviteSchema = z.object({
 
 export async function inviteTeamMemberAction(formData: FormData) {
   const { session, org } = await authorizeOrg();
-  const data = inviteSchema.parse(Object.fromEntries(formData.entries()));
+  const parsed = inviteSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect("/dashboard/team/invite?error=validation");
+  const data = parsed.data;
 
   // Check for existing member with this email
   const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
   if (existingUser?.organizationId === org.id) {
-    throw new Error(`${data.email} is already a member of this organization.`);
+    redirect("/dashboard/team/invite?error=already_member");
   }
   if (existingUser) {
-    throw new Error(`An account with ${data.email} already exists outside this organization. They cannot be invited.`);
+    redirect("/dashboard/team/invite?error=exists_elsewhere");
   }
 
   // Check for existing pending invite
@@ -45,7 +47,7 @@ export async function inviteTeamMemberAction(formData: FormData) {
     where: { organizationId: org.id, email: data.email, status: "PENDING" },
   });
   if (existingInvite) {
-    throw new Error(`A pending invite to ${data.email} already exists. Use Resend or Revoke from the team page.`);
+    redirect("/dashboard/team/invite?error=invite_pending");
   }
 
   // If event scoping was requested, validate it belongs to this org
@@ -152,7 +154,7 @@ export async function removeMemberAction(formData: FormData) {
   const userId = String(formData.get("userId"));
 
   if (userId === session.sub) {
-    throw new Error("You can't remove yourself from your own organization.");
+    redirect("/dashboard/team?error=remove_self");
   }
 
   const target = await prisma.user.findFirst({ where: { id: userId, organizationId: org.id } });

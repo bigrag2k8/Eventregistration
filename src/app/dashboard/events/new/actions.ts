@@ -66,7 +66,9 @@ export async function createEventAction(formData: FormData) {
   if (!session.orgId) throw new Error("No organization linked");
 
   const raw = Object.fromEntries(formData.entries());
-  const data = schema.parse(raw);
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) redirect("/dashboard/events/new?error=validation");
+  const data = parsed.data;
 
   // The form sends wall-clock strings (datetime-local, no offset) that mean
   // "this time in the event's timezone". Convert to the correct UTC instant
@@ -89,10 +91,7 @@ export async function createEventAction(formData: FormData) {
       where: { organizationId: org.id, deletedAt: null, createdAt: { gte: startOfMonth } },
     });
     if (used >= plan.monthlyEventLimit) {
-      throw new Error(
-        `Your ${plan.name} plan allows ${plan.monthlyEventLimit} event${plan.monthlyEventLimit > 1 ? "s" : ""} per month. ` +
-        `You've created ${used} this month. Upgrade your plan or buy a single-event credit at /dashboard/billing.`
-      );
+      redirect("/dashboard/events/new?error=plan_limit");
     }
   }
   // Decrement a single-event credit if the org has one and is on a plan that doesn't auto-cover this event

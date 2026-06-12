@@ -5,11 +5,12 @@ import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { PLANS } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { sendCampaignAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignsPage({ params }: { params: { id: string } }) {
+export default async function CampaignsPage({ params, searchParams }: { params: { id: string }; searchParams: { error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
@@ -49,6 +50,7 @@ export default async function CampaignsPage({ params }: { params: { id: string }
       </header>
 
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         {/* Plan / usage banner */}
         <div className={`card flex flex-wrap items-center justify-between gap-3 ${atLimit ? "ring-2 ring-amber-300 bg-amber-50" : ""}`}>
           <div>

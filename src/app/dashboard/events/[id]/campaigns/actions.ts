@@ -2,6 +2,7 @@
 
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
@@ -37,7 +38,10 @@ export async function sendCampaignAction(formData: FormData) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) throw new Error("No organization");
 
-  const data = schema.parse(Object.fromEntries(formData.entries()));
+  const eventIdRaw = String(formData.get("eventId") ?? "");
+  const parsed = schema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/events/${eventIdRaw}/campaigns?error=validation`);
+  const data = parsed.data;
 
   const event = await prisma.event.findFirst({
     where: { id: data.eventId, ...orgScope(session), deletedAt: null },
@@ -54,10 +58,7 @@ export async function sendCampaignAction(formData: FormData) {
       where: { eventId: event.id, sentAt: { not: null } },
     });
     if (sentCount >= limit) {
-      throw new Error(
-        `Your ${plan.name} plan allows ${limit} email campaign${limit > 1 ? "s" : ""} per event. ` +
-        `You've already sent ${sentCount}. Upgrade your plan at /dashboard/billing for more.`
-      );
+      redirect(`/dashboard/events/${event.id}/campaigns?error=campaign_limit`);
     }
   }
 
@@ -71,7 +72,7 @@ export async function sendCampaignAction(formData: FormData) {
   );
 
   if (recipients.length === 0) {
-    throw new Error("This event has no confirmed registrations yet. Nothing to send.");
+    redirect(`/dashboard/events/${event.id}/campaigns?error=no_recipients`);
   }
 
   const campaign = await prisma.emailCampaign.create({

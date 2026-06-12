@@ -26,14 +26,16 @@ export async function createOrgAndInviteAction(formData: FormData) {
   const session = await getSession();
   if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
 
-  const data = schema.parse(Object.fromEntries(formData.entries()));
+  const parsed = schema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect("/admin/orgs/new?error=validation");
+  const data = parsed.data;
 
   if (RESERVED_SLUGS.has(data.orgSlug)) {
-    throw new Error(`"${data.orgSlug}" is a reserved slug. Pick another.`);
+    redirect("/admin/orgs/new?error=reserved_slug");
   }
 
   const existingOrg = await prisma.organization.findUnique({ where: { slug: data.orgSlug } });
-  if (existingOrg) throw new Error(`Slug "${data.orgSlug}" is already taken.`);
+  if (existingOrg) redirect("/admin/orgs/new?error=slug_taken");
 
   // Create org + invite token in one transaction
   const token = crypto.randomBytes(24).toString("base64url");

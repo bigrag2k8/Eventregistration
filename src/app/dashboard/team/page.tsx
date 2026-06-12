@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { resendTeamInviteAction, revokeTeamInviteAction, removeMemberAction } from "./actions";
 
@@ -25,7 +26,7 @@ const INVITE_STATUS_STYLES: Record<string, string> = {
   EXPIRED:  "bg-red-100 text-red-700",
 };
 
-export default async function TeamPage({ searchParams }: { searchParams: { invited?: string } }) {
+export default async function TeamPage({ searchParams }: { searchParams: { invited?: string; error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
@@ -64,6 +65,7 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
       </header>
 
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         {searchParams.invited && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Invite sent to <strong>{searchParams.invited}</strong>. They'll receive an email with a link to set up their account.

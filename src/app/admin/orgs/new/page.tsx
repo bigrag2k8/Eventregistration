@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { OrgNameSlugFields } from "@/components/OrgNameSlugFields";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { createOrgAndInviteAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewOrgPage() {
+export default async function NewOrgPage({ searchParams }: { searchParams: { error?: string } }) {
   const session = await getSession();
   if (!session) redirect("/signin");
   if (session.role !== "SUPERADMIN") redirect("/dashboard");
@@ -22,6 +23,7 @@ export default async function NewOrgPage() {
       </header>
 
       <form action={createOrgAndInviteAction} className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         <p className="text-slate-600">
           Create a new organization and send the contact an invite email. They will set their password
           and become an Organizer of the new org.

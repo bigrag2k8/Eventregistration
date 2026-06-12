@@ -7,13 +7,14 @@ import { money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { CopyButton } from "@/components/CopyButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { cancelRegistrationAction, deleteRegistrationAction, refundRegistrationAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
   params: { id: string };
-  searchParams: { q?: string; status?: string };
+  searchParams: { q?: string; status?: string; error?: string };
 }
 
 export default async function RegistrationsListPage({ params, searchParams }: Props) {
@@ -72,6 +73,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
       </header>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         {/* Filters */}
         <form className="card flex flex-wrap items-end gap-3">
           <div className="grow">

@@ -7,6 +7,7 @@ import { formatDateRange, money } from "@/lib/format";
 import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -101,11 +102,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             ✓ Changes saved. Your public event page reflects them immediately.
           </div>
         )}
-        {searchParams?.error === "date_order" && (
-          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
-            ⚠ End time must be after the start time. Your other changes were not saved.
-          </div>
-        )}
+        <ErrorBanner code={searchParams?.error} />
 
         {/* Basics editor */}
         <section className="card">

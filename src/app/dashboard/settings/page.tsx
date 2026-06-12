@@ -7,10 +7,11 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 import { ConnectActions } from "@/components/ConnectActions";
 import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
 import { updateOrgSettingsAction } from "./actions";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage({ searchParams }: { searchParams: { saved?: string } }) {
+export default async function SettingsPage({ searchParams }: { searchParams: { saved?: string; error?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
@@ -35,6 +36,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
       </header>
 
       <form action={updateOrgSettingsAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         {searchParams.saved && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Settings saved. Public pages will reflect changes immediately.
