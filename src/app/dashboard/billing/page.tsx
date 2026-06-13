@@ -57,7 +57,15 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
         )}
         {searchParams.upgraded && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ You're now on the <strong>{PLANS[searchParams.upgraded as keyof typeof PLANS]?.name ?? searchParams.upgraded}</strong> plan. Welcome!
+            {searchParams.upgraded === "SINGLE_EVENT" ? (
+              <>
+                ✓ Single-event credit added — you now have <strong>{org.singleEventCredits}</strong>{" "}
+                credit{org.singleEventCredits === 1 ? "" : "s"}. Each credit unlocks one full-featured
+                event (branding, vendors, team). You stay on the Free plan until you spend it.
+              </>
+            ) : (
+              <>✓ You're now on the <strong>{PLANS[searchParams.upgraded as keyof typeof PLANS]?.name ?? searchParams.upgraded}</strong> plan. Welcome!</>
+            )}
           </div>
         )}
         {searchParams.canceled && (
