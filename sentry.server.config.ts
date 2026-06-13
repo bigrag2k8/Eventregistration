@@ -7,7 +7,9 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 Sentry.init({
   dsn,
-  enabled: process.env.NODE_ENV === "production" && !!dsn,
+  // Enabled whenever a DSN is present. (Local dev has no DSN, so it stays off
+  // there without depending on NODE_ENV being exactly "production".)
+  enabled: !!dsn,
   // 10% performance tracing; errors are always captured.
   tracesSampleRate: 0.1,
   // Don't attach request bodies / IPs by default (attendee PII, card flows).

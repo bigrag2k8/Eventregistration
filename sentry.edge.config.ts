@@ -5,7 +5,7 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 Sentry.init({
   dsn,
-  enabled: process.env.NODE_ENV === "production" && !!dsn,
+  enabled: !!dsn,
   tracesSampleRate: 0.1,
   sendDefaultPii: false,
 });

@@ -6,7 +6,7 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 Sentry.init({
   dsn,
-  enabled: process.env.NODE_ENV === "production" && !!dsn,
+  enabled: !!dsn,
   tracesSampleRate: 0.1,
   // Session Replay off for now (keeps the bundle light); can enable later.
   replaysSessionSampleRate: 0,
