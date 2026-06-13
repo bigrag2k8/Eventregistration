@@ -4,13 +4,22 @@ import * as Sentry from "@sentry/nextjs";
 export const runtime = "nodejs";
 
 /**
- * TEMPORARY: verifies the server→Sentry pipe by capturing one test event and
- * reporting init diagnostics. Token-gated; remove after confirming delivery.
+ * TEMPORARY: verifies the server→Sentry pipe. Reports whether instrumentation
+ * initialized Sentry, and if not, inits inline to isolate whether the DSN works.
+ * Token-gated; remove once delivery is confirmed.
  */
 export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get("key") ?? "";
   if (key !== "verify-sentry-3f9c7a21") {
     return new NextResponse("Not found", { status: 404 });
+  }
+
+  const clientFromInstrumentation = !!Sentry.getClient();
+
+  // If the instrumentation hook didn't init Sentry, init it right here so we can
+  // tell whether the DSN itself is valid (vs. only the hook being broken).
+  if (!clientFromInstrumentation && process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    Sentry.init({ dsn: process.env.NEXT_PUBLIC_SENTRY_DSN, enabled: true });
   }
 
   const eventId = Sentry.captureException(new Error("Sentry pipe verification — safe to ignore"));
@@ -19,13 +28,12 @@ export async function GET(req: Request) {
   const client = Sentry.getClient();
   const dsn = client?.getDsn();
   return NextResponse.json({
+    clientFromInstrumentation,            // false => the instrumentation hook didn't init Sentry
+    hasClientNow: !!client,
+    flushed,                              // true => Sentry accepted the event (DSN is valid)
     eventId,
-    flushed,                                  // false => the send failed (bad/unreachable DSN)
     nodeEnv: process.env.NODE_ENV,
-    hasClient: !!client,
-    enabled: client?.getOptions()?.enabled,
-    dsnHost: dsn?.host ?? null,               // should be like o123.ingest.us.sentry.io
-    dsnProjectId: dsn?.projectId ?? null,     // should match the project receiving events
-    dsnConfigured: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
+    dsnHost: dsn?.host ?? null,
+    dsnProjectId: dsn?.projectId ?? null,
   });
 }
