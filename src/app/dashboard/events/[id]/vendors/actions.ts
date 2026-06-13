@@ -2,8 +2,10 @@
 
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { stripe, stripeConfigured } from "@/lib/stripe";
 import { Resend } from "resend";
 import { audit } from "@/lib/audit";
 import { esc } from "@/lib/email";
@@ -26,6 +28,61 @@ function getResend() {
 
 const FROM = process.env.EMAIL_FROM ?? "Your Events App <onboarding@resend.dev>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
+/**
+ * Refund a PAID vendor booth. Mirrors the registration refund: Stripe reverses
+ * the transfer from the organizer's connected account AND refunds the platform
+ * fee. The charge.refunded webhook then flips the linked Registration + Payment
+ * to REFUNDED, invalidates the vendor pass, and releases the slot. We optimistically
+ * mark the application REFUNDED once Stripe accepts the refund.
+ */
+export async function refundVendorAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const appId = String(formData.get("appId"));
+  const { session, event } = await authorize(eventId);
+  const errTo = `/dashboard/events/${event.id}/vendors`;
+
+  if (!stripeConfigured) redirect(`${errTo}?error=stripe_not_configured`);
+
+  const app = await prisma.vendorApplication.findFirst({ where: { id: appId, eventId: event.id } });
+  if (!app) throw new Error("Application not found");
+  if (app.status !== "PAID") redirect(`${errTo}?error=vendor_not_refundable`);
+  if (!app.registrationId) redirect(`${errTo}?error=refund_no_payment`);
+
+  const payment = await prisma.payment.findFirst({
+    where: { registrationId: app.registrationId, status: "SUCCEEDED" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!payment?.stripePaymentIntentId) redirect(`${errTo}?error=refund_no_payment`);
+
+  // redirect() throws internally — keep it out of the try/catch via a flag.
+  let refundFailed = false;
+  try {
+    await stripe.refunds.create({
+      payment_intent: payment.stripePaymentIntentId,
+      reverse_transfer: true,
+      refund_application_fee: true,
+      metadata: { vendorApplicationId: app.id, eventId: event.id, refundedBy: session.sub },
+    });
+  } catch (e: any) {
+    console.error("[vendor/refund] Stripe error:", { type: e?.type, code: e?.code, message: e?.message });
+    refundFailed = true;
+  }
+  if (refundFailed) redirect(`${errTo}?error=refund_failed`);
+
+  await prisma.vendorApplication.update({ where: { id: app.id }, data: { status: "REFUNDED" } });
+
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "vendor.refund", targetType: "VendorApplication", targetId: app.id,
+    metadata: {
+      company: app.companyName, email: app.email,
+      amountCents: payment.amountCents, paymentIntent: payment.stripePaymentIntentId,
+    },
+  });
+
+  revalidatePath(errTo);
+}
 
 export async function approveVendorAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));

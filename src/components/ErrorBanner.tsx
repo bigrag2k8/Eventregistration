@@ -25,6 +25,7 @@ const MESSAGES: Record<string, string> = {
   presale_percent: "Presale discount must be a percentage between 1 and 100.",
   presale_date: "Pick a date and time for when the presale ends.",
   presale_no_paid_tickets: "Presale discounts apply to paid tickets — add a paid ticket type first.",
+  vendor_not_refundable: "Only a PAID vendor application can be refunded.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

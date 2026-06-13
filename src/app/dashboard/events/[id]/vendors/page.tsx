@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { approveVendorAction, rejectVendorAction, deleteVendorApplicationAction } from "./actions";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { money } from "@/lib/format";
+import { approveVendorAction, rejectVendorAction, deleteVendorApplicationAction, refundVendorAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +15,13 @@ const STATUS_STYLES: Record<string, string> = {
   PENDING:    "bg-amber-100 text-amber-700",
   APPROVED:   "bg-emerald-100 text-emerald-700",
   PAID:       "bg-brand-100 text-brand-700",
+  REFUNDED:   "bg-purple-100 text-purple-700",
   REJECTED:   "bg-red-100 text-red-700",
   WITHDRAWN:  "bg-slate-100 text-slate-600",
 };
 
 export default async function VendorsPage({ params, searchParams }: {
-  params: { id: string }; searchParams: { status?: string };
+  params: { id: string }; searchParams: { status?: string; error?: string };
 }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   const event = await prisma.event.findFirst({
@@ -44,6 +47,16 @@ export default async function VendorsPage({ params, searchParams }: {
   const countMap = Object.fromEntries(counts.map((c) => [c.status, c._count]));
   const total = counts.reduce((a, b) => a + b._count, 0);
 
+  // Refund amount + date for refunded vendors comes from the linked registration's payment.
+  const regIds = apps.map((a) => a.registrationId).filter(Boolean) as string[];
+  const payments = regIds.length
+    ? await prisma.payment.findMany({
+        where: { registrationId: { in: regIds } },
+        select: { registrationId: true, refundedAmountCents: true, updatedAt: true },
+      })
+    : [];
+  const payByReg = new Map(payments.map((p) => [p.registrationId, p]));
+
   return (
     <main>
       <header className="border-b bg-white">
@@ -61,9 +74,10 @@ export default async function VendorsPage({ params, searchParams }: {
       </header>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <ErrorBanner code={searchParams?.error} />
         {/* Status filter pills */}
         <div className="flex flex-wrap gap-2 text-sm">
-          {["ALL", "PENDING", "APPROVED", "PAID", "REJECTED", "WITHDRAWN"].map((s) => {
+          {["ALL", "PENDING", "APPROVED", "PAID", "REFUNDED", "REJECTED", "WITHDRAWN"].map((s) => {
             const active = (filter ?? "ALL") === s;
             const count = s === "ALL" ? total : (countMap[s] ?? 0);
             return (
@@ -167,16 +181,40 @@ export default async function VendorsPage({ params, searchParams }: {
               )}
 
               {a.status !== "PENDING" && (
-                <div className="mt-4 flex items-center justify-end border-t pt-3">
-                  <form action={deleteVendorApplicationAction}>
-                    <input type="hidden" name="eventId" value={event.id} />
-                    <input type="hidden" name="appId" value={a.id} />
-                    <ConfirmButton
-                      label="Delete application"
-                      confirmText={`Permanently delete ${a.companyName}'s application?`}
-                      className="text-xs text-red-600 hover:underline"
-                    />
-                  </form>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                  <div className="text-xs">
+                    {a.status === "REFUNDED" && (() => {
+                      const refund = a.registrationId ? payByReg.get(a.registrationId) : null;
+                      return (
+                        <span className="text-purple-700">
+                          ↩ Refunded{refund ? ` ${money(refund.refundedAmountCents, "USD")}` : ""}
+                          {refund ? ` · ${refund.updatedAt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}` : ""}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {a.status === "PAID" && (
+                      <form action={refundVendorAction} className="inline">
+                        <input type="hidden" name="eventId" value={event.id} />
+                        <input type="hidden" name="appId" value={a.id} />
+                        <ConfirmButton
+                          label="Refund vendor"
+                          confirmText={`Refund ${a.companyName}'s booth payment of $${((a.quotedPriceCents ?? 0) / 100).toFixed(2)}? Stripe reverses the transfer from your account and refunds the platform fee, and their vendor pass is invalidated.`}
+                          className="text-xs text-brand-700 hover:underline"
+                        />
+                      </form>
+                    )}
+                    <form action={deleteVendorApplicationAction}>
+                      <input type="hidden" name="eventId" value={event.id} />
+                      <input type="hidden" name="appId" value={a.id} />
+                      <ConfirmButton
+                        label="Delete application"
+                        confirmText={`Permanently delete ${a.companyName}'s application?`}
+                        className="text-xs text-red-600 hover:underline"
+                      />
+                    </form>
+                  </div>
                 </div>
               )}
             </div>

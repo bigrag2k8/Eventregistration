@@ -131,6 +131,7 @@ enum VendorApplicationStatus {
   APPROVED      // organizer accepted; payment link sent
   REJECTED      // organizer declined
   PAID          // vendor paid; treated as a confirmed registration
+  REFUNDED      // organizer refunded the vendor's booth payment
   WITHDRAWN     // vendor withdrew before approval
 }
 
