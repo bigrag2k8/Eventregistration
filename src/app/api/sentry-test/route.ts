@@ -15,6 +15,8 @@ export async function GET(req: Request) {
   }
 
   const clientFromInstrumentation = !!Sentry.getClient();
+  const serverConfigDiag =
+    (globalThis as { __sentryServerConfig?: unknown }).__sentryServerConfig ?? null;
 
   // If the instrumentation hook didn't init Sentry, init it right here so we can
   // tell whether the DSN itself is valid (vs. only the hook being broken).
@@ -29,6 +31,7 @@ export async function GET(req: Request) {
   const dsn = client?.getDsn();
   return NextResponse.json({
     clientFromInstrumentation,            // false => the instrumentation hook didn't init Sentry
+    serverConfigDiag,                     // null => sentry.server.config never executed at boot
     hasClientNow: !!client,
     flushed,                              // true => Sentry accepted the event (DSN is valid)
     eventId,
