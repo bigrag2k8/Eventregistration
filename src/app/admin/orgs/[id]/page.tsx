@@ -11,7 +11,7 @@ import {
   parseOverrides,
   effectivePlan,
 } from "@/lib/plans";
-import { editOrgSubscriptionAction, resetConnectAction } from "./actions";
+import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export default async function AdminOrgPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { saved?: string; error?: string; connect_reset?: string };
+  searchParams: { saved?: string; error?: string; connect_reset?: string; resynced?: string };
 }) {
   const session = await getSession();
   if (!session) redirect("/signin");
@@ -74,6 +74,11 @@ export default async function AdminOrgPage({
         {searchParams?.connect_reset && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Stripe Connect link cleared. This org can now re-onboard from its dashboard.
+          </div>
+        )}
+        {searchParams?.resynced && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Subscription re-synced from Stripe — status is now <strong>{searchParams.resynced}</strong>.
           </div>
         )}
 
@@ -128,6 +133,17 @@ export default async function AdminOrgPage({
             <Readout label="Single-event credits" value={String(org.singleEventCredits)} />
             <Readout label="Status" value={org.subscriptionStatus} />
           </dl>
+          {org.stripeSubscriptionId && (
+            <form action={resyncSubscriptionAction} className="mt-4 flex items-center gap-3">
+              <input type="hidden" name="orgId" value={org.id} />
+              <button type="submit" className="text-sm font-medium text-brand-700 hover:underline">
+                Re-sync from Stripe
+              </button>
+              <span className="text-xs text-slate-400">
+                Pulls the live subscription status — use if it drifted (e.g. stuck INCOMPLETE).
+              </span>
+            </form>
+          )}
         </section>
 
         {/* Editor */}

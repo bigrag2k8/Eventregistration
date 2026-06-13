@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { OVERRIDABLE_LIMITS, parseOverrides, PlanOverrides } from "@/lib/plans";
+import { resyncOrgSubscription } from "@/server/billing";
 
 const PLAN_KEYS = ["FREE", "SINGLE_EVENT", "STARTER", "PRO", "ENTERPRISE"] as const;
 const STATUS_KEYS = ["NONE", "ACTIVE", "TRIALING", "PAST_DUE", "CANCELED", "INCOMPLETE"] as const;
@@ -144,4 +145,34 @@ export async function resetConnectAction(formData: FormData) {
   });
 
   redirect(`/admin/orgs/${org.id}?connect_reset=1`);
+}
+
+/**
+ * SUPERADMIN-only: re-pull an org's subscription from Stripe and re-sync its
+ * plan/status. Use when the stored status drifted from Stripe (e.g. an org left
+ * stuck INCOMPLETE by an out-of-order webhook). Reads the live subscription, so
+ * it self-heals to whatever Stripe currently reports.
+ */
+export async function resyncSubscriptionAction(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
+
+  const orgId = String(formData.get("orgId") ?? "");
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org || org.deletedAt) redirect("/admin?error=org_not_found");
+
+  const res = await resyncOrgSubscription(orgId);
+
+  await audit({
+    organizationId: orgId,
+    userId: session.sub,
+    action: "org.subscription_resync",
+    targetType: "Organization",
+    targetId: orgId,
+    metadata: { result: res },
+  });
+
+  redirect(
+    `/admin/orgs/${orgId}?${res.ok ? `resynced=${res.status ?? "ok"}` : `error=resync_${res.reason === "no_subscription" ? "no_subscription" : "failed"}`}`,
+  );
 }

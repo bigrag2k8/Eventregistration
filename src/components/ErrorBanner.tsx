@@ -26,6 +26,8 @@ const MESSAGES: Record<string, string> = {
   presale_date: "Pick a date and time for when the presale ends.",
   presale_no_paid_tickets: "Presale discounts apply to paid tickets — add a paid ticket type first.",
   vendor_not_refundable: "Only a PAID vendor application can be refunded.",
+  resync_failed: "Could not re-sync the subscription from Stripe. Check the Stripe dashboard and try again.",
+  resync_no_subscription: "This org has no Stripe subscription to re-sync.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

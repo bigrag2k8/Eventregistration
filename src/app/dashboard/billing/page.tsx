@@ -196,7 +196,7 @@ function UpgradeButton({ planKey, cadence, firstTime }: { planKey: string; caden
     <form action="/api/billing/checkout" method="POST">
       <input type="hidden" name="planKey" value={planKey} />
       <button type="submit" className="btn-primary w-full">
-        {cadence === "one_time" ? "Buy event credit" : firstTime ? "Continue with this plan" : "Choose plan"}
+        {cadence === "one_time" ? "Buy single event" : firstTime ? "Continue with this plan" : "Choose plan"}
       </button>
     </form>
   );

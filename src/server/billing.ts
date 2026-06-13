@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
 import { planFromPriceId } from "@/lib/plans";
 
 const STATUS_MAP: Record<string, "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED" | "INCOMPLETE" | "NONE"> = {
@@ -55,32 +56,21 @@ export async function handleBillingCheckoutCompleted(
 }
 
 /**
- * Called for customer.subscription.{created,updated,deleted}
+ * Persist a subscription's CURRENT state onto its org. Shared by the webhook
+ * handler and the admin re-sync action. `sub` should be a freshly retrieved
+ * Stripe Subscription so we never write a stale, out-of-order snapshot.
  */
-export async function handleSubscriptionEvent(sub: any, eventType: string) {
-  const customerId: string = sub.customer;
-  const org = await prisma.organization.findUnique({ where: { stripeCustomerId: customerId } });
-  if (!org) return;
-
-  // Ordering guard: Stripe delivers events with no guaranteed order, so a
-  // delayed `updated` for an already-cancelled subscription could otherwise
-  // resurrect a dead plan. An `updated`/`deleted` only acts on the subscription
-  // we currently track; a brand-new subscription always arrives via `created`
-  // (and checkout.session.completed), which is allowed through.
-  const isCreate = eventType === "customer.subscription.created";
-  if (!isCreate && org.stripeSubscriptionId && sub.id !== org.stripeSubscriptionId) return;
-  if (!isCreate && !org.stripeSubscriptionId) return;
-
-  // What plan does this subscription represent?
-  const priceId = sub.items?.data?.[0]?.price?.id;
-  const planKey = planFromPriceId(priceId) ?? org.subscriptionPlan;
-
+async function applySubscriptionToOrg(
+  orgId: string,
+  sub: any,
+  isDelete: boolean,
+  fallbackPlan: string,
+) {
   const status = STATUS_MAP[sub.status] ?? "NONE";
-  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
 
-  if (eventType === "customer.subscription.deleted" || status === "CANCELED") {
+  if (isDelete || status === "CANCELED") {
     await prisma.organization.update({
-      where: { id: org.id },
+      where: { id: orgId },
       data: {
         subscriptionPlan: "FREE",
         subscriptionStatus: "NONE",
@@ -92,8 +82,12 @@ export async function handleSubscriptionEvent(sub: any, eventType: string) {
     return;
   }
 
+  const priceId = sub.items?.data?.[0]?.price?.id;
+  const planKey = planFromPriceId(priceId) ?? fallbackPlan;
+  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+
   await prisma.organization.update({
-    where: { id: org.id },
+    where: { id: orgId },
     data: {
       subscriptionPlan: planKey as any,
       subscriptionStatus: status,
@@ -103,6 +97,61 @@ export async function handleSubscriptionEvent(sub: any, eventType: string) {
       planSelected: true, // active subscription = plan selected
     },
   });
+}
+
+/**
+ * Called for customer.subscription.{created,updated,deleted}
+ */
+export async function handleSubscriptionEvent(sub: any, eventType: string) {
+  const customerId: string = sub.customer;
+  const org = await prisma.organization.findUnique({ where: { stripeCustomerId: customerId } });
+  if (!org) return;
+
+  const isDelete = eventType === "customer.subscription.deleted";
+
+  // Ordering guard: ignore an event for a DIFFERENT subscription than the one we
+  // already track — a stale updated/deleted for an old sub must not clobber the
+  // live plan. When NO subscription is tracked yet, allow any event through so
+  // the first subscription can be established by whichever event lands first
+  // (created OR updated — Stripe gives no ordering guarantee). The old code
+  // dropped a first `updated`, which let a stale `incomplete` `created` win and
+  // leave the org stuck INCOMPLETE even after payment succeeded.
+  if (org.stripeSubscriptionId && sub.id !== org.stripeSubscriptionId) return;
+
+  // Re-fetch the live subscription so we persist its CURRENT status, not the
+  // snapshot embedded in a possibly out-of-order event. Deletes are terminal —
+  // skip the fetch (the object may already be gone).
+  let fresh = sub;
+  if (!isDelete) {
+    try {
+      fresh = await stripe.subscriptions.retrieve(sub.id);
+    } catch {
+      // Unreachable/deleted — fall back to the event payload.
+    }
+  }
+
+  await applySubscriptionToOrg(org.id, fresh, isDelete, org.subscriptionPlan);
+}
+
+/**
+ * SUPERADMIN reconciliation: pull an org's subscription straight from Stripe and
+ * re-sync it. Fixes an org whose status drifted from Stripe (e.g. from an
+ * out-of-order webhook before the ordering fix).
+ */
+export async function resyncOrgSubscription(
+  orgId: string,
+): Promise<{ ok: boolean; status?: string; reason?: string }> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, reason: "org_not_found" };
+  if (!org.stripeSubscriptionId) return { ok: false, reason: "no_subscription" };
+  let sub;
+  try {
+    sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId);
+  } catch (e: any) {
+    return { ok: false, reason: e?.message ?? "stripe_error" };
+  }
+  await applySubscriptionToOrg(org.id, sub, false, org.subscriptionPlan);
+  return { ok: true, status: STATUS_MAP[sub.status] ?? "NONE" };
 }
 
 /**
