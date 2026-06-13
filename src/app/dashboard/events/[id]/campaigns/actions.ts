@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { esc } from "@/lib/email";
-import { effectivePlan } from "@/lib/plans";
+import { eventEntitlements } from "@/lib/plans";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 
@@ -50,10 +50,9 @@ export async function sendCampaignAction(formData: FormData) {
   });
   if (!event) throw new Error("Event not found");
 
-  // Plan limit enforcement
+  // Per-event broadcast limit (FREE event = 1, premium = more).
   const org = event.organization;
-  const plan = effectivePlan(org);
-  const limit = plan.emailCampaignsPerEvent;
+  const limit = eventEntitlements(event.isPremium).emailBroadcasts;
   if (limit !== null) {
     const sentCount = await prisma.emailCampaign.count({
       where: { eventId: event.id, sentAt: { not: null } },
@@ -159,9 +158,12 @@ export async function sendCampaignAction(formData: FormData) {
 }
 
 function htmlBody(body: string, event: any, org: any, firstName?: string) {
-  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
+  // Custom branding (org logo + brand color) is a premium-event feature; free
+  // events fall back to the default brand color and no logo.
+  const premium = !!event.isPremium;
+  const brand = (premium && typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
     ? org.brandColor : "#1F3A8A";
-  const logo = org.logoUrl
+  const logo = premium && org.logoUrl
     ? `<img src="${esc(org.logoUrl)}" alt="${esc(org.name)}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
     : "";
   const eventUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${org.slug}/events/${event.slug}`;

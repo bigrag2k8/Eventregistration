@@ -243,6 +243,9 @@ model Event {
   shortDescription   String?
   category           String?
   status             EventStatus @default(DRAFT)
+  // true once a single-event credit has been spent to unlock premium features
+  // (unlimited registrations, vendor flow, custom branding, more broadcasts).
+  isPremium          Boolean     @default(false)
   startAt            DateTime
   endAt              DateTime
   timezone           String      @default("UTC")

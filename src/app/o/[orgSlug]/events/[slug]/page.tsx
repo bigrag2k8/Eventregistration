@@ -61,12 +61,13 @@ export default async function EventLandingPage({ params }: Props) {
 
   return (
     <main>
-      <OrgBrandStyle color={event.organization.brandColor} />
+      {/* Custom branding (logo + brand color) is a premium-event feature. */}
+      <OrgBrandStyle color={event.isPremium ? event.organization.brandColor : null} />
 
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link href={`/o/${event.organization.slug}`} className="flex items-center gap-2">
-            {event.organization.logoUrl && (
+            {event.isPremium && event.organization.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={event.organization.logoUrl} alt={event.organization.name} className="h-7 max-w-[140px] object-contain" />
             )}

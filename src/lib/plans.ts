@@ -10,6 +10,45 @@ export const STRIPE_PRICES = {
   PRO:          "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
 } as const;
 
+/**
+ * Per-EVENT entitlements (the Free + Single Event model).
+ *
+ * Packaging is per event, not per org: every org runs unlimited FREE events
+ * (basic, capped registrations) and spends a one-time single-event credit to
+ * make any individual event PREMIUM. `Event.isPremium` is the source of truth;
+ * this maps it to what that event is allowed to do.
+ */
+export const FREE_EVENT_REGISTRATION_LIMIT = 50;
+export const FREE_EVENT_EMAIL_BROADCASTS = 1;
+export const PREMIUM_EVENT_EMAIL_BROADCASTS = 5;
+/** Price of one single-event credit (USD cents). Mirrors PLANS.SINGLE_EVENT. */
+export const SINGLE_EVENT_PRICE_CENTS = 1900;
+
+export interface EventEntitlements {
+  /** Max total registrations (tickets) for this event. null = unlimited. */
+  registrationLimit: number | null;
+  /** Can this event accept vendor/booth applications? */
+  vendorFlow: boolean;
+  /** Show the org's custom branding (logo + color) on this event's public page? */
+  customBranding: boolean;
+  /** Max organizer email broadcasts for this event. null = unlimited. */
+  emailBroadcasts: number | null;
+}
+
+/** What an event can do, based solely on whether a credit has been spent on it. */
+export function eventEntitlements(isPremium: boolean): EventEntitlements {
+  return isPremium
+    ? { registrationLimit: null, vendorFlow: true, customBranding: true, emailBroadcasts: PREMIUM_EVENT_EMAIL_BROADCASTS }
+    : { registrationLimit: FREE_EVENT_REGISTRATION_LIMIT, vendorFlow: false, customBranding: false, emailBroadcasts: FREE_EVENT_EMAIL_BROADCASTS };
+}
+
+/**
+ * Plans shown on the public pricing/billing UI. The subscription tiers
+ * (STARTER/PRO) are intentionally hidden in the per-event model but kept in the
+ * catalog + webhook code so they can be switched back on without a rebuild.
+ */
+export const PUBLIC_PLAN_KEYS = ["FREE", "SINGLE_EVENT"] as const;
+
 export interface PlanInfo {
   key: "FREE" | "SINGLE_EVENT" | "STARTER" | "PRO" | "ENTERPRISE";
   name: string;

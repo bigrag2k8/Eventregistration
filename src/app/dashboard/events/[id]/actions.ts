@@ -51,6 +51,34 @@ export async function unpublishAction(formData: FormData) {
   revalidatePath("/");
 }
 
+/**
+ * Spend one single-event credit to upgrade a FREE event to PREMIUM (unlimited
+ * registrations, vendor flow, custom branding, more broadcasts). Conditional
+ * decrement so the event is never upgraded without a paid credit. No-op if
+ * already premium.
+ */
+export async function upgradeEventAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const { session, event } = await authorizeEvent(eventId);
+  if (event.isPremium) redirect(`/dashboard/events/${event.id}?saved=1`);
+
+  const claimed = await prisma.organization.updateMany({
+    where: { id: event.organizationId, singleEventCredits: { gt: 0 } },
+    data: { singleEventCredits: { decrement: 1 } },
+  });
+  if (claimed.count === 0) redirect(`/dashboard/events/${event.id}?error=no_credits`);
+
+  await prisma.event.update({ where: { id: event.id }, data: { isPremium: true } });
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.upgrade_premium", targetType: "Event", targetId: event.id,
+    metadata: { name: event.name },
+  });
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/o/${event.slug}`);
+  redirect(`/dashboard/events/${event.id}?upgraded=1`);
+}
+
 export async function deleteAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);
@@ -108,7 +136,8 @@ export async function updateBasicsAction(formData: FormData) {
       capacity: data.capacity ? parseInt(data.capacity) : null,
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,
-      vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
+      // Vendor flow is a premium feature — a free event can't turn it on.
+      vendorRegistrationEnabled: event.isPremium && data.vendorRegistrationEnabled === "1",
       isPrivate: data.isPrivate === "1",
       vendorApplicationNotes: data.vendorApplicationNotes || null,
       defaultVendorPriceCents: data.defaultVendorPrice !== undefined

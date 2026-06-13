@@ -35,6 +35,12 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
     );
   }
 
+  const org = await prisma.organization.findUnique({
+    where: { id: session.orgId },
+    select: { singleEventCredits: true },
+  });
+  const credits = org?.singleEventCredits ?? 0;
+
   // Default start = next Saturday 9am local, end = same day 5pm
   // Default to next Saturday. Build the datetime-local default as a literal
   // wall-clock string (no toISOString — that would shift it by the server's
@@ -58,6 +64,43 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
 
       <form action={createEventAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <ErrorBanner code={searchParams?.error} />
+
+        <section className="card">
+          <h2 className="text-lg font-semibold">Event type</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Pick how this event is powered. You can also upgrade a free event later.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="flex cursor-pointer flex-col rounded-xl border border-slate-200 p-4 hover:border-brand-300">
+              <span className="flex items-center gap-2">
+                <input type="radio" name="tier" value="free" defaultChecked />
+                <span className="font-semibold">Free event</span>
+              </span>
+              <span className="mt-1 text-xs text-slate-500">
+                Up to 50 registrations, 1 email broadcast, basic features. No charge.
+              </span>
+            </label>
+            <label className={`flex flex-col rounded-xl border border-slate-200 p-4 ${credits < 1 ? "opacity-70" : "cursor-pointer hover:border-brand-300"}`}>
+              <span className="flex items-center gap-2">
+                <input type="radio" name="tier" value="single_event" disabled={credits < 1} />
+                <span className="font-semibold">
+                  Single Event{credits < 1 && <span className="font-normal text-slate-400"> — needs a credit</span>}
+                </span>
+              </span>
+              <span className="mt-1 text-xs text-slate-500">
+                Unlimited registrations, vendor applications, custom branding, 5 email broadcasts. Uses 1 credit.
+              </span>
+              <span className="mt-2 text-xs">
+                {credits > 0 ? (
+                  <span className="text-emerald-700">You have {credits} credit{credits === 1 ? "" : "s"} — this event uses 1.</span>
+                ) : (
+                  <Link href="/dashboard/billing" className="font-medium text-brand-700 hover:underline">Buy a credit ($19) →</Link>
+                )}
+              </span>
+            </label>
+          </div>
+        </section>
+
         <section className="card">
           <h2 className="text-lg font-semibold">Basics</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

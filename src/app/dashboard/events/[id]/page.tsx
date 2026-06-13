@@ -6,7 +6,7 @@ import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
 import { SignOutButton } from "@/components/SignOutButton";
-import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updatePresaleAction } from "./actions";
+import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
 import { AddTicketFields } from "@/components/AddTicketFields";
@@ -22,7 +22,7 @@ const TIMEZONES = [
   "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "UTC",
 ];
 
-export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string } }) {
+export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string; upgraded?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
 
   const event = await prisma.event.findFirst({
@@ -76,6 +76,9 @@ export default async function EventManagePage({ params, searchParams }: { params
             <span className={`rounded-full px-2 py-0.5 text-xs ${
               isPublished ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
             }`}>{event.status}</span>
+            <span className={`rounded-full px-2 py-0.5 text-xs ${
+              event.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+            }`}>{event.isPremium ? "Single Event" : "Free"}</span>
           </div>
           <div className="flex items-center gap-2">
             <Link href={publicUrl} target="_blank" className="btn-secondary">View public page ↗</Link>
@@ -92,6 +95,34 @@ export default async function EventManagePage({ params, searchParams }: { params
           <Stat label="Revenue" value={money(totalRevenue._sum.amountCents ?? 0)} />
           <Stat label="Capacity" value={event.capacity ? `${event._count.registrations} / ${event.capacity}` : "Unlimited"} />
         </div>
+
+        {searchParams?.upgraded && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ This event is now a <strong>Single Event</strong> — premium features unlocked.
+          </div>
+        )}
+
+        {/* Event type / upgrade */}
+        <section className="card flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">{event.isPremium ? "Single Event (premium)" : "Free event"}</h2>
+            <p className="text-sm text-slate-500">
+              {event.isPremium
+                ? "Unlimited registrations, vendor applications, custom branding, 5 email broadcasts."
+                : "Up to 50 registrations, 1 email broadcast, basic features. Upgrade to unlock vendors, branding, and unlimited registrations."}
+            </p>
+          </div>
+          {!event.isPremium && (
+            (org?.singleEventCredits ?? 0) >= 1 ? (
+              <form action={upgradeEventAction}>
+                <input type="hidden" name="eventId" value={event.id} />
+                <button type="submit" className="btn-primary">Upgrade to Single Event (1 credit)</button>
+              </form>
+            ) : (
+              <Link href="/dashboard/billing" className="btn-primary">Buy a credit ($19) to upgrade</Link>
+            )
+          )}
+        </section>
 
         {/* Financials */}
         <section className="card">
@@ -234,20 +265,23 @@ export default async function EventManagePage({ params, searchParams }: { params
               </label>
             </div>
             <div className="sm:col-span-2">
-              <label className="flex items-start gap-2 text-sm">
+              <label className={`flex items-start gap-2 text-sm ${event.isPremium ? "" : "opacity-60"}`}>
                 <input
                   type="checkbox"
                   name="vendorRegistrationEnabled"
                   value="1"
                   defaultChecked={event.vendorRegistrationEnabled}
+                  disabled={!event.isPremium}
                   className="mt-1"
                 />
                 <span>
                   <span className="font-medium">Accept vendor applications</span>
+                  {!event.isPremium && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Single Event feature</span>}
                   <br />
                   <span className="text-xs text-slate-500">
                     Adds a "Become a Vendor" button on the public event page. Vendors submit
                     applications you review before sending a payment link.
+                    {!event.isPremium && " Upgrade this event to Single Event to enable it."}
                   </span>
                 </span>
               </label>

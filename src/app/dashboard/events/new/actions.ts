@@ -5,7 +5,6 @@ import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
-import { effectivePlan } from "@/lib/plans";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
@@ -36,6 +35,8 @@ const schema = z.object({
   defaultVendorPrice: z.string().optional(),
   bannerUrl: z.string().url().optional().or(z.literal("")),
   isPrivate: z.string().optional(),
+  // "free" (basic, capped) or "single_event" (premium — spends one credit).
+  tier: z.enum(["free", "single_event"]).default("free"),
   action: z.string().default("draft"),
 });
 
@@ -80,31 +81,21 @@ export async function createEventAction(formData: FormData) {
     redirect("/dashboard/events/new?error=date_order");
   }
 
-  // Enforce plan limits on event creation
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) throw new Error("Organization not found");
-  const plan = effectivePlan(org);
-  if (plan.monthlyEventLimit !== null && org.singleEventCredits === 0) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const used = await prisma.event.count({
-      where: { organizationId: org.id, deletedAt: null, createdAt: { gte: startOfMonth } },
+
+  // Free + Single Event model: every org runs unlimited FREE events; a PREMIUM
+  // event spends one single-event credit. Claim the credit up front with a
+  // conditional decrement so an event is never marked premium without a paid
+  // credit, and two concurrent submits can't spend the same credit twice.
+  let isPremium = false;
+  if (data.tier === "single_event") {
+    const claimed = await prisma.organization.updateMany({
+      where: { id: org.id, singleEventCredits: { gt: 0 } },
+      data: { singleEventCredits: { decrement: 1 } },
     });
-    if (used >= plan.monthlyEventLimit) {
-      redirect("/dashboard/events/new?error=plan_limit");
-    }
-  }
-  // Decrement a single-event credit if the org has one and is on a plan that doesn't auto-cover this event
-  let consumeCredit = false;
-  if (plan.monthlyEventLimit !== null && org.singleEventCredits > 0) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const used = await prisma.event.count({
-      where: { organizationId: org.id, deletedAt: null, createdAt: { gte: startOfMonth } },
-    });
-    if (used >= plan.monthlyEventLimit) {
-      consumeCredit = true; // they're over their plan limit but have a credit to spend
-    }
+    if (claimed.count === 0) redirect("/dashboard/events/new?error=no_credits");
+    isPremium = true;
   }
 
   const slug = await uniqueSlug(slugify(data.name), session.orgId);
@@ -131,13 +122,15 @@ export async function createEventAction(formData: FormData) {
       description: data.description,
       category: data.category || null,
       status: publish ? "PUBLISHED" : "DRAFT",
+      isPremium,
       startAt,
       endAt,
       timezone: data.timezone,
       capacity,
       contactEmail: data.contactEmail || null,
       refundPolicy: data.refundPolicy || null,
-      vendorRegistrationEnabled: data.vendorRegistrationEnabled === "1",
+      // Vendor flow is a premium feature — free events can't enable it.
+      vendorRegistrationEnabled: isPremium && data.vendorRegistrationEnabled === "1",
       isPrivate: data.isPrivate === "1",
       vendorApplicationNotes: data.vendorApplicationNotes || null,
       defaultVendorPriceCents: Math.round(parseFloat(data.defaultVendorPrice || "0") * 100),
@@ -171,13 +164,6 @@ export async function createEventAction(formData: FormData) {
       },
     },
   });
-
-  if (consumeCredit) {
-    await prisma.organization.update({
-      where: { id: org.id },
-      data: { singleEventCredits: { decrement: 1 } },
-    });
-  }
 
   redirect(`/dashboard/events/${event.id}`);
 }

@@ -1,10 +1,10 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
-import { PLANS, PlanInfo, effectivePlan } from "@/lib/plans";
+import { PLANS } from "@/lib/plans";
 import { SignOutButton } from "@/components/SignOutButton";
-import { BillingActions } from "@/components/BillingActions";
 import { activateFreePlanAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -17,16 +17,11 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
   if (!org) redirect("/dashboard");
 
   const isFirstTime = !org.planSelected;
+  const credits = org.singleEventCredits;
 
-  // Use the entitled plan (PAST_DUE downgrade + any SUPERADMIN per-org overrides)
-  // so the usage limits shown here match what's actually enforced.
-  const currentPlan = effectivePlan(org);
-
-  // Usage stats: events created in current month
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-  const eventsThisMonth = await prisma.event.count({
-    where: { organizationId: org.id, deletedAt: null, createdAt: { gte: startOfMonth } },
+  // Count how many of this org's events are already premium (credits spent).
+  const premiumEvents = await prisma.event.count({
+    where: { organizationId: org.id, deletedAt: null, isPremium: true },
   });
 
   return (
@@ -50,163 +45,131 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
           <div className="rounded-xl bg-brand-50 p-5 ring-1 ring-brand-200">
             <h2 className="text-lg font-semibold text-brand-900">👋 Welcome to Your Events App!</h2>
             <p className="mt-1 text-sm text-brand-800">
-              Pick a plan below to activate your account. You can start with <strong>Free</strong> at no cost,
-              or pick a paid plan for more events and full branding. You won't be able to create events until you choose a plan.
+              You can create <strong>unlimited free events</strong> at no cost. When you want unlimited
+              registrations, vendor applications, and custom branding for an event, buy a
+              <strong> single-event credit</strong> and apply it to that event. Start free below.
             </p>
+            <form action={activateFreePlanAction} className="mt-3">
+              <button type="submit" className="btn-primary">Get started — it&rsquo;s free</button>
+            </form>
           </div>
         )}
         {searchParams.upgraded && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             {searchParams.upgraded === "SINGLE_EVENT" ? (
               <>
-                ✓ Single-event credit added — you now have <strong>{org.singleEventCredits}</strong>{" "}
-                credit{org.singleEventCredits === 1 ? "" : "s"}. Each credit unlocks one full-featured
-                event (branding, vendors, team). You stay on the Free plan until you spend it.
+                ✓ Single-event credit added — you now have <strong>{credits}</strong>{" "}
+                credit{credits === 1 ? "" : "s"}. Apply it when you create an event (or upgrade a free
+                one) to unlock unlimited registrations, vendors, and branding.
               </>
             ) : (
-              <>✓ You're now on the <strong>{PLANS[searchParams.upgraded as keyof typeof PLANS]?.name ?? searchParams.upgraded}</strong> plan. Welcome!</>
+              <>✓ You&rsquo;re all set. Welcome!</>
             )}
           </div>
         )}
         {searchParams.canceled && (
           <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-            {searchParams.canceled === "existing_subscription"
-              ? "You already have an active subscription. To change plans, use “Manage billing” below — starting a second subscription would double-bill you."
-              : "Checkout was canceled. No charge was made."}
+            Checkout was canceled. No charge was made.
           </div>
         )}
 
-        {/* Current plan banner */}
-        <section className="card">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500">Current plan</div>
-              <h1 className="mt-1 text-3xl font-bold">{currentPlan.name}</h1>
-              <p className="mt-1 text-slate-600">{currentPlan.blurb}</p>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-500">
-                <span>Status: <strong className="text-slate-700">{org.subscriptionStatus}</strong></span>
-                {org.subscriptionCurrentPeriodEnd && (
-                  <span>
-                    {org.subscriptionCancelAtPeriodEnd ? "Cancels on" : "Renews on"}{" "}
-                    <strong className="text-slate-700">{org.subscriptionCurrentPeriodEnd.toLocaleDateString()}</strong>
-                  </span>
-                )}
-                {org.singleEventCredits > 0 && (
-                  <span>Single-event credits: <strong className="text-slate-700">{org.singleEventCredits}</strong></span>
-                )}
-              </div>
+        {/* Event credits */}
+        <section className="card flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="text-xs uppercase tracking-wider text-slate-500">Event credits</div>
+            <div className="mt-1 text-4xl font-bold">{credits}</div>
+            <p className="mt-2 text-slate-600">
+              Each credit turns one event into a <strong>Single Event</strong> — unlimited registrations,
+              vendor applications, custom branding, and 5 email broadcasts. Spend it when you create an
+              event, or upgrade a free event later. Credits don&rsquo;t expire.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-500">
+              <span>Premium events created: <strong className="text-slate-700">{premiumEvents}</strong></span>
             </div>
-            <BillingActions
-              currentPlan={org.subscriptionPlan}
-              hasStripeSubscription={!!org.stripeSubscriptionId}
-            />
           </div>
-
-          {/* Usage */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <Stat
-              label="Events this month"
-              value={`${eventsThisMonth}${currentPlan.monthlyEventLimit ? ` / ${currentPlan.monthlyEventLimit}` : ""}`}
-              warn={currentPlan.monthlyEventLimit !== null && eventsThisMonth >= currentPlan.monthlyEventLimit}
-            />
-            <Stat
-              label="Plan features"
-              value={`${Object.values(currentPlan.features).filter(Boolean).length} of ${Object.values(currentPlan.features).length}`}
-            />
-          </div>
+          <form action="/api/billing/checkout" method="POST">
+            <input type="hidden" name="planKey" value="SINGLE_EVENT" />
+            <button type="submit" className="btn-primary">Buy single event credit — $19</button>
+          </form>
         </section>
 
-        {/* Plan comparison */}
+        {/* How pricing works */}
         <section>
-          <h2 className="text-xl font-bold">Plans</h2>
-          <div className="mt-4 grid gap-4 lg:grid-cols-4">
-            {(["FREE", "SINGLE_EVENT", "STARTER", "PRO"] as const).map((key) => {
-              const plan = PLANS[key];
-              const isCurrent = org.subscriptionPlan === key;
-              return <PlanCard key={key} plan={plan} isCurrent={isCurrent} needsActivation={isFirstTime} />;
-            })}
+          <h2 className="text-xl font-bold">How pricing works</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <PricingCard
+              title="Free event"
+              price="$0"
+              blurb="Run as many as you like — great for small or casual events."
+              features={[
+                ["Unlimited free events", true],
+                ["Up to 50 registrations per event", true],
+                ["1 email broadcast per event", true],
+                ["QR tickets, check-in, CSV export", true],
+                ["Vendor applications", false],
+                ["Custom branding (logo + color)", false],
+                ["Unlimited registrations", false],
+              ]}
+            />
+            <PricingCard
+              title="Single Event"
+              price="$19 / event"
+              highlight
+              blurb="One credit unlocks one event's full power. No subscription."
+              features={[
+                ["Unlimited registrations", true],
+                ["Vendor application flow", true],
+                ["Custom branding (logo + color)", true],
+                ["5 email broadcasts per event", true],
+                ["Team invites + per-event roles", true],
+                ["QR tickets, check-in, CSV export", true],
+                ["Pay only when you need it — credits don't expire", true],
+              ]}
+              cta={
+                <form action="/api/billing/checkout" method="POST" className="mt-4">
+                  <input type="hidden" name="planKey" value="SINGLE_EVENT" />
+                  <button type="submit" className="btn-primary w-full">Buy single event — $19</button>
+                </form>
+              }
+            />
           </div>
           <div className="mt-4">
             <EnterpriseCard />
           </div>
+          <p className="mt-3 text-xs text-slate-400">
+            Standard payment processing fee applies to paid tickets. Running lots of events?{" "}
+            <a href="mailto:events@yourevents.app?subject=Volume%20pricing" className="text-brand-700 hover:underline">Ask about volume pricing</a>.
+          </p>
         </section>
       </div>
     </main>
   );
 }
 
-function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+function PricingCard({
+  title, price, blurb, features, highlight, cta,
+}: {
+  title: string;
+  price: string;
+  blurb: string;
+  features: [string, boolean][];
+  highlight?: boolean;
+  cta?: ReactNode;
+}) {
   return (
-    <div className={`rounded-lg p-4 ring-1 ${warn ? "bg-amber-50 ring-amber-200" : "bg-slate-50 ring-slate-200"}`}>
-      <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
-      <div className={`mt-1 text-2xl font-bold ${warn ? "text-amber-700" : "text-slate-900"}`}>{value}</div>
-      {warn && <div className="mt-1 text-xs text-amber-700">Approaching plan limit — consider upgrading.</div>}
-    </div>
-  );
-}
-
-function PlanCard({ plan, isCurrent, needsActivation }: { plan: PlanInfo; isCurrent: boolean; needsActivation: boolean }) {
-  // During first-time onboarding (planSelected=false), the org technically already
-  // has subscriptionPlan="FREE" from the schema default — but they HAVEN'T committed
-  // to it yet. Show the activation button on EVERY card so the user can pick one,
-  // not the "Current plan" badge that would lock them out.
-  const showActivationButton = needsActivation || !isCurrent;
-
-  return (
-    <div className={`flex flex-col rounded-xl bg-white p-5 ring-1 ${isCurrent && !needsActivation ? "ring-2 ring-brand-500" : "ring-slate-200"}`}>
-      <div className="text-lg font-semibold">{plan.name}</div>
-      <div className="mt-1 text-2xl font-bold">{plan.price}</div>
-      <p className="mt-2 text-sm text-slate-600 flex-1">{plan.blurb}</p>
-
-      <ul className="mt-4 space-y-1 text-sm text-slate-600">
-        {plan.monthlyEventLimit !== null
-          ? <li>📅 Up to {plan.monthlyEventLimit} event{plan.monthlyEventLimit > 1 ? "s" : ""}{plan.cadence === "monthly" ? "/month" : ""}</li>
-          : <li>📅 Unlimited events</li>}
-        {plan.registrationLimitPerEvent !== null
-          ? <li>👥 Up to {plan.registrationLimitPerEvent} registrations per event</li>
-          : <li>👥 Unlimited registrations</li>}
-        {plan.emailCampaignsPerEvent !== null
-          ? <li>📣 {plan.emailCampaignsPerEvent} email broadcast{plan.emailCampaignsPerEvent > 1 ? "s" : ""} per event</li>
-          : <li>📣 Unlimited email broadcasts</li>}
-        <FeatureLi on={plan.features.customBranding} label="Custom branding (logo, color, email)" />
-        <FeatureLi on={plan.features.vendorFlow} label="Vendor application flow" />
-        <FeatureLi on={plan.features.teamInvites} label="Team invites + per-event assignments" />
-        <FeatureLi on={plan.features.csvExport} label="CSV exports" />
+    <div className={`flex flex-col rounded-xl bg-white p-5 ring-1 ${highlight ? "ring-2 ring-brand-500" : "ring-slate-200"}`}>
+      <div className="text-lg font-semibold">{title}</div>
+      <div className="mt-1 text-2xl font-bold">{price}</div>
+      <p className="mt-2 text-sm text-slate-600">{blurb}</p>
+      <ul className="mt-4 space-y-1 text-sm">
+        {features.map(([label, on]) => (
+          <li key={label} className={on ? "text-slate-700" : "text-slate-400"}>
+            {on ? "✓" : "—"} {label}
+          </li>
+        ))}
       </ul>
-
-      <div className="mt-5">
-        {showActivationButton ? (
-          <UpgradeButton planKey={plan.key} cadence={plan.cadence} firstTime={needsActivation} />
-        ) : (
-          <span className="block rounded-lg bg-brand-100 px-3 py-2 text-center text-sm font-medium text-brand-700">Current plan</span>
-        )}
-      </div>
+      {cta}
     </div>
-  );
-}
-
-function FeatureLi({ on, label }: { on: boolean; label: string }) {
-  return <li className={on ? "" : "text-slate-400"}>{on ? "✓" : "—"} {label}</li>;
-}
-
-function UpgradeButton({ planKey, cadence, firstTime }: { planKey: string; cadence: string; firstTime?: boolean }) {
-  // Free plan: activate without Stripe
-  if (planKey === "FREE") {
-    return (
-      <form action={activateFreePlanAction}>
-        <button type="submit" className="btn-primary w-full">
-          {firstTime ? "Continue with Free" : "Switch to Free"}
-        </button>
-      </form>
-    );
-  }
-  return (
-    <form action="/api/billing/checkout" method="POST">
-      <input type="hidden" name="planKey" value={planKey} />
-      <button type="submit" className="btn-primary w-full">
-        {cadence === "one_time" ? "Buy single event" : firstTime ? "Continue with this plan" : "Choose plan"}
-      </button>
-    </form>
   );
 }
 

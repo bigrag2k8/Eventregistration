@@ -14,6 +14,7 @@ const MESSAGES: Record<string, string> = {
   refund_failed: "The refund could not be processed. Try again, or check the Stripe dashboard.",
   stripe_not_configured: "Payments are not configured for this site.",
   plan_limit: "Your plan's monthly event limit is reached. Upgrade or buy a single-event credit in Billing.",
+  no_credits: "You don't have a single-event credit to spend. Buy one in Billing, then try again.",
   campaign_limit: "Your plan's email campaign limit for this event is reached. Upgrade in Billing to send more.",
   no_recipients: "This event has no confirmed registrations yet — nothing to send.",
   already_member: "That email is already a member of this organization.",
