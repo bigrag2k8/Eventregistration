@@ -1,12 +1,13 @@
 /**
  * Plan catalog — Stripe price IDs and limits for each tier.
- * Stripe products/prices live in the AITS sandbox account (test mode).
+ * Prices live in the active test sandbox (the account whose sk_test/pk_test are
+ * set on the Railway web service). Recreated 2026-06-13 after the sandbox move.
  */
 
 export const STRIPE_PRICES = {
-  SINGLE_EVENT: "price_1TgNn4GUh2HvGphW681dH3kx", // $19 one-time
-  STARTER:      "price_1TgNn5GUh2HvGphWGBVl8PHW", // $24.99/mo
-  PRO:          "price_1TgNYYGUh2HvGphWcQuMhzwf", // $29/mo
+  SINGLE_EVENT: "price_1Thy3mGrTuPPvYuYlFzhMPOH", // $19 one-time
+  STARTER:      "price_1Thy4EGrTuPPvYuYf7xx0F0i", // $24.99/mo
+  PRO:          "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
 } as const;
 
 export interface PlanInfo {
