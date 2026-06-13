@@ -7,6 +7,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { EventTierProvider, EventTypePicker, TicketQuantityField, VendorSettingsFields } from "@/components/EventTierForm";
 
 export const dynamic = "force-dynamic";
 
@@ -63,43 +64,10 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
       </header>
 
       <form action={createEventAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <EventTierProvider>
         <ErrorBanner code={searchParams?.error} />
 
-        <section className="card">
-          <h2 className="text-lg font-semibold">Event type</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Pick how this event is powered. You can also upgrade a free event later.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="flex cursor-pointer flex-col rounded-xl border border-slate-200 p-4 hover:border-brand-300">
-              <span className="flex items-center gap-2">
-                <input type="radio" name="tier" value="free" defaultChecked />
-                <span className="font-semibold">Free event</span>
-              </span>
-              <span className="mt-1 text-xs text-slate-500">
-                Up to 50 registrations, 1 email broadcast, basic features. No charge.
-              </span>
-            </label>
-            <label className={`flex flex-col rounded-xl border border-slate-200 p-4 ${credits < 1 ? "opacity-70" : "cursor-pointer hover:border-brand-300"}`}>
-              <span className="flex items-center gap-2">
-                <input type="radio" name="tier" value="single_event" disabled={credits < 1} />
-                <span className="font-semibold">
-                  Single Event{credits < 1 && <span className="font-normal text-slate-400"> — needs a credit</span>}
-                </span>
-              </span>
-              <span className="mt-1 text-xs text-slate-500">
-                Unlimited registrations, vendor applications, custom branding, 5 email broadcasts. Uses 1 credit.
-              </span>
-              <span className="mt-2 text-xs">
-                {credits > 0 ? (
-                  <span className="text-emerald-700">You have {credits} credit{credits === 1 ? "" : "s"} — this event uses 1.</span>
-                ) : (
-                  <Link href="/dashboard/billing" className="font-medium text-brand-700 hover:underline">Buy a credit ($19) →</Link>
-                )}
-              </span>
-            </label>
-          </div>
-        </section>
+        <EventTypePicker credits={credits} />
 
         <section className="card">
           <h2 className="text-lg font-semibold">Basics</h2>
@@ -205,10 +173,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
               <label className="label">Price (USD) — 0 for free</label>
               <input name="ticketPrice" type="number" step="0.01" min="0" defaultValue="0" className="input" />
             </div>
-            <div>
-              <label className="label">Quantity available (blank = unlimited)</label>
-              <input name="ticketQuantity" type="number" min="1" className="input" placeholder="100" />
-            </div>
+            <TicketQuantityField />
             <div>
               <label className="label">Max per order</label>
               <input name="ticketMaxPerOrder" type="number" min="1" defaultValue="10" className="input" />
@@ -241,25 +206,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
                 </span>
               </label>
             </div>
-            <div className="sm:col-span-2">
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" name="vendorRegistrationEnabled" value="1" className="mt-1" />
-                <span>
-                  <span className="font-medium">Accept vendor applications</span>
-                  <br />
-                  <span className="text-xs text-slate-500">Adds a "Become a Vendor" button to the event page. Vendors submit applications you approve before payment.</span>
-                </span>
-              </label>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Vendor application notes (shown on the vendor form)</label>
-              <textarea name="vendorApplicationNotes" rows={3} className="input" placeholder="e.g. Booths are 10x10 with table and chairs. Load-in 7am day of event." />
-            </div>
-            <div>
-              <label className="label">Default vendor booth price (USD)</label>
-              <input name="defaultVendorPrice" type="number" step="0.01" min="0" defaultValue="0" className="input" placeholder="500.00" />
-              <p className="mt-1 text-xs text-slate-500">Pre-fills the quote when approving a vendor. You can override per vendor.</p>
-            </div>
+            <VendorSettingsFields />
           </div>
         </section>
 
@@ -270,6 +217,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
             <button type="submit" name="action" value="publish" className="btn-primary">Save & publish</button>
           </div>
         </div>
+        </EventTierProvider>
       </form>
     </main>
   );
