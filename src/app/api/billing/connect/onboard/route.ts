@@ -64,7 +64,18 @@ export async function POST() {
     let acctId = org.stripeAccountId;
     if (!acctId) {
       const acct = await stripe.accounts.create({
-        type: "express",
+        // Controller properties — the modern equivalent of the legacy
+        // `type: "express"`. Stripe's new platform-profile model rejects a bare
+        // `type: "express"` with "review the responsibilities of managing losses
+        // for connected accounts"; declaring the controller explicitly resolves
+        // it. These MUST mirror the platform profile:
+        //   losses → platform, fees → platform, Express dashboard, Stripe-hosted KYC.
+        controller: {
+          losses: { payments: "application" },        // platform covers negative balances
+          fees: { payer: "application" },             // platform pays Stripe fees, monetizes via application_fee
+          stripe_dashboard: { type: "express" },      // organizer gets the Express dashboard
+          requirement_collection: "stripe",           // Stripe-hosted onboarding collects KYC
+        },
         country: "US",
         // Default to individual — minimizes required fields.
         // Convert to "company" later via upgrade endpoint when org grows.
