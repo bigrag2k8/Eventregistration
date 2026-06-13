@@ -25,15 +25,16 @@ export default async function RegisterPage({ params }: Props) {
   // Presale banner: only while the window is open, and only if there's a paid
   // ticket the discount can actually apply to. Date renders in the event's timezone.
   const presalePct = event.presalePercent != null ? Number(event.presalePercent) : 0;
-  const presaleNote =
+  const presaleActive =
     presalePct > 0 &&
     event.presaleEndsAt != null &&
     event.presaleEndsAt > new Date() &&
-    event.ticketTypes.some((t) => t.priceCents > 0)
-      ? `All tickets shown include a ${presalePct}% early-bird discount until ${formatInTimeZone(
-          event.presaleEndsAt, event.timezone, "MMM d, h:mm a zzz",
-        )} — prices return to regular after that.`
-      : undefined;
+    event.ticketTypes.some((t) => t.priceCents > 0);
+  const presaleNote = presaleActive
+    ? `All tickets shown include a ${presalePct}% early-bird discount until ${formatInTimeZone(
+        event.presaleEndsAt!, event.timezone, "MMM d, h:mm a zzz",
+      )} — prices return to regular after that.`
+    : undefined;
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
@@ -42,6 +43,8 @@ export default async function RegisterPage({ params }: Props) {
       <RegistrationForm
         event={JSON.parse(JSON.stringify(event))}
         presaleNote={presaleNote}
+        presaleActive={presaleActive}
+        presalePct={presalePct}
         successHref={`/o/${params.orgSlug}/events/${event.slug}/success`}
         backHref={`/o/${params.orgSlug}/events/${event.slug}/register`}
       />

@@ -41,6 +41,9 @@ export default async function EventLandingPage({ params }: Props) {
     event.presaleEndsAt != null &&
     event.presaleEndsAt > new Date() &&
     visibleTickets.some((t) => t.priceCents > 0);
+  // Per-ticket early-bird price, mirroring computeTotals (floor of the % off).
+  const presaleUnit = (cents: number) =>
+    presaleActive && cents > 0 ? cents - Math.floor((cents * presalePct) / 100) : cents;
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
   const mapsSrc = event.location && mapsKey
@@ -210,7 +213,14 @@ export default async function EventLandingPage({ params }: Props) {
           )}
           <div className="card">
             <div className="text-sm text-slate-500">From</div>
-            <div className="text-3xl font-bold">{minPrice === 0 ? "Free" : money(minPrice)}</div>
+            {presaleActive && minPrice > 0 ? (
+              <div className="text-3xl font-bold">
+                <span className="mr-2 text-xl font-medium text-slate-400 line-through">{money(minPrice)}</span>
+                {money(presaleUnit(minPrice))}
+              </div>
+            ) : (
+              <div className="text-3xl font-bold">{minPrice === 0 ? "Free" : money(minPrice)}</div>
+            )}
 
             <div className="mt-4 space-y-2">
               {visibleTickets.map((t) => {
@@ -224,8 +234,17 @@ export default async function EventLandingPage({ params }: Props) {
                         {soldOut ? "Sold out" : left !== null ? `${left} left` : "Available"}
                       </div>
                     </div>
-                    <div className="text-sm font-medium">
-                      {t.priceCents === 0 ? "Free" : money(t.priceCents)}
+                    <div className="text-right text-sm font-medium">
+                      {t.priceCents === 0 ? (
+                        "Free"
+                      ) : presaleActive ? (
+                        <>
+                          <span className="mr-1 text-slate-400 line-through">{money(t.priceCents)}</span>
+                          <span className="text-emerald-700">{money(presaleUnit(t.priceCents))}</span>
+                        </>
+                      ) : (
+                        money(t.priceCents)
+                      )}
                     </div>
                   </div>
                 );

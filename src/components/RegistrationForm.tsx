@@ -18,11 +18,15 @@ interface Props {
   event: Event;
   /** Pre-formatted early-bird banner (server-rendered in the event's timezone); shown above the ticket picker when the presale is active. */
   presaleNote?: string;
+  /** Whether the early-bird presale is currently active (server-computed). */
+  presaleActive?: boolean;
+  /** Presale discount percent, for striking through the ticket card prices. */
+  presalePct?: number;
   successHref?: string;   // override where to redirect after free registration
   backHref?: string;      // override where to send Stripe cancel
 }
 
-export function RegistrationForm({ event, presaleNote, successHref, backHref }: Props) {
+export function RegistrationForm({ event, presaleNote, presaleActive = false, presalePct = 0, successHref, backHref }: Props) {
   const router = useRouter();
   const [ticketTypeId, setTicketTypeId] = useState(event.ticketTypes[0]?.id);
   const [quantity, setQuantity] = useState(1);
@@ -184,7 +188,18 @@ export function RegistrationForm({ event, presaleNote, successHref, backHref }: 
                     </div>
                   </div>
                 </div>
-                <div className="font-medium">{t.priceCents === 0 ? "Free" : fmt(t.priceCents)}</div>
+                <div className="text-right font-medium">
+                  {t.priceCents === 0 ? (
+                    "Free"
+                  ) : presaleActive ? (
+                    <>
+                      <span className="mr-1 text-slate-400 line-through">{fmt(t.priceCents)}</span>
+                      <span className="text-emerald-700">{fmt(t.priceCents - Math.floor((t.priceCents * presalePct) / 100))}</span>
+                    </>
+                  ) : (
+                    fmt(t.priceCents)
+                  )}
+                </div>
               </label>
             );
           })}
