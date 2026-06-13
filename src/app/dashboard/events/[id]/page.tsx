@@ -186,8 +186,16 @@ export default async function EventManagePage({ params, searchParams }: { params
               </form>
             )}
             <Link href={`/dashboard/events/${event.id}/registrations`} className="btn-secondary">View registrations</Link>
-            <Link href={`/dashboard/events/${event.id}/vendors`} className="btn-secondary">Vendors</Link>
-            <Link href="/dashboard/team" className="btn-secondary">Team</Link>
+            {event.isPremium ? (
+              <Link href={`/dashboard/events/${event.id}/vendors`} className="btn-secondary">Vendors</Link>
+            ) : (
+              <span className="btn-secondary cursor-not-allowed opacity-50" title="Upgrade this event to Single Event to enable vendors">Vendors</span>
+            )}
+            {event.isPremium ? (
+              <Link href="/dashboard/team" className="btn-secondary">Team</Link>
+            ) : (
+              <span className="btn-secondary cursor-not-allowed opacity-50" title="Upgrade this event to Single Event to enable team">Team</span>
+            )}
             <Link href={`/dashboard/events/${event.id}/campaigns`} className="btn-secondary">📣 Communications</Link>
             <a href={`/api/events/${event.id}/export.csv`} className="btn-secondary">Export CSV</a>
           </div>
