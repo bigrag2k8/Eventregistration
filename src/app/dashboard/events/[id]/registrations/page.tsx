@@ -42,7 +42,16 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
           }
         : {}),
     },
-    include: { ticketType: true, tickets: { include: { checkIn: true } } },
+    include: {
+      ticketType: true,
+      tickets: { include: { checkIn: true } },
+      // Latest payment carries the refund amount + when the refund webhook landed.
+      payments: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { refundedAmountCents: true, updatedAt: true, status: true, stripeRefundId: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 500,
   });
@@ -117,6 +126,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                 const earliestCheckIn = checkedTickets
                   .map((t) => t.checkIn!.scannedAt)
                   .sort((a, b) => a.getTime() - b.getTime())[0];
+                const refundPayment = r.payments[0];
                 return (
                   <Fragment key={r.id}>
                   <tr>
@@ -131,8 +141,16 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                         r.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-700"
                         : r.status === "PENDING" ? "bg-amber-100 text-amber-700"
                         : r.status === "REFUNDED" ? "bg-purple-100 text-purple-700"
+                        : r.status === "PARTIALLY_REFUNDED" ? "bg-purple-100 text-purple-700"
                         : "bg-slate-100 text-slate-600"
-                      }`}>{r.status}</span>
+                      }`}>{r.status === "PARTIALLY_REFUNDED" ? "PART. REFUNDED" : r.status}</span>
+                      {(r.status === "REFUNDED" || r.status === "PARTIALLY_REFUNDED") && refundPayment && (
+                        <div className="mt-1 text-[11px] text-purple-700">
+                          ↩ Refunded {money(refundPayment.refundedAmountCents, r.currency)}
+                          {" · "}
+                          {refundPayment.updatedAt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <div>{checkedCount}/{r.tickets.length || r.quantity}</div>
