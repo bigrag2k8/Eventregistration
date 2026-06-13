@@ -197,7 +197,13 @@ export default async function EventManagePage({ params, searchParams }: { params
               <span className="btn-secondary cursor-not-allowed opacity-50" title="Upgrade this event to Single Event to enable team">Team</span>
             )}
             <Link href={`/dashboard/events/${event.id}/campaigns`} className="btn-secondary">📣 Communications</Link>
-            <a href={`/api/events/${event.id}/export.csv`} className="btn-secondary">Export CSV</a>
+            <details className="relative">
+              <summary className="btn-secondary cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">Export CSV ▾</summary>
+              <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                <a href={`/api/events/${event.id}/export.csv?type=registrations`} className="block px-3 py-2 text-sm hover:bg-slate-50">Registrations</a>
+                <a href={`/api/events/${event.id}/export.csv?type=vendors`} className="block px-3 py-2 text-sm hover:bg-slate-50">Vendors</a>
+              </div>
+            </details>
           </div>
         </section>
 
