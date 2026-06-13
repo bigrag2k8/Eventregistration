@@ -51,7 +51,10 @@ export async function revenueSplit(scope: { eventId?: string; organizationId?: s
       COALESCE(SUM(r.quantity),0)::int AS qty,
       COALESCE(SUM(p."amountCents"),0)::bigint AS gross,
       COALESCE(SUM(p."refundedAmountCents"),0)::bigint AS refunded,
-      COALESCE(SUM(p."platformFeeCents"),0)::bigint AS fee
+      -- NET platform fee: on refund the application fee is reversed proportionally
+      -- (refund_application_fee), so the fee retained prorates by the unrefunded share.
+      -- (Using gross fee here made Net payout go negative once a charge was refunded.)
+      COALESCE(ROUND(SUM(p."platformFeeCents" * (1 - LEAST(p."refundedAmountCents", p."amountCents")::numeric / NULLIF(p."amountCents",0)))),0)::bigint AS fee
     FROM payments p
     JOIN registrations r ON r.id = p."registrationId"
     JOIN ticket_types tt ON tt.id = r."ticketTypeId"
