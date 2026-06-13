@@ -46,6 +46,10 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+# next.config.mjs is read by `next start` AT RUNTIME — without it the server boots
+# with default config and experimental.instrumentationHook is off, so
+# src/instrumentation.ts (Sentry server init) never runs.
+COPY --from=build /app/next.config.mjs ./next.config.mjs
 COPY --from=build /app/prisma ./prisma
 # src + tsconfig included so the worker service (npx tsx src/server/worker.ts) can run from this image
 COPY --from=build /app/src ./src
