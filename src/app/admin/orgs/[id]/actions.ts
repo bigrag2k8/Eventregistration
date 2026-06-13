@@ -107,3 +107,41 @@ export async function editOrgSubscriptionAction(formData: FormData) {
 
   redirect(`/admin/orgs/${org.id}?saved=1`);
 }
+
+/**
+ * SUPERADMIN-only: clear an org's Stripe Connect link so it can re-onboard from
+ * scratch. Use when the stored connected account is orphaned — e.g. it was
+ * created under a different Stripe platform/sandbox and the current key can no
+ * longer access it. This only nulls our local references; it does NOT delete the
+ * Stripe account. The org's next "Connect with Stripe" creates a fresh account.
+ */
+export async function resetConnectAction(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
+
+  const orgId = String(formData.get("orgId") ?? "");
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org || org.deletedAt) redirect("/admin?error=org_not_found");
+
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: {
+      stripeAccountId: null,
+      stripeAccountChargesEnabled: false,
+      stripeAccountPayoutsEnabled: false,
+      stripeAccountDetailsSubmitted: false,
+      stripeAccountStatus: "not_started",
+    },
+  });
+
+  await audit({
+    organizationId: org.id,
+    userId: session.sub,
+    action: "org.connect_reset",
+    targetType: "Organization",
+    targetId: org.id,
+    metadata: { clearedAccountId: org.stripeAccountId },
+  });
+
+  redirect(`/admin/orgs/${org.id}?connect_reset=1`);
+}

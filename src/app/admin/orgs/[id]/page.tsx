@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import {
   PLANS,
   OVERRIDABLE_LIMITS,
@@ -10,7 +11,7 @@ import {
   parseOverrides,
   effectivePlan,
 } from "@/lib/plans";
-import { editOrgSubscriptionAction } from "./actions";
+import { editOrgSubscriptionAction, resetConnectAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function AdminOrgPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { saved?: string; error?: string };
+  searchParams: { saved?: string; error?: string; connect_reset?: string };
 }) {
   const session = await getSession();
   if (!session) redirect("/signin");
@@ -70,6 +71,11 @@ export default async function AdminOrgPage({
             ✓ Subscription updated.
           </div>
         )}
+        {searchParams?.connect_reset && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Stripe Connect link cleared. This org can now re-onboard from its dashboard.
+          </div>
+        )}
 
         {/* Identity */}
         <section className="card">
@@ -86,6 +92,17 @@ export default async function AdminOrgPage({
                   <span className="font-medium text-amber-700">disabled ({org.stripeAccountStatus ?? "not_started"})</span>
                 )}
               </p>
+              {org.stripeAccountId && (
+                <form action={resetConnectAction} className="mt-2">
+                  <input type="hidden" name="orgId" value={org.id} />
+                  <p className="font-mono text-[11px] text-slate-400">{org.stripeAccountId}</p>
+                  <ConfirmButton
+                    label="Reset Stripe Connect"
+                    confirmText={`Clear this org's Stripe Connect link (${org.stripeAccountId})? It does NOT delete the Stripe account — it just lets the org re-onboard a fresh one. Use this when the stored account is orphaned (created under a different Stripe platform).`}
+                    className="mt-1 text-xs text-red-600 hover:underline"
+                  />
+                </form>
+              )}
             </div>
             <div className="text-right text-sm text-slate-500">
               <div>{org._count.members} member{org._count.members === 1 ? "" : "s"}</div>
