@@ -52,8 +52,14 @@ export async function POST(req: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET ?? "");
   } catch (e: any) {
+    // Log signature failures (otherwise they 400 silently and look like the
+    // endpoint never received anything).
+    console.error("[webhook] signature verification failed", e?.message);
     return new NextResponse(`Webhook signature failure: ${e.message}`, { status: 400 });
   }
+
+  // One line per received event so delivery is visible in app logs.
+  console.log("[webhook] received", event.type);
 
   // Stripe delivers at-least-once: claim this event id before processing so a
   // redelivery no-ops instead of re-running side effects (duplicate credit

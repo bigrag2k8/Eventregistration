@@ -59,24 +59,34 @@ export async function POST(req: Request) {
   const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?upgraded=${plan.key}`;
   const cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?canceled=1`;
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: plan.cadence === "one_time" ? "payment" : "subscription",
-    line_items: [{ price: plan.stripePriceId, quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: { organizationId: org.id, planKey: plan.key },
-    ...(plan.cadence !== "one_time" && {
-      subscription_data: {
-        metadata: { organizationId: org.id, planKey: plan.key },
-      },
-    }),
-    ...(plan.cadence === "one_time" && {
-      payment_intent_data: {
-        metadata: { organizationId: org.id, planKey: plan.key, kind: "single_event_credit" },
-      },
-    }),
-  });
+  let checkoutSession;
+  try {
+    checkoutSession = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: plan.cadence === "one_time" ? "payment" : "subscription",
+      line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: { organizationId: org.id, planKey: plan.key },
+      ...(plan.cadence !== "one_time" && {
+        subscription_data: {
+          metadata: { organizationId: org.id, planKey: plan.key },
+        },
+      }),
+      ...(plan.cadence === "one_time" && {
+        payment_intent_data: {
+          metadata: { organizationId: org.id, planKey: plan.key, kind: "single_event_credit" },
+        },
+      }),
+    });
+  } catch (e: any) {
+    // Surface the real Stripe reason (e.g. "No such price" when the price ID
+    // belongs to a different account than this key) instead of a silent 500.
+    console.error("[billing] checkout.sessions.create failed", {
+      planKey: plan.key, priceId: plan.stripePriceId, error: e?.message,
+    });
+    return NextResponse.redirect(new URL("/dashboard/billing?canceled=stripe_error", req.url), 303);
+  }
 
   if (!checkoutSession.url) {
     return NextResponse.redirect(new URL("/dashboard/billing?canceled=stripe_error", req.url), 303);
