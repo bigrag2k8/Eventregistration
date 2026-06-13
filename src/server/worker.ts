@@ -2,6 +2,9 @@
  * Background worker — scheduled reminders, waitlist promotion, abandoned-cart recovery.
  * Run via `npm run worker`. Use a process manager (PM2 / Docker) in production.
  */
+// Must be first: initializes Sentry (and its global crash handlers) before any
+// other module is evaluated.
+import { Sentry } from "@/server/instrument-worker";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
@@ -40,6 +43,7 @@ async function sendReminders() {
         // One bad send must not abort the rest of the batch (previously a
         // single throw starved every remaining reminder AND the other jobs).
         console.error(`[worker] reminder ${b.kind} failed for reg ${r.id}:`, e?.message);
+        Sentry.captureException(e, { tags: { job: "sendReminders", kind: b.kind }, extra: { regId: r.id } });
       }
     }
   }
@@ -133,9 +137,9 @@ async function tick() {
   }
   // Run the jobs independently: a failure in one must not starve the others
   // (previously one thrown send skipped waitlist promotion and cart purging).
-  try { await sendReminders(); } catch (e) { console.error("[worker] sendReminders error", e); }
-  try { await promoteWaitlist(); } catch (e) { console.error("[worker] promoteWaitlist error", e); }
-  try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); }
+  try { await sendReminders(); } catch (e) { console.error("[worker] sendReminders error", e); Sentry.captureException(e, { tags: { job: "sendReminders" } }); }
+  try { await promoteWaitlist(); } catch (e) { console.error("[worker] promoteWaitlist error", e); Sentry.captureException(e, { tags: { job: "promoteWaitlist" } }); }
+  try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); Sentry.captureException(e, { tags: { job: "purgeAbandonedCarts" } }); }
 }
 
 console.log("Your Events App worker started");
