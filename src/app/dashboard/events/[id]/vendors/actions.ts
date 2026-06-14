@@ -39,6 +39,9 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 export async function refundVendorAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const appId = String(formData.get("appId"));
+  // "net" (default) withholds the non-refundable platform fee; "full" refunds
+  // everything including the fee (organizer cancellation). Mirrors registrations.
+  const mode = String(formData.get("mode") ?? "net");
   const { session, event } = await authorize(eventId);
   const errTo = `/dashboard/events/${event.id}/vendors`;
 
@@ -55,14 +58,21 @@ export async function refundVendorAction(formData: FormData) {
   });
   if (!payment?.stripePaymentIntentId) redirect(`${errTo}?error=refund_no_payment`);
 
+  // Net refund keeps our 4.5% fee (partial amount + refund_application_fee:false);
+  // full refund returns everything. No recorded fee => identical.
+  const fee = payment.platformFeeCents ?? 0;
+  const withholdFee = mode !== "full" && fee > 0;
+  const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
+
   // redirect() throws internally — keep it out of the try/catch via a flag.
   let refundFailed = false;
   try {
     await stripe.refunds.create({
       payment_intent: payment.stripePaymentIntentId,
       reverse_transfer: true,
-      refund_application_fee: true,
-      metadata: { vendorApplicationId: app.id, eventId: event.id, refundedBy: session.sub },
+      refund_application_fee: !withholdFee,
+      ...(withholdFee ? { amount: refundAmountCents } : {}),
+      metadata: { vendorApplicationId: app.id, eventId: event.id, refundedBy: session.sub, refundMode: withholdFee ? "net" : "full" },
     });
   } catch (e: any) {
     console.error("[vendor/refund] Stripe error:", { type: e?.type, code: e?.code, message: e?.message });
@@ -77,7 +87,11 @@ export async function refundVendorAction(formData: FormData) {
     action: "vendor.refund", targetType: "VendorApplication", targetId: app.id,
     metadata: {
       company: app.companyName, email: app.email,
-      amountCents: payment.amountCents, paymentIntent: payment.stripePaymentIntentId,
+      amountCents: payment.amountCents,
+      refundedCents: refundAmountCents,
+      withheldFeeCents: withholdFee ? fee : 0,
+      refundMode: withholdFee ? "net" : "full",
+      paymentIntent: payment.stripePaymentIntentId,
     },
   });
 

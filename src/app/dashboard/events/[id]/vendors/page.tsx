@@ -195,15 +195,31 @@ export default async function VendorsPage({ params, searchParams }: {
                   </div>
                   <div className="flex items-center gap-3">
                     {a.status === "PAID" && (
-                      <form action={refundVendorAction} className="inline">
-                        <input type="hidden" name="eventId" value={event.id} />
-                        <input type="hidden" name="appId" value={a.id} />
-                        <ConfirmButton
-                          label="Refund vendor"
-                          confirmText={`Refund ${a.companyName}'s booth payment of $${((a.quotedPriceCents ?? 0) / 100).toFixed(2)}? Stripe reverses the transfer from your account and refunds the platform fee, and their vendor pass is invalidated.`}
-                          className="text-xs text-brand-700 hover:underline"
-                        />
-                      </form>
+                      <details className="relative inline-block">
+                        <summary className="cursor-pointer list-none text-xs text-brand-700 hover:underline [&::-webkit-details-marker]:hidden">Refund vendor ▾</summary>
+                        <div className="absolute right-0 z-20 mt-1 w-60 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
+                          <form action={refundVendorAction}>
+                            <input type="hidden" name="eventId" value={event.id} />
+                            <input type="hidden" name="appId" value={a.id} />
+                            <input type="hidden" name="mode" value="net" />
+                            <ConfirmButton
+                              label="Refund minus 4.5% fee"
+                              confirmText={`Refund ${a.companyName} their booth payment minus the non-refundable 4.5% processing fee? Use this for a vendor-requested cancellation. Their vendor pass is invalidated.`}
+                              className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            />
+                          </form>
+                          <form action={refundVendorAction}>
+                            <input type="hidden" name="eventId" value={event.id} />
+                            <input type="hidden" name="appId" value={a.id} />
+                            <input type="hidden" name="mode" value="full" />
+                            <ConfirmButton
+                              label="Full refund (incl. fee)"
+                              confirmText={`Refund ${a.companyName}'s FULL booth payment of $${((a.quotedPriceCents ?? 0) / 100).toFixed(2)}, including the 4.5% processing fee? Use this when you cancel the event. Their vendor pass is invalidated.`}
+                              className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            />
+                          </form>
+                        </div>
+                      </details>
                     )}
                     <form action={deleteVendorApplicationAction}>
                       <input type="hidden" name="eventId" value={event.id} />
