@@ -162,7 +162,11 @@ export async function POST(req: Request) {
       const payment = await prisma.payment.findFirst({ where: { stripePaymentIntentId: intentId } });
       if (payment) {
         const refunded = charge.amount_refunded as number;
-        const fullyRefunded = refunded >= payment.amountCents;
+        // A "net" refund returns everything except the withheld platform fee, so
+        // treat refunding (gross - fee) or more as a full cancellation — release
+        // the seat and invalidate tickets, don't leave it PARTIALLY_REFUNDED.
+        const fee = payment.platformFeeCents ?? 0;
+        const fullyRefunded = refunded >= payment.amountCents - fee;
         await prisma.payment.update({
           where: { id: payment.id },
           data: {

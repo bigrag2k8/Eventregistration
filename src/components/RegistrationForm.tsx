@@ -301,6 +301,11 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
             <dt>Total</dt><dd>{fmt(total)}</dd>
           </div>
         </dl>
+        {total > 0 && (
+          <p className="mt-3 text-xs text-slate-500">
+            A 4.5% processing fee is non-refundable. If you cancel, you&rsquo;ll be refunded your ticket price minus this fee, per the event&rsquo;s refund policy.
+          </p>
+        )}
       </section>
 
       <button type="submit" disabled={submitting || quoteLoading} className="btn-primary w-full">

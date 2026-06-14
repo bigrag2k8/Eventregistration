@@ -358,6 +358,9 @@ export async function deleteRegistrationAction(formData: FormData) {
 export async function refundRegistrationAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const registrationId = String(formData.get("registrationId"));
+  // "net" (default) withholds the non-refundable platform fee; "full" refunds
+  // everything including the fee (e.g. for an organizer-initiated cancellation).
+  const mode = String(formData.get("mode") ?? "net");
   const { session, event } = await authorizeEvent(eventId);
 
   const errTo = `/dashboard/events/${event.id}/registrations`;
@@ -374,14 +377,24 @@ export async function refundRegistrationAction(formData: FormData) {
     redirect(`${errTo}?error=refund_no_payment`);
   }
 
+  // Default refund withholds the non-refundable platform fee (customer is
+  // refunded the ticket price minus our 4.5%). A "full" refund returns
+  // everything, including the fee — and so re-credits our application fee. If no
+  // fee was recorded on this payment, the two are identical.
+  const fee = payment.platformFeeCents ?? 0;
+  const withholdFee = mode !== "full" && fee > 0;
+  const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
+
   // redirect() throws internally — call it outside the catch, via a flag.
   let refundFailed = false;
   try {
     await stripe.refunds.create({
       payment_intent: payment.stripePaymentIntentId,
       reverse_transfer: true,
-      refund_application_fee: true,
-      metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub },
+      // Keep our fee on a net refund; give it back on a full refund.
+      refund_application_fee: !withholdFee,
+      ...(withholdFee ? { amount: refundAmountCents } : {}),
+      metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub, refundMode: withholdFee ? "net" : "full" },
     });
   } catch (e: any) {
     console.error("[refund] Stripe error:", { type: e?.type, code: e?.code, message: e?.message });
@@ -399,6 +412,9 @@ export async function refundRegistrationAction(formData: FormData) {
       attendee: `${reg.firstName} ${reg.lastName}`,
       email: reg.email,
       amountCents: payment.amountCents,
+      refundedCents: refundAmountCents,
+      withheldFeeCents: withholdFee ? fee : 0,
+      refundMode: withholdFee ? "net" : "full",
       paymentIntent: payment.stripePaymentIntentId,
     },
   });
