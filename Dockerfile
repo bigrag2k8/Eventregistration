@@ -54,6 +54,9 @@ COPY --from=build /app/prisma ./prisma
 # src + tsconfig included so the worker service (npx tsx src/server/worker.ts) can run from this image
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
+# scripts/ included so one-off maintenance jobs (e.g. npx tsx scripts/backfill-platform-fees.ts)
+# can run inside the deployed image via a Railway one-off command
+COPY --from=build /app/scripts ./scripts
 
 EXPOSE 3000
 CMD ["npm", "start"]
