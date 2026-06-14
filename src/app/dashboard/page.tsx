@@ -123,6 +123,7 @@ export default async function DashboardHome() {
               {isSuper && <th className="px-4 py-3">Organization</th>}
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3 text-right">Registrations</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -140,6 +141,11 @@ export default async function DashboardHome() {
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.status}</span>
                 </td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${e.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"}`}>
+                    {e.isPremium ? "Single Event" : "Free"}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right">{e._count.registrations}</td>
                 <td className="px-4 py-3 text-right">
                   {session.role === "STAFF" ? (
@@ -155,7 +161,7 @@ export default async function DashboardHome() {
               </tr>
             ))}
             {events.length === 0 && (
-              <tr><td colSpan={isSuper ? 6 : 5} className="px-4 py-8 text-center text-slate-500">No events yet.</td></tr>
+              <tr><td colSpan={isSuper ? 7 : 6} className="px-4 py-8 text-center text-slate-500">No events yet.</td></tr>
             )}
           </tbody>
         </table>
