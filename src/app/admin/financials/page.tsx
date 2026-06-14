@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
 
 const PAID_STATUSES = "('SUCCEEDED','PARTIALLY_REFUNDED','REFUNDED')";
 
-// Net-fee proration: on refund the application fee is reversed proportionally
-// (refund_application_fee: true), so net fee = fee × (1 − refunded / amount).
-const NET_FEE = `"platformFeeCents" * (1 - LEAST("refundedAmountCents","amountCents")::numeric / NULLIF("amountCents",0))`;
-const NET_FEE_P = `p."platformFeeCents" * (1 - LEAST(p."refundedAmountCents", p."amountCents")::numeric / NULLIF(p."amountCents",0))`;
+// Platform fee the platform actually KEEPS. The fee is given back only on a FULL
+// refund (refund_application_fee:true), detectable as refunded >= amount. A net
+// refund withholds the fee (we keep the full amount), and a clean sale keeps it.
+const NET_FEE = `CASE WHEN "refundedAmountCents" >= "amountCents" THEN 0 ELSE "platformFeeCents" END`;
+const NET_FEE_P = `CASE WHEN p."refundedAmountCents" >= p."amountCents" THEN 0 ELSE p."platformFeeCents" END`;
 
 /** Preset windows. `interval` is a trusted Postgres interval literal; `bucket`/`fmt` drive the chart. */
 const PRESETS: Record<string, { short: string; label: string; interval: string | null; bucket: string; fmt: string }> = {
