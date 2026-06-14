@@ -43,7 +43,7 @@ export default async function OrgFinancialsPage({
   const totalNet = split.ticket.netCents + split.vendor.netCents;
   const totalFees = split.ticket.feeCents + split.vendor.feeCents;
   const totalRefunds = split.ticket.refundedCents + split.vendor.refundedCents;
-  const netPayout = totalNet - totalFees;
+  const netPayout = split.ticket.payoutCents + split.vendor.payoutCents;
   const refundRate = grossTotal > 0 ? (totalRefunds / grossTotal) * 100 : 0;
   const taxCollected = taxAgg._sum.taxCents ?? 0;
 

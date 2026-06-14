@@ -48,6 +48,7 @@ export default async function EventManagePage({ params, searchParams }: { params
   const evRefunds = evSplit.ticket.refundedCents + evSplit.vendor.refundedCents;
   const evFees = evSplit.ticket.feeCents + evSplit.vendor.feeCents;
   const evNet = evSplit.ticket.netCents + evSplit.vendor.netCents;
+  const evPayout = evSplit.ticket.payoutCents + evSplit.vendor.payoutCents;
 
   // Presale (early-bird) discount state for this event.
   const hasPaidTickets = event.ticketTypes.some((t) => !t.isVendorTier && t.priceCents > 0);
@@ -131,7 +132,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             <MiniStat label="Ticket revenue" value={money(evSplit.ticket.netCents)} hint={`${evSplit.ticket.count} sold`} />
             <MiniStat label="Vendor revenue" value={money(evSplit.vendor.netCents)} hint={`${evSplit.vendor.count} booth${evSplit.vendor.count === 1 ? "" : "s"}`} />
             <MiniStat label="Total net" value={money(evNet)} />
-            <MiniStat label="Net payout" value={money(evNet - evFees)} hint="After platform fee" />
+            <MiniStat label="Net payout" value={money(evPayout)} hint="After platform fee" />
           </div>
           <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
             <div>Gross collected: <strong>{money(evGross)}</strong></div>

@@ -19,10 +19,13 @@ function timeFrag(window?: TimeWindow): Prisma.Sql {
 
 export interface KindTotals {
   grossCents: number;
-  netCents: number; // gross − refunded
+  // Organizer revenue. A fully-refunded ticket nets to 0 — the retained platform
+  // fee is the platform's money, not the organizer's. (NOT simply gross−refunded.)
+  netCents: number;
   refundedCents: number;
-  feeCents: number; // platform fee we took
-  count: number; // tickets: units sold; vendors: paid booths
+  feeCents: number; // platform fee the platform keeps (its cut, not the organizer's)
+  payoutCents: number; // what the organizer keeps = revenue − fee on kept sales (0 if refunded)
+  count: number; // tickets: units sold (excl. refunded); vendors: paid booths (excl. refunded)
 }
 export interface RevenueSplit {
   ticket: KindTotals;
@@ -30,7 +33,7 @@ export interface RevenueSplit {
 }
 
 function emptyKind(): KindTotals {
-  return { grossCents: 0, netCents: 0, refundedCents: 0, feeCents: 0, count: 0 };
+  return { grossCents: 0, netCents: 0, refundedCents: 0, feeCents: 0, payoutCents: 0, count: 0 };
 }
 
 /**
@@ -45,18 +48,22 @@ export async function revenueSplit(scope: { eventId?: string; organizationId?: s
       ? Prisma.sql`e."organizationId" = ${scope.organizationId} AND e."deletedAt" IS NULL`
       : Prisma.sql`e."deletedAt" IS NULL`;
 
-  const rows = await prisma.$queryRaw<Array<{ vendor: boolean; txns: number; qty: number; gross: bigint; refunded: bigint; fee: bigint }>>`
+  const rows = await prisma.$queryRaw<Array<{ vendor: boolean; txns: number; qty: number; gross: bigint; refunded: bigint; fee: bigint; net: bigint; payout: bigint }>>`
     SELECT tt."isVendorTier" AS vendor,
-      COUNT(*)::int AS txns,
-      COALESCE(SUM(r.quantity),0)::int AS qty,
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE 1 END),0)::int AS txns,
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE r.quantity END),0)::int AS qty,
       COALESCE(SUM(p."amountCents"),0)::bigint AS gross,
       COALESCE(SUM(p."refundedAmountCents"),0)::bigint AS refunded,
-      -- Platform fee the platform actually KEEPS. We only give the fee back on a
-      -- FULL refund (refund_application_fee:true), detectable as refunded >= amount.
-      -- A net refund withholds the fee, so the full fee is retained — and a clean
-      -- sale keeps the full fee too. (Net payout = gross − refunded − this fee,
-      -- which is 0 for a fully-refunded ticket, never negative.)
-      COALESCE(SUM(CASE WHEN p."refundedAmountCents" >= p."amountCents" THEN 0 ELSE p."platformFeeCents" END),0)::bigint AS fee
+      -- Platform fee the platform actually KEEPS (its cut). Given back only on a
+      -- FULL refund (refund_application_fee:true), detectable as refunded >= amount;
+      -- a net refund withholds it and a clean sale keeps it.
+      COALESCE(SUM(CASE WHEN p."refundedAmountCents" >= p."amountCents" THEN 0 ELSE p."platformFeeCents" END),0)::bigint AS fee,
+      -- Organizer revenue: a fully-refunded ticket nets to 0 (the retained fee is
+      -- the platform's money). Otherwise the un-refunded sale value.
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE p."amountCents" - p."refundedAmountCents" END),0)::bigint AS net,
+      -- Net payout to the organizer = sale value minus the platform fee on kept
+      -- sales; 0 on a fully-refunded ticket.
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE p."amountCents" - p."refundedAmountCents" - p."platformFeeCents" END),0)::bigint AS payout
     FROM payments p
     JOIN registrations r ON r.id = p."registrationId"
     JOIN ticket_types tt ON tt.id = r."ticketTypeId"
@@ -70,8 +77,9 @@ export async function revenueSplit(scope: { eventId?: string; organizationId?: s
     const k: KindTotals = {
       grossCents: Number(r.gross),
       refundedCents: Number(r.refunded),
-      netCents: Number(r.gross) - Number(r.refunded),
+      netCents: Number(r.net),
       feeCents: Number(r.fee),
+      payoutCents: Number(r.payout),
       count: r.vendor ? Number(r.txns) : Number(r.qty),
     };
     if (r.vendor) split.vendor = k;
@@ -95,17 +103,17 @@ export async function perEventBreakdown(organizationId?: string | null, window?:
   const orgFilter = organizationId ? Prisma.sql`AND e."organizationId" = ${organizationId}` : Prisma.empty;
   const rows = await prisma.$queryRaw<Array<{ id: string; name: string; startAt: Date; ticket_net: bigint; vendor_net: bigint; ticket_qty: number; vendor_count: number }>>`
     SELECT e.id, e.name, e."startAt",
-      COALESCE(SUM(CASE WHEN NOT tt."isVendorTier" THEN p."amountCents"-p."refundedAmountCents" ELSE 0 END),0)::bigint AS ticket_net,
-      COALESCE(SUM(CASE WHEN tt."isVendorTier" THEN p."amountCents"-p."refundedAmountCents" ELSE 0 END),0)::bigint AS vendor_net,
-      COALESCE(SUM(CASE WHEN NOT tt."isVendorTier" THEN r.quantity ELSE 0 END),0)::int AS ticket_qty,
-      COALESCE(SUM(CASE WHEN tt."isVendorTier" THEN 1 ELSE 0 END),0)::int AS vendor_count
+      COALESCE(SUM(CASE WHEN NOT tt."isVendorTier" AND p.status <> 'REFUNDED' THEN p."amountCents"-p."refundedAmountCents" ELSE 0 END),0)::bigint AS ticket_net,
+      COALESCE(SUM(CASE WHEN tt."isVendorTier" AND p.status <> 'REFUNDED' THEN p."amountCents"-p."refundedAmountCents" ELSE 0 END),0)::bigint AS vendor_net,
+      COALESCE(SUM(CASE WHEN NOT tt."isVendorTier" AND p.status <> 'REFUNDED' THEN r.quantity ELSE 0 END),0)::int AS ticket_qty,
+      COALESCE(SUM(CASE WHEN tt."isVendorTier" AND p.status <> 'REFUNDED' THEN 1 ELSE 0 END),0)::int AS vendor_count
     FROM events e
     JOIN registrations r ON r."eventId" = e.id
     JOIN payments p ON p."registrationId" = r.id
     JOIN ticket_types tt ON tt.id = r."ticketTypeId"
     WHERE p.status IN ${PAID} AND e."deletedAt" IS NULL ${orgFilter} ${timeFrag(window)}
     GROUP BY e.id, e.name, e."startAt"
-    ORDER BY SUM(p."amountCents"-p."refundedAmountCents") DESC
+    ORDER BY SUM(CASE WHEN p.status <> 'REFUNDED' THEN p."amountCents"-p."refundedAmountCents" ELSE 0 END) DESC
   `;
   return rows.map((r) => ({
     id: r.id,
@@ -130,8 +138,8 @@ export interface TicketTypeRevenueRow {
 export async function perTicketTypeBreakdown(eventId: string): Promise<TicketTypeRevenueRow[]> {
   const rows = await prisma.$queryRaw<Array<{ id: string; name: string; isvendor: boolean; qty: number; net: bigint }>>`
     SELECT tt.id, tt.name, tt."isVendorTier" AS isvendor,
-      COALESCE(SUM(r.quantity),0)::int AS qty,
-      COALESCE(SUM(p."amountCents"-p."refundedAmountCents"),0)::bigint AS net
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE r.quantity END),0)::int AS qty,
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE p."amountCents"-p."refundedAmountCents" END),0)::bigint AS net
     FROM payments p
     JOIN registrations r ON r.id = p."registrationId"
     JOIN ticket_types tt ON tt.id = r."ticketTypeId"
@@ -175,7 +183,7 @@ export async function revenueTrend(
       : Prisma.sql`e."deletedAt" IS NULL`;
   const rows = await prisma.$queryRaw<Array<{ label: string; net: bigint }>>`
     SELECT to_char(date_trunc(${bk}, p."createdAt"), ${fmt}) AS label,
-      COALESCE(SUM(p."amountCents"-p."refundedAmountCents"),0)::bigint AS net
+      COALESCE(SUM(CASE WHEN p.status = 'REFUNDED' THEN 0 ELSE p."amountCents"-p."refundedAmountCents" END),0)::bigint AS net
     FROM payments p
     JOIN registrations r ON r.id = p."registrationId"
     JOIN events e ON e.id = r."eventId"
