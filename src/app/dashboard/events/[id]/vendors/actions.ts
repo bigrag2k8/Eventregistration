@@ -30,21 +30,17 @@ const FROM = process.env.EMAIL_FROM ?? "Your Events App <onboarding@resend.dev>"
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 /**
- * Refund a PAID vendor booth. Mirrors the registration refund: Stripe reverses
- * the transfer from the organizer's connected account AND refunds the platform
- * fee. The charge.refunded webhook then flips the linked Registration + Payment
- * to REFUNDED, invalidates the vendor pass, and releases the slot. We optimistically
- * mark the application REFUNDED once Stripe accepts the refund.
+ * Refund a PAID vendor booth. Organizers always get a net refund (4.5% fee
+ * withheld). Only SUPERADMINs may issue a full refund.
  */
 export async function refundVendorAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const appId = String(formData.get("appId"));
-  // "net" (default) withholds the non-refundable platform fee; "full" refunds
-  // everything including the fee (organizer cancellation). Mirrors registrations.
   const mode = String(formData.get("mode") ?? "net");
   const { session, event } = await authorize(eventId);
   const errTo = `/dashboard/events/${event.id}/vendors`;
 
+  if (mode === "full" && session.role !== "SUPERADMIN") redirect(`${errTo}?error=forbidden`);
   if (!stripeConfigured) redirect(`${errTo}?error=stripe_not_configured`);
 
   const app = await prisma.vendorApplication.findFirst({ where: { id: appId, eventId: event.id } });
@@ -58,13 +54,10 @@ export async function refundVendorAction(formData: FormData) {
   });
   if (!payment?.stripePaymentIntentId) redirect(`${errTo}?error=refund_no_payment`);
 
-  // Net refund keeps our 4.5% fee (partial amount + refund_application_fee:false);
-  // full refund returns everything. No recorded fee => identical.
   const fee = payment.platformFeeCents ?? 0;
   const withholdFee = mode !== "full" && fee > 0;
   const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
 
-  // redirect() throws internally — keep it out of the try/catch via a flag.
   let refundFailed = false;
   try {
     await stripe.refunds.create({

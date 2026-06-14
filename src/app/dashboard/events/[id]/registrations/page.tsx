@@ -164,7 +164,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                     <td className="px-3 py-2 text-slate-500">{r.createdAt.toLocaleDateString()}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {r.status === "CONFIRMED" && r.totalCents > 0 && (
+                        {r.status === "CONFIRMED" && r.totalCents > 0 && session.role === "SUPERADMIN" && (
                           <details className="relative inline-block">
                             <summary className="cursor-pointer list-none text-xs text-brand-700 hover:underline [&::-webkit-details-marker]:hidden">Refund ▾</summary>
                             <div className="absolute right-0 z-20 mt-1 w-60 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
@@ -174,7 +174,7 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                                 <input type="hidden" name="mode" value="net" />
                                 <ConfirmButton
                                   label="Refund minus 4.5% fee"
-                                  confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the non-refundable 4.5% processing fee? Use this for an attendee-requested cancellation.`}
+                                  confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the 4.5% processing fee ($${((r.totalCents * 0.045) / 100).toFixed(2)})?`}
                                   className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                                 />
                               </form>
@@ -183,13 +183,25 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
                                 <input type="hidden" name="registrationId" value={r.id} />
                                 <input type="hidden" name="mode" value="full" />
                                 <ConfirmButton
-                                  label="Full refund (incl. fee)"
-                                  confirmText={`Refund the FULL $${(r.totalCents / 100).toFixed(2)} to ${r.firstName} ${r.lastName}, including the 4.5% processing fee? Use this when you cancel the event.`}
+                                  label="Full refund (100%)"
+                                  confirmText={`Refund the FULL $${(r.totalCents / 100).toFixed(2)} to ${r.firstName} ${r.lastName}, including the 4.5% processing fee?`}
                                   className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                                 />
                               </form>
                             </div>
                           </details>
+                        )}
+                        {r.status === "CONFIRMED" && r.totalCents > 0 && session.role !== "SUPERADMIN" && (
+                          <form action={refundRegistrationAction} className="inline">
+                            <input type="hidden" name="eventId" value={event.id} />
+                            <input type="hidden" name="registrationId" value={r.id} />
+                            <input type="hidden" name="mode" value="net" />
+                            <ConfirmButton
+                              label="Refund"
+                              confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the non-refundable 4.5% processing fee ($${((r.totalCents * 0.045) / 100).toFixed(2)})?`}
+                              className="text-xs text-brand-700 hover:underline"
+                            />
+                          </form>
                         )}
                         {r.status !== "CANCELLED" && (
                           <form action={cancelRegistrationAction} className="inline">

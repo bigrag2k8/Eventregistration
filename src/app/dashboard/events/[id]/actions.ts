@@ -339,31 +339,17 @@ export async function deleteRegistrationAction(formData: FormData) {
 }
 
 /**
- * Refund a paid registration through Stripe Connect.
- *
- * With Destination Charges (Phase B), the original payment had:
- *   - application_fee_amount = our 4.5% platform cut
- *   - transfer_data.destination = the organizer's connected account
- *
- * On refund we set:
- *   - reverse_transfer: true          → claw the funds back from the connected
- *                                       account (otherwise the organizer keeps
- *                                       the money and we're out the refund)
- *   - refund_application_fee: true    → also refund our 4.5% fee proportionally
- *                                       so the customer is made whole
- *
- * Stripe's `charge.refunded` webhook fires after this and the existing handler
- * updates Payment.status + Registration.status + invalidates tickets.
+ * Refund a paid registration through Stripe Connect. Organizers always get a
+ * net refund (4.5% fee withheld). Only SUPERADMINs may issue a full refund.
  */
 export async function refundRegistrationAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const registrationId = String(formData.get("registrationId"));
-  // "net" (default) withholds the non-refundable platform fee; "full" refunds
-  // everything including the fee (e.g. for an organizer-initiated cancellation).
   const mode = String(formData.get("mode") ?? "net");
   const { session, event } = await authorizeEvent(eventId);
 
   const errTo = `/dashboard/events/${event.id}/registrations`;
+  if (mode === "full" && session.role !== "SUPERADMIN") redirect(`${errTo}?error=forbidden`);
   if (!stripeConfigured) redirect(`${errTo}?error=stripe_not_configured`);
 
   const reg = await prisma.registration.findFirst({
@@ -371,27 +357,21 @@ export async function refundRegistrationAction(formData: FormData) {
     include: { payments: { where: { status: "SUCCEEDED" }, orderBy: { createdAt: "desc" }, take: 1 } },
   });
   if (!reg) throw new Error("Registration not found");
-  if (reg.status === "REFUNDED") return; // idempotent
+  if (reg.status === "REFUNDED") return;
   const payment = reg.payments[0];
   if (!payment?.stripePaymentIntentId) {
     redirect(`${errTo}?error=refund_no_payment`);
   }
 
-  // Default refund withholds the non-refundable platform fee (customer is
-  // refunded the ticket price minus our 4.5%). A "full" refund returns
-  // everything, including the fee — and so re-credits our application fee. If no
-  // fee was recorded on this payment, the two are identical.
   const fee = payment.platformFeeCents ?? 0;
   const withholdFee = mode !== "full" && fee > 0;
   const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
 
-  // redirect() throws internally — call it outside the catch, via a flag.
   let refundFailed = false;
   try {
     await stripe.refunds.create({
       payment_intent: payment.stripePaymentIntentId,
       reverse_transfer: true,
-      // Keep our fee on a net refund; give it back on a full refund.
       refund_application_fee: !withholdFee,
       ...(withholdFee ? { amount: refundAmountCents } : {}),
       metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub, refundMode: withholdFee ? "net" : "full" },
@@ -402,8 +382,6 @@ export async function refundRegistrationAction(formData: FormData) {
   }
   if (refundFailed) redirect(`${errTo}?error=refund_failed`);
 
-  // The webhook will flip Payment/Registration to REFUNDED and invalidate tickets.
-  // We DO write the audit row immediately for the organizer dashboard.
   await audit({
     organizationId: event.organizationId, eventId: event.id, userId: session.sub,
     action: "registration.refund",
