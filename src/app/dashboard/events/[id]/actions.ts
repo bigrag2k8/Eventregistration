@@ -400,3 +400,75 @@ export async function refundRegistrationAction(formData: FormData) {
   revalidatePath(`/dashboard/events/${event.id}/registrations`);
   revalidatePath(`/dashboard/events/${event.id}`);
 }
+
+/**
+ * Bulk-refund multiple registrations. Always net (withholds 4.5% fee) unless
+ * the caller is SUPERADMIN and passes mode=full. Processes sequentially so
+ * Stripe rate limits aren't hit; skips already-refunded and free registrations.
+ * Returns a JSON result string with success/failure counts.
+ */
+export async function bulkRefundAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const ids = String(formData.get("registrationIds")).split(",").filter(Boolean);
+  const mode = String(formData.get("mode") ?? "net");
+  const { session, event } = await authorizeEvent(eventId);
+
+  const errTo = `/dashboard/events/${event.id}/registrations`;
+  if (mode === "full" && session.role !== "SUPERADMIN") redirect(`${errTo}?error=forbidden`);
+  if (!stripeConfigured) redirect(`${errTo}?error=stripe_not_configured`);
+  if (ids.length === 0) redirect(errTo);
+
+  const regs = await prisma.registration.findMany({
+    where: { id: { in: ids }, eventId: event.id, status: "CONFIRMED" },
+    include: { payments: { where: { status: "SUCCEEDED" }, orderBy: { createdAt: "desc" }, take: 1 } },
+  });
+
+  let succeeded = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const reg of regs) {
+    const payment = reg.payments[0];
+    if (!payment?.stripePaymentIntentId || reg.totalCents === 0) {
+      skipped++;
+      continue;
+    }
+
+    const fee = payment.platformFeeCents ?? 0;
+    const withholdFee = mode !== "full" && fee > 0;
+    const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
+
+    try {
+      await stripe.refunds.create({
+        payment_intent: payment.stripePaymentIntentId,
+        reverse_transfer: true,
+        refund_application_fee: !withholdFee,
+        ...(withholdFee ? { amount: refundAmountCents } : {}),
+        metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub, refundMode: withholdFee ? "net" : "full", bulk: "true" },
+      });
+      await audit({
+        organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+        action: "registration.refund",
+        targetType: "Registration", targetId: reg.id,
+        metadata: {
+          attendee: `${reg.firstName} ${reg.lastName}`,
+          email: reg.email,
+          amountCents: payment.amountCents,
+          refundedCents: refundAmountCents,
+          withheldFeeCents: withholdFee ? fee : 0,
+          refundMode: withholdFee ? "net" : "full",
+          paymentIntent: payment.stripePaymentIntentId,
+          bulk: true,
+        },
+      });
+      succeeded++;
+    } catch (e: any) {
+      console.error("[bulk-refund] Stripe error for reg", reg.id, { type: e?.type, code: e?.code, message: e?.message });
+      failed++;
+    }
+  }
+
+  revalidatePath(`/dashboard/events/${event.id}/registrations`);
+  revalidatePath(`/dashboard/events/${event.id}`);
+  redirect(`${errTo}?refunded=${succeeded}&skipped=${skipped}&failed=${failed}`);
+}
