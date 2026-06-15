@@ -27,7 +27,8 @@ export default function SignInPage() {
 
   return (
     <main className="mx-auto max-w-md px-4 py-16">
-      <h1 className="text-2xl font-bold">Organizer &amp; staff sign in</h1>
+      <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">Organizer &amp; Staff</p>
+      <h1 className="mt-1 text-2xl font-bold">Sign in</h1>
       <p className="mt-1 text-sm text-slate-500">For event hosts and their team.</p>
       <form onSubmit={submit} className="mt-6 space-y-3">
         <div><label className="label">Email</label><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
