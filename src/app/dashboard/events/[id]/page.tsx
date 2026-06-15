@@ -66,6 +66,14 @@ export default async function EventManagePage({ params, searchParams }: { params
   const publicUrl = `/o/${org?.slug ?? "_"}/events/${event.slug}`;
   const isPublished = event.status === "PUBLISHED";
 
+  // Uniform action-grid box styles: same fixed height/width so the row of
+  // event actions reads as a tidy grid instead of squished pills.
+  const actionBoxBase =
+    "flex min-h-[3.5rem] w-full items-center justify-center rounded-lg px-3 py-2 text-center text-sm font-medium leading-tight ring-1 transition";
+  const actionBox = `${actionBoxBase} bg-white text-slate-700 ring-slate-200 hover:bg-slate-50`;
+  const actionBoxPrimary = `${actionBoxBase} bg-brand-600 text-white ring-brand-600 hover:bg-brand-700`;
+  const actionBoxDisabled = `${actionBoxBase} cursor-not-allowed bg-white text-slate-400 ring-slate-200 opacity-60`;
+
   return (
     <main>
       <header className="border-b bg-white">
@@ -167,43 +175,44 @@ export default async function EventManagePage({ params, searchParams }: { params
         </section>
 
         {/* Publish / unpublish + actions */}
-        <section className="card flex flex-wrap items-center justify-between gap-3">
+        <section className="card">
           <div>
             <h2 className="font-semibold">{isPublished ? "This event is live" : "This event is a draft"}</h2>
             <p className="text-sm text-slate-500">
               {isPublished ? "Anyone with the link can register." : "Not visible to attendees yet."}
             </p>
           </div>
-          <div className="flex gap-2">
+          {/* Uniform action grid — equal-size boxes, two rows on wide screens. */}
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {isPublished ? (
-              <form action={unpublishAction}>
+              <form action={unpublishAction} className="contents">
                 <input type="hidden" name="eventId" value={event.id} />
-                <button type="submit" className="btn-secondary">Unpublish</button>
+                <button type="submit" className={actionBox}>Unpublish</button>
               </form>
             ) : (
-              <form action={publishAction}>
+              <form action={publishAction} className="contents">
                 <input type="hidden" name="eventId" value={event.id} />
-                <button type="submit" className="btn-primary">Publish event</button>
+                <button type="submit" className={actionBoxPrimary}>Publish event</button>
               </form>
             )}
-            <Link href={`/dashboard/events/${event.id}/registrations`} className="btn-secondary">View registrations</Link>
+            <Link href={`/dashboard/events/${event.id}/registrations`} className={actionBox}>View registrations</Link>
             {event.isPremium ? (
-              <Link href={`/dashboard/events/${event.id}/vendors`} className="btn-secondary">Vendors</Link>
+              <Link href={`/dashboard/events/${event.id}/vendors`} className={actionBox}>Vendors</Link>
             ) : (
-              <span className="btn-secondary cursor-not-allowed opacity-50" title="Upgrade this event to Single Event to enable vendors">Vendors</span>
+              <span className={actionBoxDisabled} title="Upgrade this event to Single Event to enable vendors">Vendors</span>
             )}
             {event.isPremium ? (
-              <Link href="/dashboard/team" className="btn-secondary">Team</Link>
+              <Link href="/dashboard/team" className={actionBox}>Team</Link>
             ) : (
-              <span className="btn-secondary cursor-not-allowed opacity-50" title="Upgrade this event to Single Event to enable team">Team</span>
+              <span className={actionBoxDisabled} title="Upgrade this event to Single Event to enable team">Team</span>
             )}
-            <Link href={`/dashboard/events/${event.id}/promo-codes`} className="btn-secondary">Promo codes</Link>
-            <Link href={`/dashboard/events/${event.id}/waitlist`} className="btn-secondary">Waitlist</Link>
-            <Link href={`/dashboard/events/${event.id}/refund-requests`} className="btn-secondary">Refund requests</Link>
-            <Link href={`/dashboard/events/${event.id}/campaigns`} className="btn-secondary">📣 Communications</Link>
+            <Link href={`/dashboard/events/${event.id}/promo-codes`} className={actionBox}>Promo codes</Link>
+            <Link href={`/dashboard/events/${event.id}/waitlist`} className={actionBox}>Waitlist</Link>
+            <Link href={`/dashboard/events/${event.id}/refund-requests`} className={actionBox}>Refund requests</Link>
+            <Link href={`/dashboard/events/${event.id}/campaigns`} className={actionBox}>Communications</Link>
             <details className="relative">
-              <summary className="btn-secondary cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">Export CSV ▾</summary>
-              <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <summary className={`${actionBox} w-full cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden`}>Export CSV ▾</summary>
+              <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
                 <a href={`/api/events/${event.id}/export.csv?type=registrations`} className="block px-3 py-2 text-sm hover:bg-slate-50">Registrations</a>
                 <a href={`/api/events/${event.id}/export.csv?type=vendors`} className="block px-3 py-2 text-sm hover:bg-slate-50">Vendors</a>
               </div>
