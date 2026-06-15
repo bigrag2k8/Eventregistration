@@ -91,8 +91,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
 
       {/* Hero */}
       <section className="mx-auto max-w-4xl px-4 py-20 text-center">
-        <h1 className="text-5xl font-bold tracking-tight">Your Events App</h1>
-        <p className="mt-4 text-xl text-slate-600">
+        <p className="text-[2.5rem] leading-tight text-slate-600">
           Modern event registration, ticketing, and check-in for organizations of every size.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
