@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const FROM = process.env.EMAIL_FROM ?? "Your Events App <hello@eventflow.app>";
+const FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 
 /**
  * Send an operational alert to the platform team (reconciliation failures,

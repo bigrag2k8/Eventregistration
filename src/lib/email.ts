@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { formatInTimeZone } from "date-fns-tz";
 
-const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <hello@eventflow.app>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 
 /**
  * Escape user-supplied values before interpolating into email HTML. Attendee

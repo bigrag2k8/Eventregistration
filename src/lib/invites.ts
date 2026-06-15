@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { esc } from "@/lib/email";
 
-const FROM = process.env.EMAIL_FROM ?? "Your Events App <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 let _resend: Resend | null = null;

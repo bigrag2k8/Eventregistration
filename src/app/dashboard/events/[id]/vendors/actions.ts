@@ -26,7 +26,7 @@ function getResend() {
   return new Resend(key);
 }
 
-const FROM = process.env.EMAIL_FROM ?? "Your Events App <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 /**
