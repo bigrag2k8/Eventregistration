@@ -225,6 +225,7 @@ model User {
   waitlistEntries Waitlist[]
   sessions       Session[]
   eventAssignments EventAssignment[]
+  passwordResets PasswordReset[]
 
   @@index([organizationId])
   @@map("users")
@@ -260,6 +261,24 @@ model MagicLink {
   @@index([email])
   @@index([expiresAt])
   @@map("magic_links")
+}
+
+// Single-use, hashed password-reset tokens for users who have a password
+// (organizers/staff). Same hash-at-rest, single-use, short-TTL design as
+// MagicLink, but tied to a specific user since the reset updates their hash.
+model PasswordReset {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
 }
 
 model Event {

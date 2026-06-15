@@ -34,6 +34,9 @@ export default function SignInPage() {
         {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
         <button className="btn-primary w-full" type="submit">Sign in</button>
       </form>
+      <p className="mt-3 text-sm">
+        <a href="/forgot-password" className="text-brand-700 hover:underline">Forgot password?</a>
+      </p>
     </main>
   );
 }

@@ -164,6 +164,32 @@ export async function sendMagicLinkEmail(email: string, url: string) {
   });
 }
 
+/**
+ * Password-reset link for organizers/staff. Platform sender (not org-branded);
+ * the URL carries the single-use raw token.
+ */
+export async function sendPasswordResetEmail(email: string, url: string) {
+  await resend().emails.send({
+    from: DEFAULT_FROM,
+    to: email,
+    subject: "Reset your Your Events App password",
+    html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      <h1 style="margin:0 0 8px;color:#1F3A8A">Reset your password</h1>
+      <p style="color:#475569">We received a request to reset your password. Click the button below to choose a new one. This link expires in 15 minutes and can only be used once.</p>
+      <p style="margin:24px 0">
+        <a href="${esc(url)}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Reset password</a>
+      </p>
+      <p style="color:#64748b;font-size:12px">If the button doesn't work, paste this link into your browser:<br>${esc(url)}</p>
+      <p style="color:#64748b;font-size:12px;margin-top:16px">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+    </td></tr>
+  </table>
+</body></html>`,
+  });
+}
+
 export async function sendWaitlistPromotionEmail(waitlistId: string) {
   const entry = await prisma.waitlist.findUnique({
     where: { id: waitlistId },
