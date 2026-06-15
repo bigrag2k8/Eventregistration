@@ -82,6 +82,26 @@ export async function GET(req: Request) {
     console.error("[auth/verify] guest-record backfill failed:", e?.message);
   }
 
+  // Seed the account's name from a registration if it has none yet (magic-link
+  // accounts start nameless), so the profile and header show it going forward.
+  if (!user.firstName && !user.lastName) {
+    try {
+      const named = await prisma.registration.findFirst({
+        where: { email: { equals: user.email, mode: "insensitive" } },
+        orderBy: { createdAt: "desc" },
+        select: { firstName: true, lastName: true },
+      });
+      if (named && (named.firstName || named.lastName)) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { firstName: named.firstName || null, lastName: named.lastName || null },
+        });
+      }
+    } catch (e: any) {
+      console.error("[auth/verify] name seed failed:", e?.message);
+    }
+  }
+
   const sessionToken = await signSession({
     sub: user.id,
     role: user.role,
