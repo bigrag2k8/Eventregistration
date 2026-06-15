@@ -26,6 +26,11 @@ export default async function MyEventsPage() {
       event: { include: { organization: { select: { slug: true } } } },
       ticketType: { select: { name: true } },
       refundRequests: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true } },
+      payments: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { status: true, refundedAmountCents: true, updatedAt: true },
+      },
     },
     orderBy: { event: { startAt: "desc" } },
   });
@@ -40,6 +45,15 @@ export default async function MyEventsPage() {
     const keyQ = r.accessToken ? `&key=${r.accessToken}` : "";
     const openRefund = r.refundRequests[0]?.status === "OPEN";
     const canRefund = r.status === "CONFIRMED" && r.totalCents > 0 && !openRefund;
+    const isRefunded = r.status === "REFUNDED" || r.status === "PARTIALLY_REFUNDED";
+    const refundPayment = r.payments[0];
+    // The refund timestamp isn't stored separately; the payment row's updatedAt
+    // is set when it's marked REFUNDED, so it stands in for the refund date
+    // (same source the organizer dashboard uses).
+    const refundedAt =
+      isRefunded && refundPayment
+        ? refundPayment.updatedAt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+        : null;
     return (
       <div className="card">
         <div className="flex items-start justify-between gap-3">
@@ -53,6 +67,13 @@ export default async function MyEventsPage() {
             <div className="mt-1 text-sm text-slate-500">
               {r.ticketType.name} &times; {r.quantity} &middot; {money(r.totalCents, r.currency)}
             </div>
+            {isRefunded && (
+              <div className="mt-1 text-sm text-purple-700">
+                Refunded
+                {refundPayment?.refundedAmountCents != null && ` ${money(refundPayment.refundedAmountCents, r.currency)}`}
+                {refundedAt && ` on ${refundedAt}`}
+              </div>
+            )}
           </div>
           <StatusPill status={r.status} />
         </div>
