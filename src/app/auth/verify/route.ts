@@ -10,6 +10,22 @@ function safeNext(next: string | null) {
   return next;
 }
 
+/**
+ * Public origin to build redirect targets from. Behind Railway's proxy,
+ * `req.url` reports the container's internal bind address (0.0.0.0:8080), so a
+ * redirect built from it sends the browser to an unreachable URL. Prefer the
+ * configured public app URL, then the proxy's forwarded host, then the request.
+ */
+function publicBase(req: Request) {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (host) {
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    return `${proto}://${host}`;
+  }
+  return new URL(req.url).origin;
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
@@ -17,7 +33,7 @@ export async function GET(req: Request) {
 
   const email = token ? await consumeMagicLink(token) : null;
   if (!email) {
-    return NextResponse.redirect(new URL("/account/signin?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
 
   // Find-or-create the account. An existing row (staff or attendee) signs in at
@@ -25,7 +41,7 @@ export async function GET(req: Request) {
   // A new row is a global attendee: role ATTENDEE, no org, no password.
   let user = await prisma.user.findUnique({ where: { email } });
   if (user?.deletedAt) {
-    return NextResponse.redirect(new URL("/account/signin?error=invalid", req.url));
+    return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
   if (!user) {
     user = await prisma.user.create({
@@ -82,5 +98,5 @@ export async function GET(req: Request) {
         ? next
         : "/dashboard";
 
-  return NextResponse.redirect(new URL(dest, req.url));
+  return NextResponse.redirect(new URL(dest, publicBase(req)));
 }
