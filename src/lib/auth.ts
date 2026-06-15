@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
+import { isProtectedOwner } from "@/lib/owner";
 
 const DEV_FALLBACK_SECRET = "dev-secret-change-me-please-32-bytes!";
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -106,9 +107,14 @@ export const getSession = requestMemo(async (): Promise<JwtPayload | null> => {
   });
   if (!user || user.deletedAt) return null;
 
+  // Break-glass: a protected owner (OWNER_EMAIL) is always SUPERADMIN at read
+  // time, regardless of the stored role — so the owner can never be locked out,
+  // even if their DB role was changed. No DB write here (hot path).
+  const role: Role = isProtectedOwner(user.email) ? "SUPERADMIN" : user.role;
+
   return {
     sub: user.id,
-    role: user.role,
+    role,
     orgId: user.organizationId ?? undefined,
     email: user.email,
   };

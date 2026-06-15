@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { setSessionCookie, signSession, verifyPassword } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { isProtectedOwner } from "@/lib/owner";
 
 const schema = z.object({ email: z.string().email(), password: z.string() });
 
@@ -32,14 +33,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
+  // Break-glass: a protected owner always signs in as SUPERADMIN. Persist the
+  // elevation so the DB reflects it (and so the admin list shows them correctly).
+  const role = isProtectedOwner(user.email) ? "SUPERADMIN" : user.role;
   const token = await signSession({
     sub: user.id,
-    role: user.role,
+    role,
     email: user.email,
     orgId: user.organizationId ?? undefined,
   });
   await setSessionCookie(token);
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date(), ...(role !== user.role ? { role } : {}) },
+  });
 
   // Plan gate: if the user's org hasn't picked a plan yet, send them to billing first.
   let needsPlan = false;

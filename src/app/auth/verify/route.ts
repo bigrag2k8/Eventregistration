@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { consumeMagicLink } from "@/lib/magic-link";
 import { signSession, setSessionCookie } from "@/lib/auth";
+import { isProtectedOwner } from "@/lib/owner";
 
 /** Only same-site relative redirects (no open redirect via ?next). */
 function safeNext(next: string | null) {
@@ -43,11 +44,14 @@ export async function GET(req: Request) {
   if (user?.deletedAt) {
     return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
+  // Break-glass: a protected owner (OWNER_EMAIL) is always SUPERADMIN — created
+  // as one if new, elevated if their stored role drifted.
+  const owner = isProtectedOwner(email);
   if (!user) {
     user = await prisma.user.create({
       data: {
         email,
-        role: "ATTENDEE",
+        role: owner ? "SUPERADMIN" : "ATTENDEE",
         organizationId: null,
         passwordHash: null,
         emailVerified: true,
@@ -56,7 +60,11 @@ export async function GET(req: Request) {
   } else {
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date(), emailVerified: true },
+      data: {
+        lastLoginAt: new Date(),
+        emailVerified: true,
+        ...(owner && user.role !== "SUPERADMIN" ? { role: "SUPERADMIN" } : {}),
+      },
     });
   }
 
@@ -102,9 +110,12 @@ export async function GET(req: Request) {
     }
   }
 
+  // The token must carry the effective role (the owner's elevation, which the
+  // edge middleware reads from the JWT claims).
+  const effectiveRole = owner ? "SUPERADMIN" : user.role;
   const sessionToken = await signSession({
     sub: user.id,
-    role: user.role,
+    role: effectiveRole,
     email: user.email,
     orgId: user.organizationId ?? undefined,
   });
@@ -112,9 +123,9 @@ export async function GET(req: Request) {
 
   // Staff who used a magic link land in their dashboard; attendees go to /account.
   const dest =
-    user.role === "STAFF" || user.role === "VOLUNTEER"
+    effectiveRole === "STAFF" || effectiveRole === "VOLUNTEER"
       ? "/checkin"
-      : user.role === "ATTENDEE"
+      : effectiveRole === "ATTENDEE"
         ? next
         : "/dashboard";
 
