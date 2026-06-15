@@ -27,7 +27,8 @@ export default function SignInPage() {
 
   return (
     <main className="mx-auto max-w-md px-4 py-16">
-      <h1 className="text-2xl font-bold">Sign in</h1>
+      <h1 className="text-2xl font-bold">Organizer &amp; staff sign in</h1>
+      <p className="mt-1 text-sm text-slate-500">For event hosts and their team.</p>
       <form onSubmit={submit} className="mt-6 space-y-3">
         <div><label className="label">Email</label><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div><label className="label">Password</label><input className="input" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
@@ -36,6 +37,9 @@ export default function SignInPage() {
       </form>
       <p className="mt-3 text-sm">
         <a href="/forgot-password" className="text-brand-700 hover:underline">Forgot password?</a>
+      </p>
+      <p className="mt-6 text-xs text-slate-400">
+        Are you an attendee? <a href="/account/signin" className="underline">Sign in to your account</a>.
       </p>
     </main>
   );
