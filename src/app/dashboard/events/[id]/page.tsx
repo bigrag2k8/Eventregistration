@@ -197,6 +197,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             ) : (
               <span className="btn-secondary cursor-not-allowed opacity-50" title="Upgrade this event to Single Event to enable team">Team</span>
             )}
+            <Link href={`/dashboard/events/${event.id}/promo-codes`} className="btn-secondary">Promo codes</Link>
             <Link href={`/dashboard/events/${event.id}/waitlist`} className="btn-secondary">Waitlist</Link>
             <Link href={`/dashboard/events/${event.id}/refund-requests`} className="btn-secondary">Refund requests</Link>
             <Link href={`/dashboard/events/${event.id}/campaigns`} className="btn-secondary">📣 Communications</Link>
