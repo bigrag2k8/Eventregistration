@@ -66,7 +66,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
     <main>
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" className="font-bold text-brand-700">
+          <Link href="/" className="text-5xl font-bold text-brand-700">
             Your Events App
           </Link>
           <nav className="flex flex-wrap items-center justify-end gap-2 text-sm">
@@ -97,7 +97,6 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/signup" className="btn-primary">Host an event — get started</Link>
-          <Link href="/signin" className="btn-secondary">Sign in</Link>
         </div>
         <p className="mt-3 text-xs text-slate-500">Free tier available · No credit card required</p>
       </section>
