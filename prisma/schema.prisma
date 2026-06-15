@@ -86,10 +86,20 @@ enum EmailKind {
   REMINDER_1H
   CANCELLATION
   REFUND
+  REFUND_REQUEST_RECEIVED
+  REFUND_REQUEST_APPROVED
+  REFUND_REQUEST_DENIED
   WAITLIST_PROMOTED
   ABANDONED_CART
   ORGANIZER_BLAST
   POST_EVENT
+}
+
+enum RefundRequestStatus {
+  OPEN
+  APPROVED
+  DENIED
+  CANCELLED
 }
 
 enum EmailStatus {
@@ -107,6 +117,7 @@ enum WaitlistStatus {
   PROMOTED
   CONVERTED
   EXPIRED
+  LEFT
 }
 
 enum SubscriptionPlan {
@@ -183,6 +194,7 @@ model Organization {
   members         User[]
   events          Event[]
   auditLogs       AuditLog[]
+  refundRequests  RefundRequest[]
   pendingInvites  PendingInvite[]
   billingInvoices BillingInvoice[]
   disputes        Dispute[]
@@ -231,6 +243,23 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+// One-time, single-use email sign-in tokens (passwordless / "magic link").
+// The raw token is emailed; only its SHA-256 hash is stored, so a DB dump
+// can't be used to forge a sign-in. Consumed exactly once, expires in 15 min.
+model MagicLink {
+  id         String   @id @default(cuid())
+  email      String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("magic_links")
 }
 
 model Event {
@@ -288,6 +317,7 @@ model Event {
   checkIns           CheckIn[]
   auditLogs          AuditLog[]
   vendorApplications VendorApplication[]
+  refundRequests     RefundRequest[]
   assignments        EventAssignment[]
   pendingInvites     PendingInvite[]
 
@@ -419,6 +449,13 @@ model Registration {
   accessibility     String?
   specialRequests   String?
 
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?
+  zipCode           String?
+  country           String?
+
   quantity          Int                @default(1)
   subtotalCents     Int                @default(0)
   discountCents     Int                @default(0)
@@ -459,12 +496,37 @@ model Registration {
   payments          Payment[]
   answers           CustomAnswer[]
   emailLogs         EmailLog[]
+  refundRequests    RefundRequest[]
 
   @@index([eventId, status])
   @@index([email])
   @@index([stripeSessionId])
   @@unique([eventId, email]) // duplicate-email prevention per event
   @@map("registrations")
+}
+
+model RefundRequest {
+  id               String              @id @default(cuid())
+  registrationId   String
+  registration     Registration        @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  eventId          String
+  event            Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizationId   String
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  reason           String              @db.Text
+  status           RefundRequestStatus @default(OPEN)
+
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  reviewNote       String?             @db.Text
+
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([eventId, status])
+  @@index([registrationId])
+  @@map("refund_requests")
 }
 
 model Ticket {
@@ -652,10 +714,17 @@ model Waitlist {
   status     WaitlistStatus @default(WAITING)
   promotedAt DateTime?
   expiresAt  DateTime?
+  /// Set when promoted. Carried in the promotion email's "Register" link; the
+  /// registration API treats it as a held seat that bypasses the sold-out check.
+  magicToken String?
+  /// Stable per-entry secret for the "leave waitlist" link (set at create).
+  leaveToken String?
   createdAt  DateTime       @default(now())
 
   @@unique([eventId, email])
   @@index([eventId, position])
+  @@index([magicToken])
+  @@index([leaveToken])
   @@map("waitlist")
 }
 
@@ -783,6 +852,13 @@ model VendorApplication {
   sponsorshipLevel   String?                            // optional add-on sponsorship interest
   electricalNeeds    Boolean                 @default(false)
   additionalRequests String?                 @db.Text
+
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
+  state              String?
+  zipCode            String?
+  country            String?
 
   status             VendorApplicationStatus @default(PENDING)
   submittedAt        DateTime                @default(now())

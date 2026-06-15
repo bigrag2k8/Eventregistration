@@ -18,6 +18,12 @@ const schema = z.object({
   sponsorshipLevel: z.string().max(120).optional(),
   electricalNeeds: z.boolean().optional(),
   additionalRequests: z.string().max(2000).optional(),
+  addressLine1: z.string().max(200).optional(),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  zipCode: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
 });
 
 export async function POST(req: Request) {
@@ -63,6 +69,12 @@ export async function POST(req: Request) {
       sponsorshipLevel: input.sponsorshipLevel || null,
       electricalNeeds: input.electricalNeeds ?? false,
       additionalRequests: input.additionalRequests || null,
+      addressLine1: input.addressLine1 || null,
+      addressLine2: input.addressLine2 || null,
+      city: input.city || null,
+      state: input.state || null,
+      zipCode: input.zipCode || null,
+      country: input.country || null,
     },
   });
 

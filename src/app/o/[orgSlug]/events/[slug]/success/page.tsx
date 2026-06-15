@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { money } from "@/lib/format";
 
@@ -25,6 +26,11 @@ export default async function SuccessPage({
   const qrs = canViewTickets
     ? await Promise.all(reg.tickets.map((t) => renderQrPngDataUrl(t.qrToken)))
     : [];
+
+  // Account upsell: signed-in attendees see a link into their dashboard;
+  // guests get a prompt to create one (passwordless) so all tickets live together.
+  const session = await getSession();
+  const signedIn = session?.role === "ATTENDEE" && session.email.toLowerCase() === reg.email.toLowerCase();
   const icsHref = `/api/registrations/${reg.id}/ics${canViewTickets ? `?key=${reg.accessToken}` : ""}`;
 
   // Don't claim success for a registration that isn't actually confirmed —
@@ -97,7 +103,29 @@ export default async function SuccessPage({
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           {canViewTickets && <a className="btn-secondary" href={icsHref}>Add to Calendar</a>}
           <Link className="btn-secondary" href={`/o/${params.orgSlug}/events/${reg.event.slug}`}>Event page</Link>
+          {canViewTickets && reg.totalCents > 0 && (
+            <Link
+              className="text-xs text-slate-500 hover:underline self-center"
+              href={`/o/${params.orgSlug}/events/${reg.event.slug}/refund-request?reg=${reg.id}&key=${reg.accessToken}`}
+            >
+              Request a refund
+            </Link>
+          )}
         </div>
+
+        {signedIn ? (
+          <div className="mt-6 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 ring-1 ring-slate-200">
+            <Link href="/account" className="font-medium text-brand-700 hover:underline">View all your events</Link> in your account.
+          </div>
+        ) : (
+          <div className="mt-6 rounded-lg bg-brand-50 p-4 text-sm text-brand-800 ring-1 ring-brand-200">
+            <strong>Keep all your tickets in one place.</strong>
+            <p className="mt-1">
+              <Link href="/account/signin" className="font-medium underline">Sign in with {reg.email}</Link>{" "}
+              to see every event you've registered for — no password needed.
+            </p>
+          </div>
+        )}
       </div>
     </main>
   );

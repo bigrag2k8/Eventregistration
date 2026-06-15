@@ -15,6 +15,12 @@ export async function middleware(req: NextRequest) {
   const session = await verifySession(token);
   if (!session) return NextResponse.redirect(new URL("/signin", req.url));
 
+  // RBAC for /dashboard: staff only. Attendees (ATTENDEE role) have their own
+  // area at /account — bounce them there instead of letting them reach the
+  // dashboard index, whose page-level gate keys off org-presence, not role.
+  if (pathname.startsWith("/dashboard") && !["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"].includes(session.role)) {
+    return NextResponse.redirect(new URL("/account", req.url));
+  }
   // RBAC for /checkin: ORGANIZER, STAFF, VOLUNTEER, ADMIN, SUPERADMIN
   if (pathname.startsWith("/checkin") && !["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"].includes(session.role)) {
     return NextResponse.redirect(new URL("/", req.url));

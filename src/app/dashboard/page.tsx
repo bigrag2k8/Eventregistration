@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, orgScope } from "@/lib/auth";
 import { KycBanner } from "@/components/KycBanner";
@@ -8,10 +9,17 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 
 export const dynamic = "force-dynamic";
 
+const STAFF_ROLES = ["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"];
+
 export default async function DashboardHome() {
   const session = await getSession();
+  if (!session) redirect("/signin");
+  // Gate on staff ROLE, not org-presence: an attendee with a stray
+  // organizationId must never reach the org-scoped queries below. Their home
+  // is /account. (Middleware also bounces them, this is defense in depth.)
+  if (!STAFF_ROLES.includes(session.role)) redirect("/account");
   // SUPERADMIN doesn't need an org link — they can view everything.
-  if (!session || (!session.orgId && session.role !== "SUPERADMIN")) {
+  if (!session.orgId && session.role !== "SUPERADMIN") {
     return (
       <main className="mx-auto max-w-2xl px-4 py-16">
         <h1 className="text-xl font-semibold">No organization linked</h1>

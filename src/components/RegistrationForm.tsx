@@ -24,15 +24,23 @@ interface Props {
   presalePct?: number;
   successHref?: string;   // override where to redirect after free registration
   backHref?: string;      // override where to send Stripe cancel
+  /** Magic-link token from a waitlist promotion email; bypasses sold-out check server-side. */
+  waitlistToken?: string;
+  /** Optional values to pre-populate the form (from a waitlist link or the signed-in attendee's profile). */
+  prefill?: { firstName: string; lastName: string; email: string; phone?: string };
 }
 
-export function RegistrationForm({ event, presaleNote, presaleActive = false, presalePct = 0, successHref, backHref }: Props) {
+export function RegistrationForm({ event, presaleNote, presaleActive = false, presalePct = 0, successHref, backHref, waitlistToken, prefill }: Props) {
   const router = useRouter();
   const [ticketTypeId, setTicketTypeId] = useState(event.ticketTypes[0]?.id);
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({
-    firstName: "", lastName: "", email: "", phone: "", company: "",
+    firstName: prefill?.firstName ?? "",
+    lastName: prefill?.lastName ?? "",
+    email: prefill?.email ?? "",
+    phone: prefill?.phone ?? "", company: "",
     jobTitle: "", dietary: "", accessibility: "", specialRequests: "",
+    addressLine1: "", addressLine2: "", city: "", state: "", zipCode: "", country: "",
     promoCode: "",
   });
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -100,6 +108,7 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         body: JSON.stringify({
           eventId: event.id, ticketTypeId, quantity, ...form,
           answers: Object.entries(answers).map(([questionId, answer]) => ({ questionId, answer })),
+          waitlistToken,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -248,6 +257,34 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
           <div><label className="label">Dietary restrictions</label><input className="input" value={form.dietary} onChange={(e) => setField("dietary", e.target.value)} /></div>
           <div><label className="label">Accessibility</label><input className="input" value={form.accessibility} onChange={(e) => setField("accessibility", e.target.value)} /></div>
           <div className="sm:col-span-2"><label className="label">Special requests</label><textarea className="input" rows={2} value={form.specialRequests} onChange={(e) => setField("specialRequests", e.target.value)} /></div>
+        </div>
+
+        <h3 className="mt-4 text-sm font-medium text-slate-700">Address (optional)</h3>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label">Street address</label>
+            <input className="input" placeholder="123 Main St" value={form.addressLine1} onChange={(e) => setField("addressLine1", e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Address line 2</label>
+            <input className="input" placeholder="Apt, suite, unit, etc." value={form.addressLine2} onChange={(e) => setField("addressLine2", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">City</label>
+            <input className="input" value={form.city} onChange={(e) => setField("city", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">State / Province</label>
+            <input className="input" value={form.state} onChange={(e) => setField("state", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">ZIP / Postal code</label>
+            <input className="input" value={form.zipCode} onChange={(e) => setField("zipCode", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Country</label>
+            <input className="input" value={form.country} onChange={(e) => setField("country", e.target.value)} />
+          </div>
         </div>
       </section>
 

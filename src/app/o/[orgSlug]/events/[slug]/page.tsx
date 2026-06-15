@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { formatDateRange, money } from "@/lib/format";
 import { ShareBar } from "@/components/ShareBar";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
+import { WaitlistForm } from "@/components/WaitlistForm";
 
 interface Props { params: { orgSlug: string; slug: string } }
 
@@ -32,6 +33,14 @@ export default async function EventLandingPage({ params }: Props) {
   const visibleTickets = event.ticketTypes.filter((t) => !t.isVendorTier);
   const minPrice = visibleTickets.length ? Math.min(...visibleTickets.map((t) => t.priceCents)) : 0;
   const totalSold = event.ticketTypes.reduce((a, t) => a + t.quantitySold, 0);
+
+  const allTicketsSoldOut = visibleTickets.length > 0 && visibleTickets.every((t) => {
+    if (t.quantityTotal === null) return false;
+    return t.quantitySold >= t.quantityTotal;
+  });
+  const capacitySoldOut = event.capacity !== null && totalSold >= event.capacity;
+  const eventSoldOut = allTicketsSoldOut || capacitySoldOut;
+  const showWaitlist = eventSoldOut && event.waitlistEnabled;
 
   // Presale (early-bird) banner — only while the window is open and a paid
   // ticket exists for the discount to apply to. Date shown in the event's timezone.
@@ -252,13 +261,22 @@ export default async function EventLandingPage({ params }: Props) {
               })}
             </div>
 
-            <Link
-              href={`/o/${event.organization.slug}/events/${event.slug}/register`}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--org-brand)" }}
-            >
-              Register Now
-            </Link>
+            {showWaitlist ? (
+              <>
+                <div className="mt-4 rounded-lg bg-amber-50 p-3 text-center text-sm text-amber-800 ring-1 ring-amber-200">
+                  This event is sold out
+                </div>
+                <WaitlistForm eventId={event.id} />
+              </>
+            ) : (
+              <Link
+                href={`/o/${event.organization.slug}/events/${event.slug}/register`}
+                className="mt-4 inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white"
+                style={{ backgroundColor: "var(--org-brand)" }}
+              >
+                {eventSoldOut ? "Sold Out" : "Register Now"}
+              </Link>
+            )}
 
             <div className="mt-3 text-center text-xs text-slate-500">
               {totalSold} registered{event.capacity ? ` · capacity ${event.capacity}` : ""}

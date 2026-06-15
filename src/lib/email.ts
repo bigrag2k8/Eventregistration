@@ -126,11 +126,250 @@ function renderConfirmation(reg: any) {
          Add to Calendar
       </a>
 
-      ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:24px"><strong>Refund policy:</strong> ${esc(e.refundPolicy)}</p>`:""}
+      <p style="color:#475569;font-size:14px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL}/account/signin" style="color:${brand};font-weight:bold;text-decoration:none">Sign in to your account</a>
+        to see all your events, tickets, and waitlists in one place — no password needed.
+      </p>
+      ${reg.totalCents > 0 ? `<p style="color:#64748b;font-size:12px;margin-top:16px"><a href="${process.env.NEXT_PUBLIC_APP_URL}/o/${org.slug}/events/${e.slug}/refund-request?reg=${reg.id}${reg.accessToken ? `&key=${reg.accessToken}` : ""}" style="color:#64748b">Need a refund? Request one here.</a></p>` : ""}
+      ${e.refundPolicy ? `<p style="color:#64748b;font-size:12px;margin-top:8px"><strong>Refund policy:</strong> ${esc(e.refundPolicy)}</p>`:""}
     </td></tr>
   </table>
   <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">${orgName} · Powered by Your Events App</p>
 </body></html>`;
+}
+
+/**
+ * Passwordless sign-in link. Uses the platform default sender (no org context —
+ * attendee accounts are global). The URL contains the single-use raw token.
+ */
+export async function sendMagicLinkEmail(email: string, url: string) {
+  await resend().emails.send({
+    from: DEFAULT_FROM,
+    to: email,
+    subject: "Your sign-in link for Your Events App",
+    html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      <h1 style="margin:0 0 8px;color:#1F3A8A">Sign in</h1>
+      <p style="color:#475569">Click the button below to sign in to your account. This link expires in 15 minutes and can only be used once.</p>
+      <p style="margin:24px 0">
+        <a href="${esc(url)}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Sign in</a>
+      </p>
+      <p style="color:#64748b;font-size:12px">If the button doesn't work, paste this link into your browser:<br>${esc(url)}</p>
+      <p style="color:#64748b;font-size:12px;margin-top:16px">If you didn't request this, you can safely ignore this email.</p>
+    </td></tr>
+  </table>
+</body></html>`,
+  });
+}
+
+export async function sendWaitlistPromotionEmail(waitlistId: string) {
+  const entry = await prisma.waitlist.findUnique({
+    where: { id: waitlistId },
+    include: { event: { include: { organization: true } } },
+  });
+  if (!entry) return;
+
+  const e = entry.event;
+  const org = e.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
+    ? org.brandColor
+    : "#1F3A8A";
+  const orgSlug = org.slug ?? "_";
+  const tokenParam = entry.magicToken ? `?waitlist=${entry.magicToken}` : "";
+  const registerUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${e.slug}/register${tokenParam}`;
+  const leaveUrl = entry.leaveToken
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/waitlist/leave/${entry.leaveToken}`
+    : null;
+  const expiresIn = entry.expiresAt
+    ? Math.max(1, Math.round((entry.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)))
+    : 24;
+
+  try {
+    const result = await resend().emails.send({
+      from: buildFrom(org),
+      to: entry.email,
+      subject: `A spot opened up — ${e.name}`,
+      html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      <h1 style="margin:0 0 8px;color:${brand}">Good news, ${esc(entry.firstName)}!</h1>
+      <p style="color:#475569">A spot has opened up for <strong>${esc(e.name)}</strong>. You have approximately <strong>${expiresIn} hours</strong> to register. This seat is reserved for you — clicking the link below bypasses the sold-out screen.</p>
+      <p style="margin:24px 0">
+        <a href="${registerUrl}" style="display:inline-block;background:${brand};color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Claim your spot</a>
+      </p>
+      ${leaveUrl ? `<p style="color:#64748b;font-size:12px">Changed your mind? <a href="${leaveUrl}" style="color:#64748b">Leave the waitlist</a> so the spot is offered to the next person right away.</p>` : ""}
+    </td></tr>
+  </table>
+</body></html>`,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        toEmail: entry.email,
+        kind: "WAITLIST_PROMOTED",
+        subject: `A spot opened up — ${e.name}`,
+        status: result.data?.id ? "SENT" : "FAILED",
+        providerId: result.data?.id ?? null,
+        sentAt: new Date(),
+      },
+    });
+  } catch (err: any) {
+    console.error("[waitlist] promotion email failed:", err?.message);
+  }
+}
+
+/**
+ * Notify the organizer that an attendee submitted a refund request. Goes to the
+ * event's contact email (falling back to the org's), from the platform sender
+ * since it's an internal alert, not a branded customer email.
+ */
+export async function sendRefundRequestReceivedEmail(refundRequestId: string) {
+  const rr = await prisma.refundRequest.findUnique({
+    where: { id: refundRequestId },
+    include: {
+      registration: { select: { firstName: true, lastName: true, email: true, totalCents: true, currency: true } },
+      event: { select: { id: true, name: true, contactEmail: true, organization: { select: { contactEmail: true } } } },
+    },
+  });
+  if (!rr) return;
+
+  const to = rr.event.contactEmail ?? rr.event.organization?.contactEmail;
+  if (!to) {
+    console.warn("[refund-request] no organizer contact email configured for event", rr.event.id);
+    return;
+  }
+
+  const reg = rr.registration;
+  const amount = `$${(reg.totalCents / 100).toFixed(2)}`;
+  const reviewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/events/${rr.event.id}/refund-requests`;
+  const subject = `New refund request — ${rr.event.name}`;
+
+  try {
+    const result = await resend().emails.send({
+      from: DEFAULT_FROM,
+      to,
+      subject,
+      html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      <h1 style="margin:0 0 8px;color:#1F3A8A">New refund request</h1>
+      <p style="color:#475569"><strong>${esc(reg.firstName)} ${esc(reg.lastName)}</strong> (${esc(reg.email)}) requested a refund for <strong>${esc(rr.event.name)}</strong>.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #e2e8f0;border-radius:8px">
+        <tr><td style="padding:16px">
+          <div style="color:#475569">Amount paid: <strong>${amount}</strong></div>
+          <div style="color:#475569;margin-top:8px">Reason:</div>
+          <div style="margin-top:4px">${esc(rr.reason).replace(/\n/g, "<br>")}</div>
+        </td></tr>
+      </table>
+      <p style="margin:24px 0">
+        <a href="${reviewUrl}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Review request</a>
+      </p>
+    </td></tr>
+  </table>
+</body></html>`,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        registrationId: rr.registrationId,
+        toEmail: to,
+        kind: "REFUND_REQUEST_RECEIVED",
+        subject,
+        status: result.data?.id ? "SENT" : "FAILED",
+        providerId: result.data?.id ?? null,
+        errorMessage: result.error?.message ?? null,
+        sentAt: new Date(),
+      },
+    });
+  } catch (e: any) {
+    console.error("[refund-request] organizer notify failed:", e?.message);
+  }
+}
+
+/**
+ * Tell the attendee the outcome of their refund request. Branded (from the org)
+ * since it's customer-facing. For approvals, pass the exact refunded amount so
+ * the email matches what Stripe actually returned.
+ */
+export async function sendRefundRequestDecisionEmail(
+  refundRequestId: string,
+  decision: "approved" | "denied",
+  opts?: { refundedCents?: number },
+) {
+  const rr = await prisma.refundRequest.findUnique({
+    where: { id: refundRequestId },
+    include: {
+      registration: { select: { firstName: true, email: true, currency: true } },
+      event: { select: { name: true, organization: true } },
+    },
+  });
+  if (!rr) return;
+
+  const reg = rr.registration;
+  const org = rr.event.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
+    ? org.brandColor
+    : "#1F3A8A";
+
+  const approved = decision === "approved";
+  const subject = approved
+    ? `Your refund request was approved — ${rr.event.name}`
+    : `Update on your refund request — ${rr.event.name}`;
+
+  const amountLine =
+    approved && typeof opts?.refundedCents === "number"
+      ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus the non-refundable 4.5% processing fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear.</p>`
+      : approved
+        ? `<p style="color:#475569">Your refund is being processed back to your original payment method and may take 5&ndash;10 business days to appear.</p>`
+        : "";
+
+  const body = approved
+    ? `<h1 style="margin:0 0 8px;color:${brand}">Refund approved</h1>
+       <p style="color:#475569">Hi ${esc(reg.firstName)}, your refund request for <strong>${esc(rr.event.name)}</strong> has been approved.</p>
+       ${amountLine}`
+    : `<h1 style="margin:0 0 8px;color:${brand}">Refund request update</h1>
+       <p style="color:#475569">Hi ${esc(reg.firstName)}, after review your refund request for <strong>${esc(rr.event.name)}</strong> was not approved.</p>`;
+
+  const note = rr.reviewNote
+    ? `<div style="background:#f1f5f9;border-left:4px solid ${brand};padding:12px 16px;margin:16px 0"><strong>Note from the organizer:</strong><br>${esc(rr.reviewNote).replace(/\n/g, "<br>")}</div>`
+    : "";
+
+  try {
+    const result = await resend().emails.send({
+      from: buildFrom(org),
+      to: reg.email,
+      subject,
+      html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      ${body}
+      ${note}
+      ${approved ? "" : `<p style="color:#64748b;font-size:12px;margin-top:16px">If you have questions, reply to this email to reach the organizer.</p>`}
+    </td></tr>
+  </table>
+</body></html>`,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        registrationId: rr.registrationId,
+        toEmail: reg.email,
+        kind: approved ? "REFUND_REQUEST_APPROVED" : "REFUND_REQUEST_DENIED",
+        subject,
+        status: result.data?.id ? "SENT" : "FAILED",
+        providerId: result.data?.id ?? null,
+        errorMessage: result.error?.message ?? null,
+        sentAt: new Date(),
+      },
+    });
+  } catch (e: any) {
+    console.error("[refund-request] attendee notify failed:", e?.message);
+  }
 }
 
 export async function sendReminderEmail(registrationId: string, kind: "REMINDER_30D"|"REMINDER_7D"|"REMINDER_1D"|"REMINDER_1H") {

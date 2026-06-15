@@ -5,10 +5,11 @@
 // Must be first: initializes Sentry (and its global crash handlers) before any
 // other module is evaluated.
 import { Sentry } from "@/server/instrument-worker";
+import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
-import { sendReminderEmail } from "@/lib/email";
+import { sendReminderEmail, sendWaitlistPromotionEmail } from "@/lib/email";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 
 const ONE_HOUR = 60 * 60 * 1000;
@@ -65,11 +66,26 @@ async function promoteWaitlist() {
     for (const w of queued) {
       await prisma.waitlist.update({
         where: { id: w.id },
-        data: { status: "PROMOTED", promotedAt: new Date(), expiresAt: new Date(Date.now() + ONE_DAY) },
+        data: {
+          status: "PROMOTED",
+          promotedAt: new Date(),
+          expiresAt: new Date(Date.now() + ONE_DAY),
+          magicToken: crypto.randomBytes(24).toString("base64url"),
+          leaveToken: w.leaveToken ?? crypto.randomBytes(24).toString("base64url"),
+        },
       });
-      // TODO: send promotion email with magic-link checkout
+      try {
+        await sendWaitlistPromotionEmail(w.id);
+      } catch (e: any) {
+        console.error(`[worker] waitlist promotion email failed for ${w.id}:`, e?.message);
+      }
     }
   }
+
+  await prisma.waitlist.updateMany({
+    where: { status: "PROMOTED", expiresAt: { lt: new Date() } },
+    data: { status: "EXPIRED" },
+  });
 }
 
 async function purgeAbandonedCarts() {

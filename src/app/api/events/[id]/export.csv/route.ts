@@ -35,11 +35,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
     headers = [
       "Company", "Contact First Name", "Contact Last Name", "Email", "Phone", "Website",
+      "Street Address", "Address Line 2", "City", "State", "ZIP Code", "Country",
       "Product Category", "Booth Preference", "Sponsorship Level", "Status",
       "Submitted At", "Paid At", "Quoted Price",
     ];
     rows = apps.map((v) => [
       v.companyName, v.contactFirstName, v.contactLastName, v.email, v.phone ?? "", v.website ?? "",
+      v.addressLine1 ?? "", v.addressLine2 ?? "", v.city ?? "", v.state ?? "", v.zipCode ?? "", v.country ?? "",
       v.productCategory ?? "", v.boothPreference ?? "", v.sponsorshipLevel ?? "", v.status,
       v.submittedAt.toISOString(), v.paidAt?.toISOString() ?? "",
       v.quotedPriceCents != null ? (v.quotedPriceCents / 100).toFixed(2) : "",
@@ -51,6 +53,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
     headers = [
       "Company", "First Name", "Last Name", "Email", "Phone", "Job Title",
+      "Street Address", "Address Line 2", "City", "State", "ZIP Code", "Country",
       "Ticket Type", "Quantity", "Total", "Status", "Confirmed At", "Checked In", "Checked In At",
       "Registration ID",
       ...event.customQuestions.map((q) => q.label),
@@ -64,6 +67,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       const answerMap = new Map(r.answers.map((a) => [a.questionId, a.answer]));
       return [
         r.company ?? "", r.firstName, r.lastName, r.email, r.phone ?? "", r.jobTitle ?? "",
+        r.addressLine1 ?? "", r.addressLine2 ?? "", r.city ?? "", r.state ?? "", r.zipCode ?? "", r.country ?? "",
         r.ticketType.name, String(r.quantity), (r.totalCents / 100).toFixed(2), r.status,
         r.confirmedAt?.toISOString() ?? "",
         allChecked ? "yes" : checkedTickets.length > 0 ? `partial (${checkedTickets.length}/${r.tickets.length})` : "no",

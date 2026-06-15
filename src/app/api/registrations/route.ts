@@ -7,6 +7,7 @@ import { computeTotals } from "@/server/pricing";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 import { eventEntitlements } from "@/lib/plans";
+import { getSession } from "@/lib/auth";
 
 /** Thrown inside the reservation transaction when seats can't be claimed. */
 class SoldOutError extends Error {
@@ -47,8 +48,15 @@ const schema = z.object({
   dietary: z.string().optional(),
   accessibility: z.string().optional(),
   specialRequests: z.string().optional(),
+  addressLine1: z.string().optional(),
+  addressLine2: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  country: z.string().optional(),
   promoCode: z.string().optional(),
   answers: z.array(z.object({ questionId: z.string(), answer: z.string() })).optional(),
+  waitlistToken: z.string().optional(),
 });
 
 /**
@@ -76,6 +84,35 @@ export async function POST(req: Request) {
   if (!event || event.status !== "PUBLISHED" || event.deletedAt || event.organization?.deletedAt) {
     return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
   }
+
+  // Ownership: if a signed-in attendee is registering their OWN email, stamp the
+  // registration with their userId so it appears in their account immediately.
+  // A mismatched email (registering on behalf of someone else) stays a guest row
+  // and gets linked when that person signs in. Same email-based ownership rule
+  // the backfill uses, so the two never disagree.
+  const session = await getSession();
+  const ownerUserId =
+    session && session.email.toLowerCase() === input.email.toLowerCase()
+      ? session.sub
+      : null;
+
+  // Waitlist magic link: when the email + token match a PROMOTED, unexpired
+  // entry, the registration bypasses the capacity / per-ticket sold-out checks
+  // (the seat was already promised to this person by the worker).
+  let waitlistEntry: { id: string } | null = null;
+  if (input.waitlistToken) {
+    waitlistEntry = await prisma.waitlist.findFirst({
+      where: {
+        eventId: event.id,
+        email: input.email,
+        magicToken: input.waitlistToken,
+        status: "PROMOTED",
+        expiresAt: { gt: new Date() },
+      },
+      select: { id: true },
+    });
+  }
+  const bypassCapacity = !!waitlistEntry;
 
   // Enforce the per-event registration cap (FREE event = 50, premium = unlimited).
   // Counted in tickets (sum of quantity) across active registrations.
@@ -155,16 +192,25 @@ export async function POST(req: Request) {
       await tx.$executeRaw`SELECT id FROM events WHERE id = ${event.id} FOR UPDATE`;
 
       // Per-ticket-type claim. Affected-row count of 0 means it didn't fit.
-      const reserved = await tx.$executeRaw`
-        UPDATE ticket_types
-        SET "quantitySold" = "quantitySold" + ${input.quantity}
-        WHERE id = ${input.ticketTypeId}
-          AND ("quantityTotal" IS NULL OR "quantitySold" + ${input.quantity} <= "quantityTotal")
-      `;
+      // Waitlist bypass: increment unconditionally (seat was promised) — this
+      // can briefly push quantitySold past quantityTotal until the worker
+      // re-promotes the next entry; oversell is intended for the promised seat.
+      const reserved = bypassCapacity
+        ? await tx.$executeRaw`
+            UPDATE ticket_types
+            SET "quantitySold" = "quantitySold" + ${input.quantity}
+            WHERE id = ${input.ticketTypeId}
+          `
+        : await tx.$executeRaw`
+            UPDATE ticket_types
+            SET "quantitySold" = "quantitySold" + ${input.quantity}
+            WHERE id = ${input.ticketTypeId}
+              AND ("quantityTotal" IS NULL OR "quantitySold" + ${input.quantity} <= "quantityTotal")
+          `;
       if (reserved === 0) throw new SoldOutError("ticket");
 
-      // Event-wide capacity across all ticket types.
-      if (event.capacity != null) {
+      // Event-wide capacity across all ticket types (skipped for waitlist bypass).
+      if (event.capacity != null && !bypassCapacity) {
         const rows = await tx.$queryRaw<{ total: bigint }[]>`
           SELECT COALESCE(SUM("quantitySold"), 0)::bigint AS total
           FROM ticket_types WHERE "eventId" = ${event.id}
@@ -189,6 +235,7 @@ export async function POST(req: Request) {
         data: {
           eventId: event.id,
           ticketTypeId: input.ticketTypeId,
+          userId: ownerUserId,
           firstName: input.firstName,
           lastName: input.lastName,
           email: input.email,
@@ -198,6 +245,12 @@ export async function POST(req: Request) {
           dietary: input.dietary,
           accessibility: input.accessibility,
           specialRequests: input.specialRequests,
+          addressLine1: input.addressLine1,
+          addressLine2: input.addressLine2,
+          city: input.city,
+          state: input.state,
+          zipCode: input.zipCode,
+          country: input.country,
           quantity: input.quantity,
           subtotalCents: totals.subtotal,
           discountCents: totals.discount,
@@ -253,6 +306,23 @@ export async function POST(req: Request) {
       // Non-fatal — confirmation page still works, user can re-request email later
       console.error("[registrations] sendConfirmationEmail failed (likely missing RESEND_API_KEY):", e);
     }
+  }
+
+  // Mark any matching waitlist entry as CONVERTED — covers both the magic-link
+  // path and an attendee who joined the waitlist then registered through some
+  // other route (organic re-check, organizer DM, etc.). Best-effort; failures
+  // don't block the registration response.
+  try {
+    await prisma.waitlist.updateMany({
+      where: {
+        eventId: event.id,
+        email: input.email,
+        status: { in: ["WAITING", "PROMOTED"] },
+      },
+      data: { status: "CONVERTED" },
+    });
+  } catch (e) {
+    console.error("[registrations] waitlist convert failed", e);
   }
 
   return NextResponse.json({ id: reg.id, status: reg.status, key: reg.accessToken });

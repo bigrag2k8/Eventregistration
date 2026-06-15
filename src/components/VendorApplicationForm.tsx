@@ -18,6 +18,7 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
   const [form, setForm] = useState({
     companyName: "", contactFirstName: "", contactLastName: "",
     email: "", phone: "", website: "", logoUrl: "",
+    addressLine1: "", addressLine2: "", city: "", state: "", zipCode: "", country: "",
     description: "", productCategory: "", boothPreference: "",
     sponsorshipLevel: "", electricalNeeds: false,
     additionalRequests: "",
@@ -89,6 +90,34 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
             <input type="url" placeholder="https://…/logo.png" className="input" value={form.logoUrl} onChange={(e)=>set("logoUrl", e.target.value)} />
           </div>
         </div>
+
+        <h3 className="mt-4 text-sm font-medium text-slate-700">Address (optional)</h3>
+        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label">Street address</label>
+            <input className="input" placeholder="123 Main St" value={form.addressLine1} onChange={(e)=>set("addressLine1", e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Address line 2</label>
+            <input className="input" placeholder="Suite, unit, etc." value={form.addressLine2} onChange={(e)=>set("addressLine2", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">City</label>
+            <input className="input" value={form.city} onChange={(e)=>set("city", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">State / Province</label>
+            <input className="input" value={form.state} onChange={(e)=>set("state", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">ZIP / Postal code</label>
+            <input className="input" value={form.zipCode} onChange={(e)=>set("zipCode", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Country</label>
+            <input className="input" value={form.country} onChange={(e)=>set("country", e.target.value)} />
+          </div>
+        </div>
       </section>
 
       <section className="card">
@@ -142,6 +171,7 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
             const dirty =
               form.companyName || form.contactFirstName || form.contactLastName ||
               form.email || form.phone || form.website || form.logoUrl ||
+              form.addressLine1 || form.city || form.state || form.zipCode || form.country ||
               form.description || form.productCategory || form.boothPreference ||
               form.sponsorshipLevel || form.additionalRequests;
             if (dirty && !confirm("Discard this application? Anything you've entered will be lost.")) {
