@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "echo '[boot] prisma db push...' && prisma db push --skip-generate && echo '[boot] starting next on 0.0.0.0:'$PORT && next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "start": "echo '[boot] prisma migrate deploy' && ( npx prisma migrate deploy || ( echo '[boot] baselining pre-existing database (resolve 0_init)' && npx prisma migrate resolve --applied 0_init && npx prisma migrate deploy ) ) && echo '[boot] starting next on 0.0.0.0:'$PORT && next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",

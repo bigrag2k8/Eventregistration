@@ -33,7 +33,9 @@ services:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
     ports: ["3000:3000"]
-    command: sh -c "npx prisma migrate deploy && npm start"
+    # npm start runs `prisma migrate deploy` (with one-time 0_init baseline) then
+    # `next start` — the web service owns migrations, same as production.
+    command: sh -c "npm start"
 
   worker:
     build: .
@@ -42,7 +44,8 @@ services:
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
-    command: sh -c "npx prisma migrate deploy && npx tsx src/server/worker.ts"
+    # The web service applies migrations; the worker just runs (matches prod).
+    command: sh -c "npx tsx src/server/worker.ts"
 
 volumes:
   pgdata:
