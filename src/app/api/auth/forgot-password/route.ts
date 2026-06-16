@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createPasswordReset } from "@/lib/password-reset";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 
 const schema = z.object({ email: z.string().email() });
 
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
   const email = parsed.data.email.toLowerCase();
   const rl = await rateLimit(`forgot-password:${ip}:${email}`, 5, 15 * 60);
   if (!rl.allowed) return NextResponse.json({ ok: true });
+
+  await audit({ action: "auth.password_reset_request", metadata: { email }, ipAddress: ip });
 
   try {
     const raw = await createPasswordReset(email, ip);

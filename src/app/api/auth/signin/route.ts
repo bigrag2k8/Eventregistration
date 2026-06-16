@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { setSessionCookie, signSession, verifyPassword } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isProtectedOwner } from "@/lib/owner";
+import { audit } from "@/lib/audit";
 
 const schema = z.object({ email: z.string().email(), password: z.string() });
 
@@ -30,11 +31,19 @@ export async function POST(req: Request) {
   const hashToCheck = user?.passwordHash ?? DUMMY_BCRYPT_HASH;
   const passwordOk = await verifyPassword(parsed.data.password, hashToCheck);
   if (!user?.passwordHash || !passwordOk) {
+    await audit({
+      userId: user?.id ?? null, action: "auth.signin_failed",
+      metadata: { email: parsed.data.email, reason: user ? "bad_password" : "unknown_email" }, ipAddress: ip,
+    });
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
   // A soft-deleted user must not be able to sign in (same generic message so
   // it isn't an account-enumeration oracle).
   if (user.deletedAt) {
+    await audit({
+      userId: user.id, action: "auth.signin_failed",
+      metadata: { email: parsed.data.email, reason: "deleted_account" }, ipAddress: ip,
+    });
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
@@ -51,6 +60,11 @@ export async function POST(req: Request) {
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date(), ...(role !== user.role ? { role } : {}) },
+  });
+
+  await audit({
+    userId: user.id, organizationId: user.organizationId, action: "auth.signin",
+    metadata: { method: "password", role }, ipAddress: ip,
   });
 
   // Plan gate: if the user's org hasn't picked a plan yet, send them to billing first.

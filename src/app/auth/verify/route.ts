@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { consumeMagicLink } from "@/lib/magic-link";
 import { signSession, setSessionCookie } from "@/lib/auth";
 import { isProtectedOwner } from "@/lib/owner";
+import { clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 
 /** Only same-site relative redirects (no open redirect via ?next). */
 function safeNext(next: string | null) {
@@ -31,9 +33,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
   const next = safeNext(url.searchParams.get("next"));
+  const ip = clientIp(req);
 
   const email = token ? await consumeMagicLink(token) : null;
   if (!email) {
+    await audit({ action: "auth.magic_link_invalid", metadata: { reason: "bad_or_expired_token" }, ipAddress: ip });
     return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
 
@@ -41,6 +45,7 @@ export async function GET(req: Request) {
   // its real role — equivalent to email-based password reset, no escalation.
   // A new row is a global attendee: role ATTENDEE, no org, no password.
   let user = await prisma.user.findUnique({ where: { email } });
+  const wasNewAccount = !user;
   if (user?.deletedAt) {
     return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
@@ -120,6 +125,11 @@ export async function GET(req: Request) {
     orgId: user.organizationId ?? undefined,
   });
   await setSessionCookie(sessionToken);
+
+  await audit({
+    userId: user.id, organizationId: user.organizationId, action: "auth.magic_link_signin",
+    metadata: { role: effectiveRole, newAccount: wasNewAccount }, ipAddress: ip,
+  });
 
   // Staff who used a magic link land in their dashboard; attendees go to /account.
   const dest =

@@ -84,6 +84,7 @@ export default async function PlatformAuditLogPage({ searchParams }: {
             <input name="action" defaultValue={searchParams.action ?? ""} className="input" placeholder="event., vendor., team." />
           </div>
           <button type="submit" className="btn-secondary">Filter</button>
+          <Link href="/admin/audit?action=auth." className="btn-secondary">Auth events</Link>
           {(searchParams.q || searchParams.action || searchParams.orgId) && (
             <Link href="/admin/audit" className="text-sm text-slate-500 hover:text-slate-900">Clear</Link>
           )}
@@ -96,6 +97,7 @@ export default async function PlatformAuditLogPage({ searchParams }: {
                 <th className="px-4 py-3">When</th>
                 <th className="px-4 py-3">Organization</th>
                 <th className="px-4 py-3">Who</th>
+                <th className="px-4 py-3">IP</th>
                 <th className="px-4 py-3">Action</th>
                 <th className="px-4 py-3">Target</th>
                 <th className="px-4 py-3">Metadata</th>
@@ -113,8 +115,9 @@ export default async function PlatformAuditLogPage({ searchParams }: {
                     </td>
                     <td className="px-4 py-3 text-slate-600">{log.organization?.name ?? "—"}</td>
                     <td className="px-4 py-3">{who}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{log.ipAddress ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-mono">{log.action}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-mono ${log.action.startsWith("auth.") ? "bg-blue-100 text-blue-700" : "bg-slate-100"}`}>{log.action}</span>
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {log.targetType ? (
@@ -133,7 +136,7 @@ export default async function PlatformAuditLogPage({ searchParams }: {
                 );
               })}
               {logs.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">No audit log entries match.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-500">No audit log entries match.</td></tr>
               )}
             </tbody>
           </table>

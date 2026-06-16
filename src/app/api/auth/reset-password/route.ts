@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { consumePasswordReset } from "@/lib/password-reset";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -32,6 +33,8 @@ export async function POST(req: Request) {
     where: { id: userId },
     data: { passwordHash: await hashPassword(parsed.data.password) },
   });
+
+  await audit({ userId, action: "auth.password_reset", ipAddress: ip });
 
   return NextResponse.json({ ok: true });
 }

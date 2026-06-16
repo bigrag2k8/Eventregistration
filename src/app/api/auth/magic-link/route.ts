@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createMagicLink } from "@/lib/magic-link";
 import { sendMagicLinkEmail } from "@/lib/email";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -35,6 +36,8 @@ export async function POST(req: Request) {
   if (!rl.allowed) {
     return NextResponse.json({ ok: true });
   }
+
+  await audit({ action: "auth.magic_link_request", metadata: { email }, ipAddress: ip });
 
   try {
     const raw = await createMagicLink(email, ip);
