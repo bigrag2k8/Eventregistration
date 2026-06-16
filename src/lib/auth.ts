@@ -1,5 +1,5 @@
 import * as React from "react";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, jwtVerify, decodeJwt } from "jose";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
@@ -54,15 +54,38 @@ const QR_SECRET = new TextEncoder().encode(QR_SECRET_ENV ?? JWT_SECRET ?? DEV_FA
 export const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "eventflow_session";
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 
-// Shared session-cookie attributes. 7-day persistent cookie (NOT a session
-// cookie), so a refresh or browser restart keeps the user signed in.
+// Session lifetime by privilege. Attendees (low-stakes, just their own tickets)
+// get a 7-day persistent session for good UX. Every staff role — organizer,
+// staff, volunteer, admin, superadmin — touches money, refunds, and PII, so
+// they get a short 12-hour session that forces a daily re-auth.
+const ATTENDEE_TTL = 60 * 60 * 24 * 7; // 7 days
+const STAFF_TTL = 60 * 60 * 12;        // 12 hours
+
+export function sessionTtlSeconds(role: Role): number {
+  return role === "ATTENDEE" ? ATTENDEE_TTL : STAFF_TTL;
+}
+
+// Shared session-cookie attributes. maxAge here is only a fallback — the real
+// value is derived per-token from its exp (see cookieMaxAgeForToken) so the
+// cookie's lifetime always matches the JWT's, regardless of role.
 export const SESSION_COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   path: "/",
-  maxAge: 60 * 60 * 24 * 7,
+  maxAge: ATTENDEE_TTL,
 };
+
+// Cookie Max-Age = the token's remaining lifetime, so a 12h staff token never
+// sits behind a 7-day cookie (and vice versa). Reads the unverified exp claim of
+// our own freshly-signed token — no signature check needed just to size a cookie.
+function cookieMaxAgeForToken(token: string): number {
+  try {
+    const { exp } = decodeJwt(token);
+    if (exp) return Math.max(0, exp - Math.floor(Date.now() / 1000));
+  } catch {}
+  return SESSION_COOKIE_OPTS.maxAge;
+}
 
 export interface JwtPayload {
   sub: string;       // user id
@@ -80,12 +103,16 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-export async function signSession(payload: JwtPayload, expires = "7d") {
+export async function signSession(payload: JwtPayload, expiresSeconds?: number) {
+  // Default the token lifetime from the role (12h staff / 7d attendee); callers
+  // may override with an explicit number of seconds.
+  const ttl = expiresSeconds ?? sessionTtlSeconds(payload.role);
+  const exp = Math.floor(Date.now() / 1000) + ttl;
   return new SignJWT(payload as any)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer(process.env.JWT_ISSUER ?? "eventflow")
-    .setExpirationTime(expires)
+    .setExpirationTime(exp)
     .sign(SECRET);
 }
 
@@ -103,7 +130,7 @@ export async function verifySession(token: string): Promise<JwtPayload | null> {
 // For Server Action / Server Component contexts (e.g. the sign-out action),
 // where cookies() mutations are reliably applied to the framework response.
 export async function setSessionCookie(token: string) {
-  cookies().set(COOKIE_NAME, token, SESSION_COOKIE_OPTS);
+  cookies().set(COOKIE_NAME, token, { ...SESSION_COOKIE_OPTS, maxAge: cookieMaxAgeForToken(token) });
 }
 
 export async function clearSessionCookie() {
@@ -122,7 +149,7 @@ export async function clearSessionCookie() {
  * issues a session.
  */
 export function attachSessionCookie(res: NextResponse, token: string): NextResponse {
-  res.cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTS);
+  res.cookies.set(SESSION_COOKIE_NAME, token, { ...SESSION_COOKIE_OPTS, maxAge: cookieMaxAgeForToken(token) });
   return res;
 }
 
