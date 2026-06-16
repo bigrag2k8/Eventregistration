@@ -19,7 +19,9 @@ A production-ready event registration platform for free and paid events. Modern,
 
 ```bash
 cp .env.example .env
-docker compose up -d        # Postgres + Redis
+# Set a strong POSTGRES_PASSWORD in .env, and make DATABASE_URL match
+# (postgresql://eventflow:<password>@db:5432/eventflow)
+docker compose up -d        # Postgres + Redis (local development ONLY)
 npm install
 npx prisma migrate dev
 npm run seed
@@ -27,6 +29,11 @@ npm run dev
 ```
 
 Open http://localhost:3000
+
+> **`docker-compose.yml` is for local development only — never deploy it to
+> staging or production.** Production runs on managed Railway Postgres/Redis with
+> their own credentials. The compose Postgres password has no default and must be
+> supplied via your git-ignored `.env` (`POSTGRES_PASSWORD`).
 
 ## Project Structure
 
