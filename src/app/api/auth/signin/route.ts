@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { setSessionCookie, signSession, verifyPassword } from "@/lib/auth";
+import { attachSessionCookie, signSession, verifyPassword } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isProtectedOwner } from "@/lib/owner";
 import { audit } from "@/lib/audit";
@@ -57,7 +57,6 @@ export async function POST(req: Request) {
     orgId: user.organizationId ?? undefined,
     ver: user.sessionVersion,
   });
-  await setSessionCookie(token);
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date(), ...(role !== user.role ? { role } : {}) },
@@ -82,5 +81,7 @@ export async function POST(req: Request) {
     needsPlan ? "/dashboard/billing?welcome=1"
     : (user.role === "STAFF" || user.role === "VOLUNTEER") ? "/checkin"
     : "/dashboard";
-  return NextResponse.json({ id: user.id, role: user.role, redirectTo });
+  const res = NextResponse.json({ id: user.id, role: user.role, redirectTo });
+  attachSessionCookie(res, token);
+  return res;
 }

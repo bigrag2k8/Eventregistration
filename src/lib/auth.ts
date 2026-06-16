@@ -1,6 +1,7 @@
 import * as React from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { isProtectedOwner } from "@/lib/owner";
@@ -50,7 +51,18 @@ const SECRET = new TextEncoder().encode(JWT_SECRET ?? DEV_FALLBACK_SECRET);
 // Dedicated QR signing key. Falls back to the session secret when QR_SECRET is
 // unset (no breakage), then to the dev value for local development only.
 const QR_SECRET = new TextEncoder().encode(QR_SECRET_ENV ?? JWT_SECRET ?? DEV_FALLBACK_QR_SECRET);
-const COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "eventflow_session";
+export const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "eventflow_session";
+const COOKIE_NAME = SESSION_COOKIE_NAME;
+
+// Shared session-cookie attributes. 7-day persistent cookie (NOT a session
+// cookie), so a refresh or browser restart keeps the user signed in.
+export const SESSION_COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 7,
+};
 
 export interface JwtPayload {
   sub: string;       // user id
@@ -88,18 +100,36 @@ export async function verifySession(token: string): Promise<JwtPayload | null> {
   }
 }
 
+// For Server Action / Server Component contexts (e.g. the sign-out action),
+// where cookies() mutations are reliably applied to the framework response.
 export async function setSessionCookie(token: string) {
-  cookies().set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  cookies().set(COOKIE_NAME, token, SESSION_COOKIE_OPTS);
 }
 
 export async function clearSessionCookie() {
   cookies().delete(COOKIE_NAME);
+}
+
+/**
+ * Attach the session cookie to a Response returned from a Route Handler.
+ *
+ * CRITICAL: in App Router Route Handlers, cookies().set() from next/headers is
+ * NOT applied to a NextResponse you construct yourself — most visibly on
+ * NextResponse.redirect(), where the Set-Cookie header is silently dropped. The
+ * magic-link sign-in returns a redirect, so attendees never received a
+ * persistent cookie and were logged out on the next request. Setting the cookie
+ * on the response object is the reliable way; use this in every route that
+ * issues a session.
+ */
+export function attachSessionCookie(res: NextResponse, token: string): NextResponse {
+  res.cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTS);
+  return res;
+}
+
+/** Clear the session cookie on a Route Handler response (mirror of the above). */
+export function clearSessionCookieOn(res: NextResponse): NextResponse {
+  res.cookies.set(SESSION_COOKIE_NAME, "", { ...SESSION_COOKIE_OPTS, maxAge: 0 });
+  return res;
 }
 
 /**

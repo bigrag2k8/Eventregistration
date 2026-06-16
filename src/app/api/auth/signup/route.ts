@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { hashPassword, signSession, setSessionCookie } from "@/lib/auth";
+import { hashPassword, signSession, attachSessionCookie } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const RESERVED_SLUGS = new Set([
@@ -84,6 +84,7 @@ export async function POST(req: Request) {
   }
 
   const token = await signSession({ sub: user.id, role: user.role, email: user.email, orgId: org.id, ver: user.sessionVersion });
-  await setSessionCookie(token);
-  return NextResponse.json({ id: user.id, email: user.email, orgSlug: org.slug });
+  const res = NextResponse.json({ id: user.id, email: user.email, orgSlug: org.slug });
+  attachSessionCookie(res, token);
+  return res;
 }

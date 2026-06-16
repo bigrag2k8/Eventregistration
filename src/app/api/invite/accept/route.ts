@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { hashPassword, signSession, setSessionCookie } from "@/lib/auth";
+import { hashPassword, signSession, attachSessionCookie } from "@/lib/auth";
 
 const schema = z.object({
   token: z.string().min(10),
@@ -87,7 +87,8 @@ export async function POST(req: Request) {
     orgId: invite.organizationId,
     ver: user.sessionVersion,
   });
-  await setSessionCookie(sessionToken);
 
-  return NextResponse.json({ id: user.id, orgSlug: invite.organization.slug });
+  const res = NextResponse.json({ id: user.id, orgSlug: invite.organization.slug });
+  attachSessionCookie(res, sessionToken);
+  return res;
 }

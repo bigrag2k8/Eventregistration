@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { consumeMagicLink } from "@/lib/magic-link";
-import { signSession, setSessionCookie } from "@/lib/auth";
+import { signSession, attachSessionCookie } from "@/lib/auth";
 import { isProtectedOwner } from "@/lib/owner";
 import { clientIp } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
@@ -125,7 +125,6 @@ export async function GET(req: Request) {
     orgId: user.organizationId ?? undefined,
     ver: user.sessionVersion,
   });
-  await setSessionCookie(sessionToken);
 
   await audit({
     userId: user.id, organizationId: user.organizationId, action: "auth.magic_link_signin",
@@ -140,5 +139,10 @@ export async function GET(req: Request) {
         ? next
         : "/dashboard";
 
-  return NextResponse.redirect(new URL(dest, publicBase(req)));
+  // Set the cookie ON the redirect response — cookies().set() does not attach
+  // to a constructed NextResponse.redirect() in route handlers (the original
+  // "logged out on refresh" bug for magic-link attendees).
+  const res = NextResponse.redirect(new URL(dest, publicBase(req)));
+  attachSessionCookie(res, sessionToken);
+  return res;
 }
