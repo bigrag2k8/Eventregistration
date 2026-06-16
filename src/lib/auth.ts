@@ -6,20 +6,20 @@ import type { Role } from "@prisma/client";
 import { isProtectedOwner } from "@/lib/owner";
 
 const DEV_FALLBACK_SECRET = "dev-secret-change-me-please-32-bytes!";
+const DEV_FALLBACK_QR_SECRET = "dev-qr-secret-change-me-please-32-bytes!";
 const JWT_SECRET = process.env.JWT_SECRET;
+const QR_SECRET_ENV = process.env.QR_SECRET;
+const IS_PROD_RUNTIME =
+  process.env.NEXT_PHASE !== "phase-production-build" && process.env.NODE_ENV === "production";
 
 // Fail closed in production: a missing secret silently falls back to the
 // public, in-repo dev value below, which would let anyone forge a SUPERADMIN
-// session or a valid QR ticket (the same key signs both). Skip the check during
-// `next build`, where runtime secrets aren't injected yet.
-if (
-  process.env.NEXT_PHASE !== "phase-production-build" &&
-  process.env.NODE_ENV === "production" &&
-  (!JWT_SECRET || JWT_SECRET === DEV_FALLBACK_SECRET)
-) {
+// session. Skip the check during `next build`, where runtime secrets aren't
+// injected yet.
+if (IS_PROD_RUNTIME && (!JWT_SECRET || JWT_SECRET === DEV_FALLBACK_SECRET)) {
   throw new Error(
     "JWT_SECRET is missing or set to the public dev fallback. Refusing to start: " +
-      "a known signing key lets anyone forge sessions and QR tickets. Set a strong JWT_SECRET.",
+      "a known signing key lets anyone forge sessions. Set a strong JWT_SECRET.",
   );
 }
 if (JWT_SECRET && JWT_SECRET.length < 32) {
@@ -27,7 +27,29 @@ if (JWT_SECRET && JWT_SECRET.length < 32) {
   console.warn("[auth] JWT_SECRET is shorter than 32 chars — consider a longer, random secret.");
 }
 
+// SEC-02: QR ticket tokens are signed with a SEPARATE key (QR_SECRET) so a leak
+// of one secret doesn't compromise both surfaces (sessions AND ticket check-in).
+// QR_SECRET defaults to JWT_SECRET when unset, so deploying this code changes
+// nothing until an operator sets a distinct QR_SECRET. NOTE: setting a NEW
+// distinct QR_SECRET invalidates already-issued QR tickets (they were signed
+// with the old key) — do the cutover between events.
+if (IS_PROD_RUNTIME) {
+  if (QR_SECRET_ENV && QR_SECRET_ENV === DEV_FALLBACK_QR_SECRET) {
+    throw new Error("QR_SECRET is set to the public dev fallback. Set a strong, distinct value.");
+  }
+  if (!QR_SECRET_ENV) {
+    // eslint-disable-next-line no-console
+    console.warn("[auth] QR_SECRET not set — QR ticket tokens share JWT_SECRET. Set a distinct QR_SECRET to isolate ticket-token compromise from session compromise (SEC-02).");
+  } else if (QR_SECRET_ENV === JWT_SECRET) {
+    // eslint-disable-next-line no-console
+    console.warn("[auth] QR_SECRET equals JWT_SECRET — use a distinct value to isolate the QR-token blast radius (SEC-02).");
+  }
+}
+
 const SECRET = new TextEncoder().encode(JWT_SECRET ?? DEV_FALLBACK_SECRET);
+// Dedicated QR signing key. Falls back to the session secret when QR_SECRET is
+// unset (no breakage), then to the dev value for local development only.
+const QR_SECRET = new TextEncoder().encode(QR_SECRET_ENV ?? JWT_SECRET ?? DEV_FALLBACK_QR_SECRET);
 const COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "eventflow_session";
 
 export interface JwtPayload {
@@ -169,12 +191,12 @@ export async function signTicketToken(payload: {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer("eventflow-qr")
-    .sign(SECRET);
+    .sign(QR_SECRET);
 }
 
 export async function verifyTicketToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, SECRET, { issuer: "eventflow-qr" });
+    const { payload } = await jwtVerify(token, QR_SECRET, { issuer: "eventflow-qr" });
     return payload as {
       ticketId: string;
       registrationId: string;
