@@ -207,6 +207,10 @@ model User {
   email          String   @unique
   emailVerified  Boolean  @default(false)
   passwordHash   String?
+  // NEW-02: monotonic session epoch. A session JWT carries the value it was
+  // signed with; getSession rejects the token if this has since been bumped.
+  // Incremented on password reset to log out all existing sessions.
+  sessionVersion Int      @default(1)
   firstName      String?
   lastName       String?
   phone          String?

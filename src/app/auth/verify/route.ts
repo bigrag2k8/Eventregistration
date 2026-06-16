@@ -123,6 +123,7 @@ export async function GET(req: Request) {
     role: effectiveRole,
     email: user.email,
     orgId: user.organizationId ?? undefined,
+    ver: user.sessionVersion,
   });
   await setSessionCookie(sessionToken);
 

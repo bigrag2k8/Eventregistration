@@ -57,6 +57,7 @@ export interface JwtPayload {
   role: Role;
   orgId?: string;
   email: string;
+  ver?: number;      // NEW-02: session epoch (User.sessionVersion) at sign time
 }
 
 export async function hashPassword(password: string) {
@@ -125,9 +126,16 @@ export const getSession = requestMemo(async (): Promise<JwtPayload | null> => {
   const { prisma } = await import("@/lib/db");
   const user = await prisma.user.findUnique({
     where: { id: claims.sub },
-    select: { id: true, email: true, role: true, organizationId: true, deletedAt: true },
+    select: { id: true, email: true, role: true, organizationId: true, deletedAt: true, sessionVersion: true },
   });
   if (!user || user.deletedAt) return null;
+
+  // NEW-02: reject a token whose session epoch is stale (e.g. issued before a
+  // password reset bumped sessionVersion). Pre-deploy tokens carry no "ver"
+  // claim; treat them as the default epoch (1) so this change logs nobody out
+  // until their version is actually incremented.
+  const tokenVer = typeof claims.ver === "number" ? claims.ver : 1;
+  if (user.sessionVersion !== tokenVer) return null;
 
   // Break-glass: a protected owner (OWNER_EMAIL) is always SUPERADMIN at read
   // time, regardless of the stored role — so the owner can never be locked out,
@@ -139,6 +147,7 @@ export const getSession = requestMemo(async (): Promise<JwtPayload | null> => {
     role,
     orgId: user.organizationId ?? undefined,
     email: user.email,
+    ver: user.sessionVersion,
   };
 });
 

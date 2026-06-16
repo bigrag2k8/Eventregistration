@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  const token = await signSession({ sub: user.id, role: user.role, email: user.email, orgId: org.id });
+  const token = await signSession({ sub: user.id, role: user.role, email: user.email, orgId: org.id, ver: user.sessionVersion });
   await setSessionCookie(token);
   return NextResponse.json({ id: user.id, email: user.email, orgSlug: org.slug });
 }

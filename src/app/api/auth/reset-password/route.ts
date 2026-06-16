@@ -29,9 +29,15 @@ export async function POST(req: Request) {
     );
   }
 
+  // NEW-02: bump sessionVersion so every JWT issued before this reset stops
+  // validating in getSession — a stolen/leaked session cookie is revoked the
+  // moment the victim resets their password (not up to 7 days later).
   await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash: await hashPassword(parsed.data.password) },
+    data: {
+      passwordHash: await hashPassword(parsed.data.password),
+      sessionVersion: { increment: 1 },
+    },
   });
 
   await audit({ userId, action: "auth.password_reset", ipAddress: ip });

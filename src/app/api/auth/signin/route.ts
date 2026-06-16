@@ -55,6 +55,7 @@ export async function POST(req: Request) {
     role,
     email: user.email,
     orgId: user.organizationId ?? undefined,
+    ver: user.sessionVersion,
   });
   await setSessionCookie(token);
   await prisma.user.update({

@@ -85,6 +85,7 @@ export async function POST(req: Request) {
     role: user.role,
     email: user.email,
     orgId: invite.organizationId,
+    ver: user.sessionVersion,
   });
   await setSessionCookie(sessionToken);
 
