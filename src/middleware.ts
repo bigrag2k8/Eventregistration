@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySession } from "@/lib/auth";
 
-const PROTECTED = [/^\/dashboard/, /^\/checkin/, /^\/api\/admin/, /^\/admin/];
+// SEC-MW: /api/billing/* is added as a defense-in-depth authN net. Each billing
+// handler already enforces requireRole, but the middleware guarantees a new
+// billing route can never ship reachable without at least a valid session.
+const PROTECTED = [/^\/dashboard/, /^\/checkin/, /^\/api\/admin/, /^\/admin/, /^\/api\/billing/];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -33,5 +36,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/checkin/:path*", "/api/admin/:path*", "/admin/:path*"],
+  matcher: ["/dashboard/:path*", "/checkin/:path*", "/api/admin/:path*", "/admin/:path*", "/api/billing/:path*"],
 };
