@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +74,6 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Sea
           </div>
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">◀ Dashboard</Link>
-            <SignOutButton />
           </div>
         </div>
       </header>

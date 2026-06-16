@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { effectivePlan } from "@/lib/plans";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { SubmitButton } from "@/components/SubmitButton";
 import { sendCampaignAction } from "./actions";
@@ -46,7 +45,6 @@ export default async function CampaignsPage({ params, searchParams }: { params: 
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{event.name} — Communications</span>
           </div>
-          <SignOutButton />
         </div>
       </header>
 

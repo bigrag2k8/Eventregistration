@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { money } from "@/lib/format";
@@ -68,7 +67,6 @@ export default async function VendorsPage({ params, searchParams }: {
           </div>
           <div className="flex items-center gap-2">
             <Link href={`/events/${event.slug}/vendors`} target="_blank" className="btn-secondary">View public form ↗</Link>
-            <SignOutButton />
           </div>
         </div>
       </header>

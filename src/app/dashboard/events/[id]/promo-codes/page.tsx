@@ -4,7 +4,6 @@ import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { createPromoCodeAction, togglePromoCodeAction, deletePromoCodeAction } from "./actions";
 
@@ -48,7 +47,6 @@ export default async function PromoCodesPage({ params, searchParams }: Props) {
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{event.name} — Promo Codes</span>
           </div>
-          <SignOutButton />
         </div>
       </header>
 

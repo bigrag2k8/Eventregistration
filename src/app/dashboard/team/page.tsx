@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { requirePlanSelected } from "@/lib/plan-gate";
@@ -59,7 +58,6 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
           <div className="flex items-center gap-2">
             <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">Dashboard</Link>
             <Link href="/dashboard/team/invite" className="btn-primary">+ Invite team member</Link>
-            <SignOutButton />
           </div>
         </div>
       </header>

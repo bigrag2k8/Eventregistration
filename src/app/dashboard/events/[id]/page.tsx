@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
-import { SignOutButton } from "@/components/SignOutButton";
 import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
@@ -92,7 +91,6 @@ export default async function EventManagePage({ params, searchParams }: { params
           <div className="flex items-center gap-2">
             <Link href={publicUrl} target="_blank" className="btn-secondary">View public page ↗</Link>
             <Link href={`/checkin/${event.id}`} className="btn-secondary">Check-in</Link>
-            <SignOutButton />
           </div>
         </div>
       </header>

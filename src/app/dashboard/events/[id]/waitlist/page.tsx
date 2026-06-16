@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +35,6 @@ export default async function WaitlistPage({ params }: { params: { id: string } 
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{event.name} — Waitlist</span>
           </div>
-          <SignOutButton />
         </div>
       </header>
 

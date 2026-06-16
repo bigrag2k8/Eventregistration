@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { approveRefundRequestAction, denyRefundRequestAction } from "./actions";
@@ -54,7 +53,6 @@ export default async function RefundRequestsPage({ params, searchParams }: Props
               </span>
             )}
           </div>
-          <SignOutButton />
         </div>
       </header>
 

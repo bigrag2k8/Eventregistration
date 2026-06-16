@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { getSession, orgScope } from "@/lib/auth";
 import { KycBanner } from "@/components/KycBanner";
 import { money } from "@/lib/format";
-import { SignOutButton } from "@/components/SignOutButton";
 import { requirePlanSelected } from "@/lib/plan-gate";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +72,7 @@ export default async function DashboardHome() {
   ]);
 
   return (
-    <DashboardShell role={session.role}>
+    <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -174,7 +173,7 @@ export default async function DashboardHome() {
           </tbody>
         </table>
       </div>
-    </DashboardShell>
+    </main>
   );
 }
 
@@ -187,30 +186,3 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DashboardShell({ children, role }: { children: React.ReactNode; role: string }) {
-  return (
-    <main>
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="font-bold text-brand-700" title="Your Events App">Your Events App</Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link href="/dashboard">Dashboard</Link>
-            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/financials">Financials</Link>}
-            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/billing">Billing</Link>}
-            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/audit">Audit log</Link>}
-            {role !== "STAFF" && role !== "VOLUNTEER" && <Link href="/dashboard/settings">Settings</Link>}
-            {(role === "STAFF" || role === "VOLUNTEER") && <Link href="/checkin">Scanner</Link>}
-            {role === "SUPERADMIN" && (
-              <Link href="/admin" className="rounded-lg bg-slate-900 px-3 py-1 text-white hover:bg-slate-800">
-                🛡 Platform Admin
-              </Link>
-            )}
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{role}</span>
-            <SignOutButton />
-          </nav>
-        </div>
-      </header>
-      <section className="mx-auto max-w-6xl px-4 py-8">{children}</section>
-    </main>
-  );
-}

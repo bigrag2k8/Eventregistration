@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { cancelRegistrationAction, deleteRegistrationAction, refundRegistrationAction, bulkRefundAction } from "../actions";
 import { RegistrationsClient } from "./RegistrationsClient";
@@ -110,7 +109,6 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
           </div>
           <div className="flex items-center gap-2">
             <a href={`/api/events/${event.id}/export.csv`} className="btn-primary">Export CSV</a>
-            <SignOutButton />
           </div>
         </div>
       </header>

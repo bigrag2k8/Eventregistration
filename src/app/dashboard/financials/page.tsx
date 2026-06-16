@@ -5,7 +5,6 @@ import { money } from "@/lib/format";
 import { PLANS, effectivePlan } from "@/lib/plans";
 import { resolveRange, RANGE_PRESETS, RANGE_ORDER } from "@/lib/finance-range";
 import { revenueSplit, perEventBreakdown, revenueTrend, promoDiscountTotal } from "@/server/finance";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +72,6 @@ export default async function OrgFinancialsPage({
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">◀ Dashboard</Link>
             <Link href="/dashboard/billing" className="text-sm text-slate-600 hover:text-slate-900">Billing</Link>
-            <SignOutButton />
           </div>
         </div>
       </header>
