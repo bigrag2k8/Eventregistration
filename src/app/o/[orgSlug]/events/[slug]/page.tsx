@@ -4,6 +4,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { formatDateRange, money } from "@/lib/format";
 import { ShareBar } from "@/components/ShareBar";
+import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { WaitlistForm } from "@/components/WaitlistForm";
 
@@ -82,13 +83,16 @@ export default async function EventLandingPage({ params }: Props) {
             )}
             <span className="font-bold" style={{ color: "var(--org-brand)" }}>{event.organization.name}</span>
           </Link>
-          <Link
-            href={`/o/${event.organization.slug}/events/${event.slug}/register`}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white transition"
-            style={{ backgroundColor: "var(--org-brand)" }}
-          >
-            Register Now
-          </Link>
+          <div className="flex items-center gap-2">
+            <PublicAccountNav compact />
+            <Link
+              href={`/o/${event.organization.slug}/events/${event.slug}/register`}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white transition"
+              style={{ backgroundColor: "var(--org-brand)" }}
+            >
+              Register Now
+            </Link>
+          </div>
         </div>
       </header>
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
+import { PublicAccountNav } from "@/components/PublicAccountNav";
 
 // Re-runs on every request — guarantees fresh random selection each time
 export const dynamic = "force-dynamic";
@@ -69,22 +70,8 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
           <Link href="/" className="text-5xl font-bold text-brand-700">
             Your Events App
           </Link>
-          <nav className="flex flex-wrap items-center justify-end gap-2 text-sm">
-            <Link
-              href="/account/signin"
-              className="inline-flex items-center rounded-lg px-3 py-1.5 font-medium text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50"
-              title="For attendees who registered for an event"
-            >
-              Attendee sign in
-            </Link>
-            <Link
-              href="/signin"
-              className="inline-flex items-center rounded-lg px-3 py-1.5 font-medium text-brand-700 ring-1 ring-brand-300 hover:bg-brand-50"
-              title="For event organizers and their staff"
-            >
-              Organizer &amp; staff
-            </Link>
-            <Link href="/signup" className="btn-primary">Sign up — host events</Link>
+          <nav>
+            <PublicAccountNav />
           </nav>
         </div>
       </header>
