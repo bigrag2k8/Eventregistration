@@ -146,22 +146,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
         <section className="card">
           <h2 className="text-lg font-semibold">Email sender</h2>
           <p className="mt-1 text-sm text-slate-500">
-            By default, confirmation emails come from <code className="font-mono">events@yourevents.app</code>.
-            You can use your own address — but the domain must be verified in our email provider (Resend) first. Contact your platform admin to set this up.
+            All confirmation, reminder, and notification emails are sent from{" "}
+            <code className="font-mono">events@yourevents.app</code>.
           </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">From name (display name)</label>
-              <input name="fromName" maxLength={80} defaultValue={org.fromName ?? ""} className="input"
-                     placeholder="Harmony Lodge Events" />
-            </div>
-            <div>
-              <label className="label">From email address</label>
-              <input name="fromEmail" type="email" defaultValue={org.fromEmail ?? ""} className="input"
-                     placeholder="events@harmonylodge.org" />
-              <p className="mt-1 text-xs text-slate-500">Leave blank to use the default AITS sender.</p>
-            </div>
-          </div>
         </section>
 
         <div className="flex items-center justify-end gap-3">

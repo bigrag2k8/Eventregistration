@@ -12,11 +12,9 @@ import { eventEntitlements } from "@/lib/plans";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 
-function buildFrom(org: { name: string; fromEmail: string | null; fromName: string | null }) {
-  if (org.fromEmail) {
-    const name = org.fromName ?? org.name;
-    return `${name} <${org.fromEmail}>`;
-  }
+// All mail sends from the single verified platform sender (EMAIL_FROM). Per-org
+// custom senders were removed — see the note in src/lib/email.ts buildFrom.
+function buildFrom(_org: { name: string; fromEmail: string | null; fromName: string | null }) {
   return DEFAULT_FROM;
 }
 

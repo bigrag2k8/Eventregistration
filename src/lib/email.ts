@@ -19,12 +19,14 @@ export function esc(v: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Build the "From" header for transactional emails — prefer the org's custom sender when set. */
-function buildFrom(org?: { name?: string | null; fromEmail?: string | null; fromName?: string | null } | null) {
-  if (org?.fromEmail) {
-    const name = org.fromName ?? org.name ?? "Events";
-    return `${name} <${org.fromEmail}>`;
-  }
+/**
+ * Build the "From" header for transactional emails. ALL mail now sends from the
+ * single platform sender (EMAIL_FROM, i.e. events@yourevents.app) — per-org
+ * custom senders were removed because each would need its own domain verified in
+ * Resend, and an unverified org address silently fails to deliver. The org
+ * argument is accepted but ignored so callers don't have to change.
+ */
+function buildFrom(_org?: { name?: string | null; fromEmail?: string | null; fromName?: string | null } | null) {
   return DEFAULT_FROM;
 }
 

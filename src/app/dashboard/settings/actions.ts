@@ -16,8 +16,6 @@ const schema = z.object({
   website: z.string().url().optional().or(z.literal("")),
   contactEmail: z.string().email().optional().or(z.literal("")),
   contactPhone: z.string().max(40).optional(),
-  fromEmail: z.string().email().optional().or(z.literal("")),
-  fromName: z.string().max(80).optional(),
 });
 
 function normalizeColor(c?: string) {
@@ -46,8 +44,11 @@ export async function updateOrgSettingsAction(formData: FormData) {
       website: data.website || null,
       contactEmail: data.contactEmail || null,
       contactPhone: data.contactPhone || null,
-      fromEmail: data.fromEmail || null,
-      fromName: data.fromName || null,
+      // Per-org custom email sender removed — all mail uses the platform sender
+      // (events@yourevents.app). Clear any stale value a prior save left behind
+      // so it can never override the verified sender.
+      fromEmail: null,
+      fromName: null,
     },
   });
 
