@@ -195,11 +195,22 @@ export async function signTicketToken(payload: {
   registrationId: string;
   eventId: string;
   ticketTypeId: string;
-}) {
+}, eventEndAt?: Date) {
+  // NEW-01: bound the token's cryptographic validity. A photographed/leaked QR
+  // is otherwise valid forever; single-use scanning is the primary control, but
+  // an expiry shrinks the replay window. Use event end + a generous 7-day buffer
+  // (absorbs timezone skew, late or multi-day check-in, and reschedules) so a
+  // legitimate attendee is never rejected at the door, while still reducing
+  // validity from "forever" to ~a week past the event. Falls back to 30 days
+  // when no end time is supplied (issueTickets always supplies one).
+  const exp = eventEndAt
+    ? new Date(eventEndAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+    : "30d";
   return new SignJWT(payload as any)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer("eventflow-qr")
+    .setExpirationTime(exp)
     .sign(QR_SECRET);
 }
 

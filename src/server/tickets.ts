@@ -14,7 +14,7 @@ import { signTicketToken } from "@/lib/auth";
 export async function issueTickets(registrationId: string) {
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    include: { tickets: true, ticketType: true },
+    include: { tickets: true, ticketType: true, event: { select: { endAt: true } } },
   });
   if (!reg) throw new Error("Registration not found");
   if (reg.status !== "CONFIRMED") throw new Error("Registration is not confirmed");
@@ -29,7 +29,7 @@ export async function issueTickets(registrationId: string) {
       registrationId: reg.id,
       eventId: reg.eventId,
       ticketTypeId: reg.ticketTypeId,
-    });
+    }, reg.event.endAt);
     const hash = crypto.createHash("sha256").update(token).digest("hex");
     const t = await prisma.ticket.create({
       data: {
