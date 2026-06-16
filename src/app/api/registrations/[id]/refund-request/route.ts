@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendRefundRequestReceivedEmail } from "@/lib/email";
 
 const submitSchema = z.object({
@@ -10,7 +10,7 @@ const submitSchema = z.object({
 });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`refund-req:${ip}`, 5, 300);
   if (!rl.allowed) return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
 

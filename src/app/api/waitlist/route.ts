@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { getSession } from "@/lib/auth";
 
 const schema = z.object({
@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`waitlist:${ip}`, 10, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
 

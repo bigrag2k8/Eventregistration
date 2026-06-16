@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { consumePasswordReset } from "@/lib/password-reset";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -11,7 +11,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`reset-password:${ip}`, 10, 15 * 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 

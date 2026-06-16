@@ -1,5 +1,27 @@
 import Redis from "ioredis";
 
+/**
+ * Trusted client IP for rate-limit keys (SEC-06).
+ *
+ * X-Forwarded-For is a comma-separated chain `client, proxy1, proxy2, ...` where
+ * each hop APPENDS the address it received the request from. A client can only
+ * spoof the LEFT entries; the RIGHTMOST entry is the one our trusted proxy
+ * (Railway's edge) appended for the actual inbound connection, so it cannot be
+ * forged by the caller. Using the leftmost value let an attacker rotate the
+ * header to dodge per-IP limits; using the rightmost defeats that.
+ *
+ * Assumes exactly one trusted proxy in front (Railway, no additional CDN). If a
+ * CDN is added later, count back one more hop.
+ */
+export function clientIp(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return req.headers.get("x-real-ip")?.trim() || "anon";
+}
+
 let _redis: Redis | null = null;
 
 export function redis() {

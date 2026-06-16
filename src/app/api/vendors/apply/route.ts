@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   eventId: z.string(),
@@ -27,7 +27,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`vendor-apply:${ip}`, 5, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many submissions, please slow down." }, { status: 429 });
 

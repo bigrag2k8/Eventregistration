@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { setSessionCookie, signSession, verifyPassword } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isProtectedOwner } from "@/lib/owner";
 
 const schema = z.object({ email: z.string().email(), password: z.string() });
@@ -12,12 +12,17 @@ const schema = z.object({ email: z.string().email(), password: z.string() });
 const DUMMY_BCRYPT_HASH = "$2a$12$7r5cxj083lr0O1bcXocwnOqty.XHYuKrbaQHrQGbSZUGE.O.Ks90C";
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`signin:${ip}`, 20, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+
+  // Per-account throttle (SEC-06): survives IP rotation/spoofing by limiting
+  // attempts against a single email regardless of source IP.
+  const emailRl = await rateLimit(`signin:email:${parsed.data.email.toLowerCase()}`, 10, 300);
+  if (!emailRl.allowed) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   // Always run a bcrypt compare — even when the user/hash is missing — so the

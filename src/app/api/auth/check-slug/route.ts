@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 /**
  * Live slug availability check for the signup form.
@@ -56,7 +56,7 @@ async function suggestions(base: string, max = 3): Promise<string[]> {
 }
 
 export async function GET(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   // 60 checks per minute per IP — generous so typing isn't blocked, but stops abuse.
   const rl = await rateLimit(`slugcheck:${ip}`, 60, 60);
   if (!rl.allowed) return NextResponse.json({ error: "rate_limited" }, { status: 429 });

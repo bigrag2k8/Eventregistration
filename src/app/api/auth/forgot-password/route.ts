@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createPasswordReset } from "@/lib/password-reset";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({ email: z.string().email() });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   // Generic 200 regardless of input/outcome so the endpoint can't be used to

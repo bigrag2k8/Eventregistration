@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createMagicLink } from "@/lib/magic-link";
 import { sendMagicLinkEmail } from "@/lib/email";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -19,7 +19,7 @@ function safeNext(next?: string) {
 }
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   // Generic 200 even on bad input so the endpoint can't be used to probe.

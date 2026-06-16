@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, signSession, setSessionCookie } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const RESERVED_SLUGS = new Set([
   "admin", "api", "app", "auth", "checkin", "dashboard", "events",
@@ -20,7 +20,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`signup:${ip}`, 10, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 

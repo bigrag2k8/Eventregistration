@@ -3,14 +3,14 @@ import { z } from "zod";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { requireRoleApi, orgScope, verifyTicketToken } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({ token: z.string().min(10), eventId: z.string() });
 
 export async function POST(req: Request) {
   const session = await requireRoleApi(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"]);
   if (session instanceof NextResponse) return session;
-  const ip = req.headers.get("x-forwarded-for") ?? "anon";
+  const ip = clientIp(req);
   const rl = await rateLimit(`checkin:${session.sub}:${ip}`, 120, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many scans" }, { status: 429 });
 
