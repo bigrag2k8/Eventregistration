@@ -117,7 +117,7 @@ export default async function DashboardHome() {
 
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your events</h2>
-        {session.role !== "STAFF" && (
+        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
           <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
         )}
       </div>
@@ -155,7 +155,7 @@ export default async function DashboardHome() {
                 </td>
                 <td className="px-4 py-3 text-right">{e._count.registrations}</td>
                 <td className="px-4 py-3 text-right">
-                  {session.role === "STAFF" ? (
+                  {session.role === "STAFF" || session.role === "VOLUNTEER" ? (
                     <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Open scanner</Link>
                   ) : (
                     <>
