@@ -47,6 +47,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
+  // Second factor: if MFA is on, stop here. Return a short-lived challenge token
+  // (NOT a session) — /api/auth/mfa completes sign-in once the code checks out.
+  if (user.mfaEnabled) {
+    const { signMfaChallenge } = await import("@/lib/mfa");
+    const mfaToken = await signMfaChallenge(user.id);
+    await audit({ userId: user.id, action: "auth.mfa_challenge", metadata: { method: "password" }, ipAddress: ip });
+    return NextResponse.json({ mfaRequired: true, mfaToken });
+  }
+
   // Break-glass: a protected owner always signs in as SUPERADMIN. Persist the
   // elevation so the DB reflects it (and so the admin list shows them correctly).
   const role = isProtectedOwner(user.email) ? "SUPERADMIN" : user.role;

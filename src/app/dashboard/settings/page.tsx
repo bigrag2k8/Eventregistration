@@ -7,6 +7,7 @@ import { ConnectActions } from "@/components/ConnectActions";
 import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
 import { updateOrgSettingsAction } from "./actions";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { MfaSetup } from "@/components/MfaSetup";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
   await requirePlanSelected(session);
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) redirect("/dashboard");
+  const me = await prisma.user.findUnique({ where: { id: session.sub }, select: { mfaEnabled: true } });
 
   return (
     <main>
@@ -154,6 +156,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
           <button type="submit" className="btn-primary">Save settings</button>
         </div>
       </form>
+
+      {/* Two-factor lives outside the settings form — it has its own actions. */}
+      <div className="mx-auto max-w-3xl px-4 pb-12">
+        <section className="card">
+          <h2 className="text-lg font-semibold">Two-factor authentication</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Require a one-time code from an authenticator app at sign-in, so a stolen
+            password alone can’t get into your account.
+          </p>
+          <div className="mt-4">
+            <MfaSetup enabled={me?.mfaEnabled ?? false} />
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

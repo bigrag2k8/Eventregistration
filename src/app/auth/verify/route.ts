@@ -49,14 +49,14 @@ export async function GET(req: Request) {
   if (user?.deletedAt) {
     return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
-  // Staff and volunteer accounts are password-only — they must not obtain a
-  // session through the passwordless magic link. Send them to /signin to use
-  // their password. (New magic-link accounts are always ATTENDEE, so this only
-  // affects an existing staff/volunteer who tried the attendee sign-in.)
-  if (user && (user.role === "STAFF" || user.role === "VOLUNTEER")) {
+  // Staff/volunteer accounts are password-only, and any MFA-enabled account must
+  // go through the password + second-factor flow — neither may obtain a session
+  // through the passwordless magic link (that would bypass the password/MFA).
+  // Send them to /signin. (New magic-link accounts are always ATTENDEE.)
+  if (user && (user.role === "STAFF" || user.role === "VOLUNTEER" || user.mfaEnabled)) {
     await audit({
       userId: user.id, action: "auth.magic_link_invalid",
-      metadata: { reason: "staff_password_only", role: user.role }, ipAddress: ip,
+      metadata: { reason: user.mfaEnabled ? "mfa_use_password" : "staff_password_only", role: user.role }, ipAddress: ip,
     });
     return NextResponse.redirect(new URL("/signin?error=use_password", publicBase(req)));
   }
