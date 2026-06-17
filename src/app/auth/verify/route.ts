@@ -49,6 +49,17 @@ export async function GET(req: Request) {
   if (user?.deletedAt) {
     return NextResponse.redirect(new URL("/account/signin?error=invalid", publicBase(req)));
   }
+  // Staff and volunteer accounts are password-only — they must not obtain a
+  // session through the passwordless magic link. Send them to /signin to use
+  // their password. (New magic-link accounts are always ATTENDEE, so this only
+  // affects an existing staff/volunteer who tried the attendee sign-in.)
+  if (user && (user.role === "STAFF" || user.role === "VOLUNTEER")) {
+    await audit({
+      userId: user.id, action: "auth.magic_link_invalid",
+      metadata: { reason: "staff_password_only", role: user.role }, ipAddress: ip,
+    });
+    return NextResponse.redirect(new URL("/signin?error=use_password", publicBase(req)));
+  }
   // Break-glass: a protected owner (OWNER_EMAIL) is always SUPERADMIN — created
   // as one if new, elevated if their stored role drifted.
   const owner = isProtectedOwner(email);
