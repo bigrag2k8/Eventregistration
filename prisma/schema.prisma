@@ -211,6 +211,11 @@ model User {
   // signed with; getSession rejects the token if this has since been bumped.
   // Incremented on password reset to log out all existing sessions.
   sessionVersion Int      @default(1)
+  // MFA (TOTP). mfaSecret is the AES-256-GCM-encrypted base32 secret; recovery
+  // codes are stored as SHA-256 hashes (single-use). Opt-in for staff roles.
+  mfaEnabled       Boolean  @default(false)
+  mfaSecret        String?
+  mfaRecoveryCodes String[] @default([])
   firstName      String?
   lastName       String?
   phone          String?
