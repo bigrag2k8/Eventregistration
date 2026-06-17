@@ -33,7 +33,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
     <div>
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <Link href="/account" className="font-bold text-brand-700">Your Events</Link>
+          <Link href="/" className="font-bold text-brand-700" title="Back to yourevents.app home">Your Events</Link>
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               {fullName && <div className="text-sm font-medium text-slate-900">{fullName}</div>}
