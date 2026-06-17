@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div>
       <header className="sticky top-0 z-20 border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="font-bold text-brand-700" title="Your Events App">
+          <Link href="/" className="font-bold text-brand-700" title="Back to yourevents.app home">
             Your Events App
           </Link>
           <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
