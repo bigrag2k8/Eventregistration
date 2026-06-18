@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { computeTotals } from "@/server/pricing";
-import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
+import { issueTickets, reserveSeats, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 import { eventEntitlements } from "@/lib/plans";
 import { getSession } from "@/lib/auth";
@@ -195,19 +195,16 @@ export async function POST(req: Request) {
       // Waitlist bypass: increment unconditionally (seat was promised) — this
       // can briefly push quantitySold past quantityTotal until the worker
       // re-promotes the next entry; oversell is intended for the promised seat.
-      const reserved = bypassCapacity
-        ? await tx.$executeRaw`
-            UPDATE ticket_types
-            SET "quantitySold" = "quantitySold" + ${input.quantity}
-            WHERE id = ${input.ticketTypeId}
-          `
-        : await tx.$executeRaw`
-            UPDATE ticket_types
-            SET "quantitySold" = "quantitySold" + ${input.quantity}
-            WHERE id = ${input.ticketTypeId}
-              AND ("quantityTotal" IS NULL OR "quantitySold" + ${input.quantity} <= "quantityTotal")
-          `;
-      if (reserved === 0) throw new SoldOutError("ticket");
+      if (bypassCapacity) {
+        // Seat was promised to a promoted waitlister — increment unconditionally.
+        await tx.$executeRaw`
+          UPDATE ticket_types
+          SET "quantitySold" = "quantitySold" + ${input.quantity}
+          WHERE id = ${input.ticketTypeId}
+        `;
+      } else if (!(await reserveSeats(tx, input.ticketTypeId, input.quantity))) {
+        throw new SoldOutError("ticket");
+      }
 
       // Event-wide capacity across all ticket types (skipped for waitlist bypass).
       if (event.capacity != null && !bypassCapacity) {

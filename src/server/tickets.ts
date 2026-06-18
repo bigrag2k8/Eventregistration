@@ -79,6 +79,27 @@ export async function reissueTickets(registrationId: string) {
 }
 
 /**
+ * Atomically claim `quantity` seats on a ticket type. The conditional UPDATE
+ * makes overselling impossible — two buyers of the last seat can't both win,
+ * because the WHERE clause only matches while there is still room. Returns true
+ * if the seats were claimed, false if the type is sold out. Pass a transaction
+ * client (`tx`) to keep the claim atomic with the surrounding registration.
+ */
+export async function reserveSeats(
+  client: { $executeRaw: typeof prisma.$executeRaw },
+  ticketTypeId: string,
+  quantity: number,
+): Promise<boolean> {
+  const affected = await client.$executeRaw`
+    UPDATE ticket_types
+    SET "quantitySold" = "quantitySold" + ${quantity}
+    WHERE id = ${ticketTypeId}
+      AND ("quantityTotal" IS NULL OR "quantitySold" + ${quantity} <= "quantityTotal")
+  `;
+  return affected > 0;
+}
+
+/**
  * Release reserved seats back to a ticket type — call when a held registration
  * leaves the held state (abandoned, cancelled, deleted, or fully refunded).
  * Clamped at zero so an accounting slip can never push availability negative.

@@ -7,7 +7,9 @@ import path from "node:path";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    // Unit tests only — DB-backed integration tests live in tests/integration
+    // and run via `npm run test:integration` (vitest.integration.config.ts).
+    include: ["tests/unit/**/*.test.ts"],
     clearMocks: true,
   },
   resolve: {
