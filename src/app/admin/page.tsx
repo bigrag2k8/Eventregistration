@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { FactoryResetCard } from "@/components/FactoryResetCard";
+import { isProtectedOwner } from "@/lib/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -108,10 +109,13 @@ export default async function AdminHome() {
           </div>
         )}
 
-        <FactoryResetCard
-          keepEmail={me?.email ?? "your account"}
-          keepOrgName={me?.organization?.name ?? null}
-        />
+        {/* Owner-only: only the protected OWNER_EMAIL account can factory-reset. */}
+        {isProtectedOwner(session.email) && (
+          <FactoryResetCard
+            keepEmail={me?.email ?? "your account"}
+            keepOrgName={me?.organization?.name ?? null}
+          />
+        )}
       </section>
     </main>
   );

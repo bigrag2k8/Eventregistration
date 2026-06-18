@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { isProtectedOwner } from "@/lib/owner";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { notifyOps } from "@/lib/alert";
 
 /**
  * DANGER: factory-resets the platform.
@@ -25,6 +28,17 @@ import { getSession, requireRole } from "@/lib/auth";
  */
 export async function POST(req: Request) {
   const session = requireRole(["SUPERADMIN"], await getSession());
+  // Owner-only: restrict the platform wipe to the protected OWNER_EMAIL account.
+  // Not every SUPERADMIN can fire it — this is the most destructive operation.
+  if (!isProtectedOwner(session.email)) {
+    return NextResponse.json({ error: "Only the platform owner can factory-reset." }, { status: 403 });
+  }
+  // Rate limit (3/hour per user) so a hijacked session can't loop the wipe.
+  const ip = clientIp(req);
+  const rl = await rateLimit(`factory-reset:${session.sub}`, 3, 3600);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Too many factory-reset attempts. Try again later." }, { status: 429 });
+  }
 
   const body = await req.json().catch(() => ({}));
   if (body?.confirm !== "WIPE EVERYTHING") {
@@ -39,6 +53,15 @@ export async function POST(req: Request) {
   if (!me) return NextResponse.json({ error: "Calling user not found" }, { status: 500 });
   const keepUserId = me.id;
   const keepOrgId = me.organizationId; // may be null
+
+  // Durable forensics: the in-DB audit log is itself deleted by the wipe (and
+  // again on any re-run), so email an ops alert BEFORE wiping — an external
+  // record that survives the reset. Non-throwing if OPS_ALERT_EMAIL is unset.
+  await notifyOps(
+    "Platform factory reset triggered",
+    `A factory reset ("WIPE EVERYTHING") was initiated by ${session.email} (user ${session.sub}) from ${ip} at ${new Date().toISOString()}. ` +
+      `All events, users, organizations, invites, audit logs, and other sessions are being deleted, keeping only that account and its organization.`,
+  );
 
   // Run all deletes in a single transaction so it either fully wipes or rolls back
   const result = await prisma.$transaction(async (tx) => {
