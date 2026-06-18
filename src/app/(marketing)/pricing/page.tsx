@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/plans";
+import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
+
+// Stripe's standard US card rate, mirrored from PROCESSING_FEE_PCT /
+// PROCESSING_FEE_FIXED_CENTS in src/server/pricing.ts.
+const STRIPE_FEE_LABEL = "2.9% + $0.30";
 
 export const metadata = {
   title: "Pricing — Your Events App",
@@ -75,6 +80,32 @@ export default function PricingPage() {
               </Link>
             </div>
           ))}
+        </div>
+
+        <div className="mt-12 rounded-xl bg-slate-50 p-6 ring-1 ring-slate-200">
+          <h2 className="text-lg font-semibold">Fees on paid ticket sales</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            The plan prices above are for hosting. When you sell paid tickets, the following
+            per-transaction fees apply. Free events and $0 tickets are always fee-free.
+          </p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg bg-white p-4 ring-1 ring-slate-200">
+              <div className="text-2xl font-bold">{PLATFORM_FEE_PERCENT}%</div>
+              <div className="mt-1 font-medium">Platform fee</div>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                Per ticket, on the ticket price after any discounts — not on sales tax. Deducted from
+                your payout. It&apos;s how we keep hosting free events free.
+              </p>
+            </div>
+            <div className="rounded-lg bg-white p-4 ring-1 ring-slate-200">
+              <div className="text-2xl font-bold">{STRIPE_FEE_LABEL}</div>
+              <div className="mt-1 font-medium">Stripe processing fee</div>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                Stripe&apos;s standard card rate, per paid order. By default it&apos;s covered within the
+                platform fee; you can optionally pass it on to attendees at checkout.
+              </p>
+            </div>
+          </div>
         </div>
 
         <p className="mt-8 text-center text-sm text-slate-500">
