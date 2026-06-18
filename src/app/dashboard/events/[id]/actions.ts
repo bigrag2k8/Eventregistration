@@ -8,7 +8,8 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { stripe, stripeConfigured } from "@/lib/stripe";
-import { releaseSeats, releasePromoUse } from "@/server/tickets";
+import { releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
+import { sendConfirmationEmail } from "@/lib/email";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -49,6 +50,45 @@ export async function unpublishAction(formData: FormData) {
   });
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath("/");
+}
+
+/**
+ * Re-sign a confirmed registration's QR ticket(s) with the current key and email
+ * a fresh confirmation. Recovers tickets after a QR_SECRET rotation (old tokens
+ * stop verifying) or simply re-sends a lost ticket. Org-scoped to the caller.
+ */
+export async function reissueTicketsAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const registrationId = String(formData.get("registrationId"));
+  const { session, event } = await authorizeEvent(eventId);
+
+  const reg = await prisma.registration.findFirst({
+    where: { id: registrationId, eventId: event.id },
+    select: { id: true, status: true, email: true },
+  });
+  if (!reg) redirect(`/dashboard/events/${event.id}/registrations?error=reissue_failed`);
+  if (reg.status !== "CONFIRMED") {
+    redirect(`/dashboard/events/${event.id}/registrations?error=reissue_not_confirmed`);
+  }
+
+  // Keep redirects OUT of the try so NEXT_REDIRECT isn't swallowed (H-7).
+  let failed = false;
+  try {
+    await reissueTickets(reg.id);
+    await sendConfirmationEmail(reg.id);
+  } catch (e: any) {
+    console.error("[reissue] failed:", e?.message);
+    failed = true;
+  }
+  if (failed) redirect(`/dashboard/events/${event.id}/registrations?error=reissue_failed`);
+
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "ticket.reissued", targetType: "Registration", targetId: reg.id,
+    metadata: { email: reg.email },
+  });
+  revalidatePath(`/dashboard/events/${event.id}/registrations`);
+  redirect(`/dashboard/events/${event.id}/registrations?reissued=1`);
 }
 
 /**

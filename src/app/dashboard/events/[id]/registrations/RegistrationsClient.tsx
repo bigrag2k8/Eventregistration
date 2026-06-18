@@ -33,6 +33,7 @@ interface Props {
   deleteAction: (fd: FormData) => Promise<void>;
   refundAction: (fd: FormData) => Promise<void>;
   bulkRefundAction: (fd: FormData) => Promise<void>;
+  reissueAction: (fd: FormData) => Promise<void>;
 }
 
 function money(cents: number, currency = "USD") {
@@ -40,7 +41,7 @@ function money(cents: number, currency = "USD") {
 }
 
 export function RegistrationsClient({
-  eventId, isSuperAdmin, regs, cancelAction, deleteAction, refundAction, bulkRefundAction,
+  eventId, isSuperAdmin, regs, cancelAction, deleteAction, refundAction, bulkRefundAction, reissueAction,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
@@ -229,6 +230,17 @@ export function RegistrationsClient({
                             label="Refund"
                             confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the non-refundable 4.5% processing fee ($${((r.totalCents * 0.045) / 100).toFixed(2)})?`}
                             className="text-xs text-brand-700 hover:underline"
+                          />
+                        </form>
+                      )}
+                      {r.status === "CONFIRMED" && (
+                        <form action={reissueAction} className="inline">
+                          <input type="hidden" name="eventId" value={eventId} />
+                          <input type="hidden" name="registrationId" value={r.id} />
+                          <ConfirmButton
+                            label="Reissue"
+                            confirmText={`Regenerate the QR ticket${(r.ticketCount || r.quantity) > 1 ? "s" : ""} for ${r.firstName} ${r.lastName} and email a fresh copy to ${r.email}? Any previously issued QR codes will stop working.`}
+                            className="text-xs text-slate-600 hover:underline"
                           />
                         </form>
                       )}

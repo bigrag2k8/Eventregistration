@@ -29,6 +29,8 @@ const MESSAGES: Record<string, string> = {
   vendor_not_refundable: "Only a PAID vendor application can be refunded.",
   resync_failed: "Could not re-sync the subscription from Stripe. Check the Stripe dashboard and try again.",
   resync_no_subscription: "This org has no Stripe subscription to re-sync.",
+  reissue_failed: "Couldn't reissue the tickets. Try again, or check the email logs.",
+  reissue_not_confirmed: "Only confirmed registrations have tickets to reissue.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

@@ -48,6 +48,37 @@ export async function issueTickets(registrationId: string) {
 }
 
 /**
+ * Re-sign a CONFIRMED registration's QR tokens with the CURRENT signing key and
+ * refresh their stored hash, keeping each Ticket row (and any existing check-in)
+ * intact. Use to recover tickets after a QR_SECRET rotation (which invalidates
+ * tokens signed with the old key) or to hand an attendee a fresh copy. If the
+ * registration somehow has no tickets yet, it issues them.
+ */
+export async function reissueTickets(registrationId: string) {
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { tickets: true, event: { select: { endAt: true } } },
+  });
+  if (!reg) throw new Error("Registration not found");
+  if (reg.status !== "CONFIRMED") throw new Error("Only confirmed registrations have tickets");
+  if (reg.tickets.length === 0) return issueTickets(registrationId);
+
+  const updated = [];
+  for (const t of reg.tickets) {
+    const token = await signTicketToken(
+      { ticketId: t.id, registrationId: reg.id, eventId: reg.eventId, ticketTypeId: reg.ticketTypeId },
+      reg.event.endAt,
+    );
+    const hash = crypto.createHash("sha256").update(token).digest("hex");
+    updated.push(await prisma.ticket.update({
+      where: { id: t.id },
+      data: { qrToken: token, qrCodeHash: hash },
+    }));
+  }
+  return updated;
+}
+
+/**
  * Release reserved seats back to a ticket type — call when a held registration
  * leaves the held state (abandoned, cancelled, deleted, or fully refunded).
  * Clamped at zero so an accounting slip can never push availability negative.
