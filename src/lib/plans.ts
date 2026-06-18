@@ -1,14 +1,18 @@
 /**
  * Plan catalog — Stripe price IDs and limits for each tier.
- * Prices live in the active test sandbox (the account whose sk_test/pk_test are
- * set on the Railway web service). Recreated 2026-06-13 after the sandbox move.
+ *
+ * Price IDs are env-overridable so test↔live can be flipped entirely from Railway
+ * with no code change: set STRIPE_PRICE_SINGLE_EVENT / _STARTER / _PRO to the live
+ * `price_…` IDs alongside the live keys. When unset they fall back to the current
+ * test-sandbox IDs (recreated 2026-06-13 after the sandbox move), so existing
+ * test-mode billing keeps working untouched.
  */
 
 export const STRIPE_PRICES = {
-  SINGLE_EVENT: "price_1Thy3mGrTuPPvYuYlFzhMPOH", // $19 one-time
-  STARTER:      "price_1Thy4EGrTuPPvYuYf7xx0F0i", // $24.99/mo
-  PRO:          "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
-} as const;
+  SINGLE_EVENT: process.env.STRIPE_PRICE_SINGLE_EVENT ?? "price_1Thy3mGrTuPPvYuYlFzhMPOH", // $19 one-time
+  STARTER:      process.env.STRIPE_PRICE_STARTER      ?? "price_1Thy4EGrTuPPvYuYf7xx0F0i", // $24.99/mo
+  PRO:          process.env.STRIPE_PRICE_PRO          ?? "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
+};
 
 /**
  * Per-EVENT entitlements (the Free + Single Event model).
