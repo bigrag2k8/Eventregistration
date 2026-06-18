@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
+import { SiteFooter } from "@/components/SiteFooter";
 
 // Re-runs on every request — guarantees fresh random selection each time
 export const dynamic = "force-dynamic";
@@ -145,14 +146,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
         )}
       </section>
 
-      <footer className="border-t border-slate-200 py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Your Events App ·{" "}
-          <a href="mailto:events@yourevents.app" className="hover:text-slate-700">events@yourevents.app</a>
-          {" · "}
-          <a href="https://www.yourevents.app" className="hover:text-slate-700">yourevents.app</a>
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
