@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ interface SearchParams {
 const PAGE_SIZE = 50;
 
 export default async function AuditLogPage({ searchParams }: { searchParams: SearchParams }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   // SUPERADMIN can audit any org; everyone else must have one linked.
   if (!session.orgId && session.role !== "SUPERADMIN") redirect("/dashboard");
   if (session.role !== "SUPERADMIN") await requirePlanSelected(session);

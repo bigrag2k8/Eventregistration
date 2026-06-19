@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { effectivePlan } from "@/lib/plans";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -11,7 +11,7 @@ import { sendCampaignAction } from "./actions";
 export const dynamic = "force-dynamic";
 
 export default async function CampaignsPage({ params, searchParams }: { params: { id: string }; searchParams: { error?: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
 

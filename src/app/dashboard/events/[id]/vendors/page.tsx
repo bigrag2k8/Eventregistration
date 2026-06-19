@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { money } from "@/lib/format";
@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default async function VendorsPage({ params, searchParams }: {
   params: { id: string }; searchParams: { status?: string; error?: string };
 }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   const event = await prisma.event.findFirst({
     where: { id: params.id, ...orgScope(session), deletedAt: null },
   });

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { requirePlanSelected } from "@/lib/plan-gate";
@@ -26,7 +26,7 @@ const INVITE_STATUS_STYLES: Record<string, string> = {
 };
 
 export default async function TeamPage({ searchParams }: { searchParams: { invited?: string; error?: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ConnectActions } from "@/components/ConnectActions";
 import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
@@ -12,7 +12,7 @@ import { MfaSetup } from "@/components/MfaSetup";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({ searchParams }: { searchParams: { saved?: string; error?: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });

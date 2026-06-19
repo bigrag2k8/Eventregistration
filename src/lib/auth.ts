@@ -233,6 +233,29 @@ export async function requireRoleApi(allowed: Role[]) {
 }
 
 /**
+ * For server-component PAGES: redirect on auth failure instead of throwing.
+ *
+ * `requireRole` throws "UNAUTHORIZED" / "FORBIDDEN" — fine in API routes but in
+ * a Server Component that surfaces as "An error occurred in the Server
+ * Components render" (HTTP 500 + Sentry alert). Pages should redirect to
+ * /signin or /dashboard cleanly. Middleware already pre-filters /dashboard/* to
+ * staff roles, but pages that restrict below middleware (e.g. /dashboard/team
+ * is organizer-only) would otherwise blow up when STAFF/VOLUNTEER browse in.
+ *
+ *   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
+ */
+export async function requireRolePage(allowed: Role[]): Promise<JwtPayload> {
+  const { redirect } = await import("next/navigation");
+  const session = await getSession();
+  // The unreachable throws after redirect() keep TS's control-flow analysis
+  // happy — redirect() does throw, but typed through dynamic import it loses
+  // its `never` return so TS otherwise wouldn't narrow `session` to non-null.
+  if (!session) { redirect("/signin"); throw new Error("unreachable"); }
+  if (!allowed.includes(session.role)) { redirect("/dashboard"); throw new Error("unreachable"); }
+  return session;
+}
+
+/**
  * Returns a Prisma `where` snippet that scopes a query to the caller's
  * organization, EXCEPT for SUPERADMIN, who can view/manage records across
  * every organization. Use anywhere we currently inline

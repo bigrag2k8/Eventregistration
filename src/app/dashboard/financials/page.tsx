@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { PLANS, effectivePlan } from "@/lib/plans";
 import { resolveRange, RANGE_PRESETS, RANGE_ORDER } from "@/lib/finance-range";
@@ -13,7 +13,7 @@ export default async function OrgFinancialsPage({
 }: {
   searchParams: { range?: string; from?: string; to?: string };
 }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   const orgId = session.orgId ?? undefined;
   const range = resolveRange(searchParams, Date.now());
   const window = { from: range.from, to: range.to };

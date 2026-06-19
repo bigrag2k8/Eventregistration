@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
@@ -24,7 +24,7 @@ const CATEGORIES = [
 ];
 
 export default async function NewEventPage({ searchParams }: { searchParams: { error?: string; bought?: string; canceled?: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   await requirePlanSelected(session);
   if (!session.orgId) {
     return (

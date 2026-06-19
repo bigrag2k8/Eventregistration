@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { inviteTeamMemberAction } from "../actions";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -8,7 +8,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 export const dynamic = "force-dynamic";
 
 export default async function InviteTeamMemberPage({ searchParams }: { searchParams: { eventId?: string; error?: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
   const [org, events] = await Promise.all([
     prisma.organization.findUnique({ where: { id: session.orgId } }),

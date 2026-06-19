@@ -2,14 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { PLANS } from "@/lib/plans";
 import { activateFreePlanAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function BillingPage({ searchParams }: { searchParams: { upgraded?: string; canceled?: string; welcome?: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
 
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
