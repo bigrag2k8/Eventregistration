@@ -11,6 +11,7 @@ import { PresaleFields } from "@/components/PresaleFields";
 import { AddTicketFields } from "@/components/AddTicketFields";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { QrButton } from "./QrButton";
 
 export const dynamic = "force-dynamic";
 
@@ -208,6 +209,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             <Link href={`/dashboard/events/${event.id}/waitlist`} className={actionBox}>Waitlist</Link>
             <Link href={`/dashboard/events/${event.id}/refund-requests`} className={actionBox}>Refund requests</Link>
             <Link href={`/dashboard/events/${event.id}/campaigns`} className={actionBox}>Communications</Link>
+            <QrButton href={`/qr/event/${event.id}`} className={actionBox} />
             <details className="relative">
               <summary className={`${actionBox} w-full cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden`}>Export CSV ▾</summary>
               <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
