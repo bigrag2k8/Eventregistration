@@ -21,6 +21,15 @@ export async function POST(req: Request) {
     return back("/dashboard/billing?canceled=invalid_plan");
   }
 
+  // Optional return-after-success destination. Whitelisted to local /dashboard/*
+  // paths so this can't be turned into an open redirect: the caller passes a
+  // relative path, we reject anything else and fall back to the billing page.
+  const rawReturnTo = String(form.get("returnTo") ?? "").trim();
+  const safeReturnTo =
+    rawReturnTo.startsWith("/dashboard/") && !rawReturnTo.startsWith("//")
+      ? rawReturnTo
+      : null;
+
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) return back("/dashboard");
 
@@ -76,8 +85,15 @@ export async function POST(req: Request) {
     }
   }
 
-  const successUrl = `${appUrl}/dashboard/billing?upgraded=${plan.key}`;
-  const cancelUrl = `${appUrl}/dashboard/billing?canceled=1`;
+  // If a safe returnTo was supplied (e.g. /dashboard/events/new) come back there
+  // with ?bought=<planKey> so the caller can react (banner + pre-select Single
+  // Event). Otherwise default to the billing page as before.
+  const successUrl = safeReturnTo
+    ? `${appUrl}${safeReturnTo}${safeReturnTo.includes("?") ? "&" : "?"}bought=${plan.key}`
+    : `${appUrl}/dashboard/billing?upgraded=${plan.key}`;
+  const cancelUrl = safeReturnTo
+    ? `${appUrl}${safeReturnTo}${safeReturnTo.includes("?") ? "&" : "?"}canceled=1`
+    : `${appUrl}/dashboard/billing?canceled=1`;
 
   const buildParams = (cid: string) => ({
     customer: cid,

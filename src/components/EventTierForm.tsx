@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
 
 type Tier = "free" | "single_event";
 
@@ -14,15 +13,39 @@ const TierCtx = createContext<{ tier: Tier; setTier: (t: Tier) => void }>({
  * Shares the selected event tier (free vs single_event) across the new-event
  * form so the tier picker, the first ticket's quantity, and the vendor settings
  * can react to each other even though they live in different form sections.
+ *
+ * `initialTier` lets the host page pre-select Single Event after a credit
+ * purchase (the success redirect returns with ?bought=SINGLE_EVENT).
  */
-export function EventTierProvider({ children }: { children: ReactNode }) {
-  const [tier, setTier] = useState<Tier>("free");
+export function EventTierProvider({ children, initialTier = "free" }: { children: ReactNode; initialTier?: Tier }) {
+  const [tier, setTier] = useState<Tier>(initialTier);
   return <TierCtx.Provider value={{ tier, setTier }}>{children}</TierCtx.Provider>;
+}
+
+/**
+ * Build and submit a one-off POST form to the billing checkout endpoint. Used
+ * by the in-card "Buy single event" button: the picker lives inside the big
+ * create-event form, so we can't nest a second <form>. Sending it manually
+ * works regardless of where the button sits.
+ */
+function postToCheckout(returnTo: string) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/api/billing/checkout";
+  const planKey = document.createElement("input");
+  planKey.name = "planKey";
+  planKey.value = "SINGLE_EVENT";
+  const back = document.createElement("input");
+  back.name = "returnTo";
+  back.value = returnTo;
+  form.appendChild(planKey);
+  form.appendChild(back);
+  document.body.appendChild(form);
+  form.submit();
 }
 
 export function EventTypePicker({ credits }: { credits: number }) {
   const { tier, setTier } = useContext(TierCtx);
-  const noCredits = credits < 1;
   return (
     <section className="card">
       <h2 className="text-lg font-semibold">Event type</h2>
@@ -45,12 +68,10 @@ export function EventTypePicker({ credits }: { credits: number }) {
         </label>
 
         <label
-          className={`flex flex-col rounded-xl border p-4 ${
-            noCredits
-              ? "border-slate-200 opacity-70"
-              : tier === "single_event"
-              ? "cursor-pointer border-brand-400 ring-2 ring-brand-500"
-              : "cursor-pointer border-slate-200 hover:border-brand-300"
+          className={`flex cursor-pointer flex-col rounded-xl border p-4 ${
+            tier === "single_event"
+              ? "border-brand-400 ring-2 ring-brand-500"
+              : "border-slate-200 hover:border-brand-300"
           }`}
         >
           <span className="flex items-center gap-2">
@@ -59,27 +80,33 @@ export function EventTypePicker({ credits }: { credits: number }) {
               name="tier"
               value="single_event"
               checked={tier === "single_event"}
-              disabled={noCredits}
               onChange={() => setTier("single_event")}
             />
-            <span className="font-semibold">
-              Single Event{noCredits && <span className="font-normal text-slate-400"> — needs a credit</span>}
-            </span>
+            <span className="font-semibold">Single Event</span>
           </span>
           <span className="mt-1 text-xs text-slate-500">
             Unlimited registrations, vendor applications, custom branding, 5 email broadcasts. Uses 1 credit.
           </span>
-          <span className="mt-2 text-xs">
-            {credits > 0 ? (
-              <span className="text-emerald-700">
-                You have {credits} credit{credits === 1 ? "" : "s"} — this event uses 1.
-              </span>
-            ) : (
-              <Link href="/dashboard/billing" className="font-medium text-brand-700 hover:underline">
-                Buy a credit ($19) →
-              </Link>
-            )}
-          </span>
+          {credits > 0 ? (
+            <span className="mt-2 text-xs text-emerald-700">
+              You have {credits} credit{credits === 1 ? "" : "s"} — this event uses 1.
+            </span>
+          ) : (
+            tier === "single_event" && (
+              <div className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => postToCheckout("/dashboard/events/new")}
+                  className="btn-primary w-full"
+                >
+                  Buy single event — $19
+                </button>
+                <p className="text-xs text-slate-500">
+                  You&rsquo;ll be sent to checkout, then back here with the credit applied so you can finish creating this event.
+                </p>
+              </div>
+            )
+          )}
         </label>
       </div>
     </section>

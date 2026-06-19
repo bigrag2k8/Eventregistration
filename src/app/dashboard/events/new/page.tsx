@@ -23,7 +23,7 @@ const CATEGORIES = [
   "Networking", "Workshop", "Conference", "Training", "Other",
 ];
 
-export default async function NewEventPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function NewEventPage({ searchParams }: { searchParams: { error?: string; bought?: string; canceled?: string } }) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   await requirePlanSelected(session);
   if (!session.orgId) {
@@ -62,8 +62,21 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
       </header>
 
       <form action={createEventAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-        <EventTierProvider>
+        {/* If we returned here after a successful Single Event credit purchase, pre-select
+            the Single Event tier so the form is in the state the buyer expects. */}
+        <EventTierProvider initialTier={searchParams?.bought === "SINGLE_EVENT" ? "single_event" : "free"}>
         <ErrorBanner code={searchParams?.error} />
+
+        {searchParams?.bought === "SINGLE_EVENT" && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Credit added — <strong>Single Event</strong> is selected below. Finish the form and save to apply it to this event.
+          </div>
+        )}
+        {searchParams?.canceled && (
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+            Checkout was canceled. No charge was made.
+          </div>
+        )}
 
         <EventTypePicker credits={credits} />
 
