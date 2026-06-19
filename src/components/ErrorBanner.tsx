@@ -31,6 +31,10 @@ const MESSAGES: Record<string, string> = {
   resync_no_subscription: "This org has no Stripe subscription to re-sync.",
   reissue_failed: "Couldn't reissue the tickets. Try again, or check the email logs.",
   reissue_not_confirmed: "Only confirmed registrations have tickets to reissue.",
+  delete_validation: "Missing or invalid delete confirmation.",
+  delete_name_mismatch: "The org name you typed didn't match. Try again exactly.",
+  delete_own_org: "You can't delete your own organization — ask another SUPERADMIN.",
+  delete_owner_org: "The owner's organization can't be deleted from here. Use the factory reset instead.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

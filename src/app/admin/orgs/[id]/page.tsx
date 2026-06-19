@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { DeleteOrgCard } from "@/components/DeleteOrgCard";
 import {
   PLANS,
   OVERRIDABLE_LIMITS,
@@ -11,7 +12,7 @@ import {
   parseOverrides,
   effectivePlan,
 } from "@/lib/plans";
-import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction } from "./actions";
+import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -231,6 +232,14 @@ export default async function AdminOrgPage({
             <button type="submit" className="btn-primary">Save changes</button>
           </div>
         </form>
+
+        <DeleteOrgCard
+          orgId={org.id}
+          orgName={org.name}
+          members={org._count.members}
+          events={org._count.events}
+          deleteAction={deleteOrgAction}
+        />
       </div>
     </main>
   );

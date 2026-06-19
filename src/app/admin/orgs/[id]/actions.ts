@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { OVERRIDABLE_LIMITS, parseOverrides, PlanOverrides } from "@/lib/plans";
 import { resyncOrgSubscription } from "@/server/billing";
+import { isProtectedOwner } from "@/lib/owner";
+import { notifyOps } from "@/lib/alert";
 
 const PLAN_KEYS = ["FREE", "SINGLE_EVENT", "STARTER", "PRO", "ENTERPRISE"] as const;
 const STATUS_KEYS = ["NONE", "ACTIVE", "TRIALING", "PAST_DUE", "CANCELED", "INCOMPLETE"] as const;
@@ -175,4 +177,139 @@ export async function resyncSubscriptionAction(formData: FormData) {
   redirect(
     `/admin/orgs/${orgId}?${res.ok ? `resynced=${res.status ?? "ok"}` : `error=resync_${res.reason === "no_subscription" ? "no_subscription" : "failed"}`}`,
   );
+}
+
+/**
+ * SUPERADMIN-only: permanently delete an organization and everything tied to it.
+ *
+ * Wipes:
+ *   - All this org's events, and via cascade their registrations, tickets,
+ *     payments, vendor applications, ticket types, custom questions/answers,
+ *     check-ins, promo codes, referral links/clicks, waitlist, abandoned carts,
+ *     email campaigns/logs, event assignments, speakers, media, tags, locations.
+ *   - All this org's pending invites (cascade).
+ *   - All team members of this org (ORGANIZER / STAFF / VOLUNTEER / ADMIN
+ *     accounts whose organizationId matches), and via their User cascade their
+ *     sessions, magic links, MFA secrets, password resets.
+ *
+ * Spared on purpose:
+ *   - Any SUPERADMIN whose organizationId pointed here — they keep their User
+ *     row but get detached (organizationId nulls out via SetNull). Avoids
+ *     accidentally nuking platform admin access.
+ *   - Attendee Users — they may have registered for events at other orgs too,
+ *     so we don't touch their accounts. Their registrations to THIS org's
+ *     events still cascade with the events.
+ *   - Audit logs, billing invoices, and disputes referencing this org — their
+ *     organizationId nulls via SetNull so the historical record survives.
+ *
+ * Safeguards:
+ *   - Caller can't delete their own org (would self-lockout).
+ *   - The protected owner's org can never be deleted via this path — that's
+ *     what the factory reset (owner-only) is for.
+ *
+ * Confirmation: the form must POST `confirmName` equal to the org name.
+ */
+const deleteOrgSchema = z.object({
+  orgId: z.string().min(1),
+  confirmName: z.string().min(1),
+});
+
+export async function deleteOrgAction(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
+
+  const parsed = deleteOrgSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    const orgId = String(formData.get("orgId") ?? "");
+    redirect(`/admin/orgs/${orgId}?error=delete_validation`);
+  }
+  const { orgId, confirmName } = parsed.data;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    include: { _count: { select: { events: true, members: true } } },
+  });
+  if (!org || org.deletedAt) redirect("/admin?error=org_not_found");
+
+  // The confirm phrase must match the org name exactly (case-insensitive, trimmed)
+  // so a misclick on a different org can't accidentally wipe data.
+  if (confirmName.trim().toLowerCase() !== org.name.trim().toLowerCase()) {
+    redirect(`/admin/orgs/${org.id}?error=delete_name_mismatch`);
+  }
+
+  // Self-lockout guard: an admin who is a member of this org would delete
+  // their own account along with everything else.
+  if (session.orgId === org.id) {
+    redirect(`/admin/orgs/${org.id}?error=delete_own_org`);
+  }
+
+  // Owner-protected org guard: if any member of this org is a protected owner
+  // (OWNER_EMAIL), refuse. The owner's org can only be wiped via the factory
+  // reset, which is owner-only and has its own confirmation flow.
+  const ownerMember = await prisma.user.findFirst({
+    where: { organizationId: org.id, deletedAt: null },
+    select: { email: true },
+  });
+  if (ownerMember && isProtectedOwner(ownerMember.email)) {
+    redirect(`/admin/orgs/${org.id}?error=delete_owner_org`);
+  }
+  // Also check across all members (the first one might not be the owner)
+  const members = await prisma.user.findMany({
+    where: { organizationId: org.id, deletedAt: null },
+    select: { email: true, role: true, id: true },
+  });
+  if (members.some((m) => isProtectedOwner(m.email))) {
+    redirect(`/admin/orgs/${org.id}?error=delete_owner_org`);
+  }
+
+  // Durable forensic alert BEFORE the destructive transaction (the in-DB audit
+  // log entry is written after, but ops-email survives even if the post-commit
+  // audit write fails).
+  await notifyOps(
+    `Organization deleted: ${org.name}`,
+    `SUPERADMIN ${session.email} (user ${session.sub}) deleted organization "${org.name}" (id ${org.id}, slug ${org.slug}) at ${new Date().toISOString()}. ` +
+      `Cascaded ${org._count.events} event(s), ${org._count.members} member(s). All events, registrations, payments, and team accounts for this org are gone.`,
+  );
+
+  const teamRoles = ["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN"] as const;
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Delete team members. SUPERADMINs in this org are intentionally left to
+    // SetNull (defensive), and ATTENDEE users in this org are left alone.
+    const teamDeleted = await tx.user.deleteMany({
+      where: {
+        organizationId: org.id,
+        role: { in: teamRoles as unknown as ("ORGANIZER" | "STAFF" | "VOLUNTEER" | "ADMIN")[] },
+      },
+    });
+
+    // Delete the org. Cascades: events (and via them, every event child),
+    // pending invites. SetNull on the rest (SUPERADMINs detach, audit logs
+    // detach, billing invoices/disputes detach).
+    await tx.organization.delete({ where: { id: org.id } });
+
+    return {
+      teamMembersDeleted: teamDeleted.count,
+      eventsAtDelete: org._count.events,
+      membersAtDelete: org._count.members,
+    };
+  });
+
+  // Org-less audit log entry — AuditLog.organizationId is optional (and is set
+  // null on cascade); we write this AFTER commit so an audit failure can't roll
+  // back the delete.
+  await audit({
+    userId: session.sub,
+    action: "org.deleted",
+    targetType: "Organization",
+    targetId: org.id,
+    metadata: {
+      name: org.name,
+      slug: org.slug,
+      deletedBy: session.email,
+      ...result,
+    },
+  });
+
+  redirect(`/admin?org_deleted=${encodeURIComponent(org.name)}`);
 }

@@ -8,7 +8,7 @@ import { isProtectedOwner } from "@/lib/owner";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminHome() {
+export default async function AdminHome({ searchParams }: { searchParams: { org_deleted?: string; error?: string } }) {
   const session = await getSession();
   if (!session) redirect("/signin");
   if (session.role !== "SUPERADMIN") redirect("/dashboard");
@@ -51,6 +51,16 @@ export default async function AdminHome() {
       </header>
 
       <section className="mx-auto max-w-6xl px-4 py-8">
+        {searchParams?.org_deleted && (
+          <div className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Organization <strong>{searchParams.org_deleted}</strong> and all its events, registrations, payments, and team accounts have been permanently deleted.
+          </div>
+        )}
+        {searchParams?.error === "org_not_found" && (
+          <div className="mb-4 rounded-lg bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
+            ⚠ Organization not found.
+          </div>
+        )}
         <h1 className="text-2xl font-bold">Platform overview</h1>
         <p className="text-sm text-slate-500">Across all organizations</p>
 
