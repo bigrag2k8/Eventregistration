@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
+import { ConnectRequiredBanner } from "@/components/ConnectRequiredBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </nav>
         </div>
       </header>
+      <ConnectRequiredBanner session={session} />
       {children}
     </div>
   );
