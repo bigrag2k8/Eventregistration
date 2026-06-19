@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { getSession, orgScope } from "@/lib/auth";
 import { QrActions } from "./QrActions";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,13 @@ export const metadata = { title: "Event QR code — Your Events App" };
  * no dashboard chrome. Org-scoped: organizers only see their own events.
  */
 export default async function EventQrPage({ params }: { params: { id: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  // This page lives outside the dashboard layout, so it must gate auth itself.
+  // Redirect (not throw) on a missing/insufficient session so an expired popup
+  // lands on sign-in instead of a 500.
+  const session = await getSession();
+  if (!session || !["ORGANIZER", "ADMIN", "SUPERADMIN"].includes(session.role)) {
+    redirect("/signin");
+  }
 
   const event = await prisma.event.findFirst({
     where: { id: params.id, ...orgScope(session), deletedAt: null },
