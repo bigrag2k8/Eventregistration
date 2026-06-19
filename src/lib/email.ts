@@ -52,10 +52,15 @@ export async function sendConfirmationEmail(registrationId: string) {
   });
   if (!reg) return;
 
+  // content_id lets the HTML body reference each PNG via <img src="cid:..."/>.
+  // That makes the QR part of the body itself, so it survives "Print email" in
+  // Gmail/Outlook/Apple Mail. Previously the body only said "ticket attached"
+  // and the QR was a separate file — printing the body lost the actual ticket.
   const qrAttachments = await Promise.all(
     reg.tickets.map(async (t, i) => ({
       filename: `ticket-${i + 1}.png`,
       content: (await renderQrPngDataUrl(t.qrToken)).split(",")[1],
+      content_id: `ticket-${i + 1}`,
     }))
   );
 
@@ -121,7 +126,16 @@ function renderConfirmation(reg: any) {
             <td align="right" style="border-top:1px solid #e2e8f0;padding-top:8px"><strong>$${totalFmt}</strong></td></tr>
       </table>
 
-      <p style="margin-top:24px">Your QR ticket${reg.tickets.length>1?"s are":" is"} attached. Show it at the door — it's scanned for entry.</p>
+      <h3 style="margin-top:24px;margin-bottom:8px">Your ticket${reg.tickets.length>1?"s":""}</h3>
+      <p style="color:#475569;margin:0 0 12px">Show ${reg.tickets.length>1?"each QR code":"this QR code"} at the door — it&rsquo;s scanned for entry. The image${reg.tickets.length>1?"s are":" is"} also attached for offline use.</p>
+      <div style="text-align:center;margin:8px 0 16px">
+        ${reg.tickets.map((_t: unknown, i: number) => `
+          <div style="display:inline-block;margin:6px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;vertical-align:top">
+            <img src="cid:ticket-${i + 1}" alt="Ticket ${i + 1} QR code" width="220" height="220" style="display:block;border:0;width:220px;height:220px"/>
+            ${reg.tickets.length>1?`<div style="margin-top:6px;color:#475569;font-size:12px">Ticket ${i + 1} of ${reg.tickets.length}</div>`:""}
+          </div>
+        `).join("")}
+      </div>
 
       <a href="${process.env.NEXT_PUBLIC_APP_URL}/api/registrations/${reg.id}/ics${reg.accessToken ? `?key=${reg.accessToken}` : ""}"
          style="display:inline-block;background:${brand};color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;margin-top:8px">
