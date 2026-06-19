@@ -17,25 +17,42 @@ export function ConnectActions({ hasAccount, chargesEnabled, payoutsEnabled, det
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If the user just returned from Stripe onboarding, auto-sync account status
+  // If the user just returned from Stripe onboarding, auto-sync account status.
+  // When onboarding ran in a popup (the common case now), Stripe's redirect
+  // lands in that popup. We refresh the OPENER (the original dashboard tab) so
+  // its status updates, then close the popup. When it's the only tab — popup
+  // blocker fired and onboarding ran in-place — we just reload self.
   useEffect(() => {
     if (search.get("connect") === "return" && hasAccount) {
       setRefreshing(true);
       fetch("/api/billing/connect/dashboard").then(() => {
-        // Reload so the server re-fetches and re-renders status
-        window.location.replace(window.location.pathname);
+        if (window.opener && !window.opener.closed) {
+          try { window.opener.location.reload(); } catch {}
+          window.close();
+        } else {
+          window.location.replace(window.location.pathname);
+        }
       }).catch(() => setRefreshing(false));
     }
   }, [search, hasAccount]);
 
+  // Popup-blocker note: window.open() called AFTER an async fetch is treated as
+  // non-user-initiated and blocked by most browsers. The pattern below opens a
+  // placeholder window synchronously inside the click handler, then navigates
+  // it once the Stripe URL arrives. If even the placeholder was blocked we
+  // fall back to a same-tab navigation so the user is never stuck.
+
   async function startOnboard() {
     setLoadingOnboard(true); setError(null);
+    const popup = window.open("about:blank", "_blank");
     try {
       const res = await fetch("/api/billing/connect/onboard", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (data.url) {
-        window.location.href = data.url;
+        if (popup) { popup.location.href = data.url; popup.focus(); }
+        else { window.location.href = data.url; } // popup blocked → in-place
       } else {
+        if (popup) popup.close();
         setError(data.error ?? "Couldn't open Stripe onboarding.");
       }
     } finally {
@@ -45,12 +62,15 @@ export function ConnectActions({ hasAccount, chargesEnabled, payoutsEnabled, det
 
   async function openDashboard() {
     setLoadingDashboard(true); setError(null);
+    const popup = window.open("about:blank", "_blank");
     try {
       const res = await fetch("/api/billing/connect/dashboard", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (data.url) {
-        window.location.href = data.url;
+        if (popup) { popup.location.href = data.url; popup.focus(); }
+        else { window.location.href = data.url; }
       } else {
+        if (popup) popup.close();
         setError(data.error ?? "Couldn't open Stripe dashboard.");
       }
     } finally {
