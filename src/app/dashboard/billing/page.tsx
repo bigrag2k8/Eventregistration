@@ -108,6 +108,11 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
                 ["Custom branding (logo + color)", false],
                 ["Unlimited registrations", false],
               ]}
+              cta={
+                <form action={activateFreePlanAction} className="mt-4">
+                  <button type="submit" className="btn-secondary w-full">Get started — it&rsquo;s free</button>
+                </form>
+              }
             />
             <PricingCard
               title="Single Event"
