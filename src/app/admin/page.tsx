@@ -111,10 +111,7 @@ export default async function AdminHome() {
 
         {/* Owner-only: only the protected OWNER_EMAIL account can factory-reset. */}
         {isProtectedOwner(session.email) && (
-          <FactoryResetCard
-            keepEmail={me?.email ?? "your account"}
-            keepOrgName={me?.organization?.name ?? null}
-          />
+          <FactoryResetCard keepEmail={me?.email ?? "your account"} />
         )}
       </section>
     </main>

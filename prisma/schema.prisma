@@ -841,6 +841,26 @@ model PendingInvite {
   @@map("pending_invites")
 }
 
+// Platform-admin (SUPERADMIN) invites. Unlike PendingInvite these are NOT tied
+// to an organization — platform admins are org-less (and the inviting owner may
+// have no org after a factory reset), so they get their own table. Accepting one
+// creates a SUPERADMIN account with a strict password.
+model AdminInvite {
+  id               String       @id @default(cuid())
+  token            String       @unique
+  email            String
+  invitedBy        String?      // user id of the SUPERADMIN/owner who created it
+  status           InviteStatus @default(PENDING)
+  expiresAt        DateTime
+  createdAt        DateTime     @default(now())
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+
+  @@index([email])
+  @@map("admin_invites")
+}
+
 model EventAssignment {
   id              String   @id @default(cuid())
   eventId         String

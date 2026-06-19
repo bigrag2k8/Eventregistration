@@ -4,10 +4,9 @@ import { useState } from "react";
 
 interface Props {
   keepEmail: string;
-  keepOrgName: string | null;
 }
 
-export function FactoryResetCard({ keepEmail, keepOrgName }: Props) {
+export function FactoryResetCard({ keepEmail }: Props) {
   const [open, setOpen] = useState(false);
   const [phrase, setPhrase] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,8 +49,9 @@ export function FactoryResetCard({ keepEmail, keepOrgName }: Props) {
             vendor application, invite, and audit log on the platform.
           </p>
           <p className="mt-2 text-sm text-red-900/80">
-            <strong>Kept:</strong> your SUPERADMIN account ({keepEmail})
-            {keepOrgName && <> and your organization (<em>{keepOrgName}</em>) with its branding and Stripe Connect setup</>}.
+            <strong>Kept:</strong> only your owner account ({keepEmail}). Everything else — including
+            your organization, its branding, and its Stripe Connect setup — is permanently deleted.
+            You start fresh: create a new organization and re-onboard Stripe afterward.
           </p>
         </div>
         {!open && (
@@ -105,6 +105,7 @@ export function FactoryResetCard({ keepEmail, keepOrgName }: Props) {
                 <li>{result.deleted.organizations} organizations deleted</li>
                 <li>{result.deleted.users} users deleted</li>
                 <li>{result.deleted.pendingInvites} invites deleted</li>
+                <li>{result.deleted.adminInvites} admin invites deleted</li>
                 <li>{result.deleted.auditLogs} audit logs deleted</li>
                 <li>{result.deleted.sessions} sessions deleted</li>
               </ul>

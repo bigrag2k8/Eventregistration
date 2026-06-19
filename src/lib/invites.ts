@@ -86,3 +86,59 @@ export async function sendInviteEmail(p: SendInviteParams) {
     return { sent: false, link };
   }
 }
+
+/**
+ * Invite a brand-new PLATFORM ADMIN (SUPERADMIN) by email. The link goes to the
+ * dedicated /admin-invite accept page where they set a strict password.
+ */
+export async function sendAdminInviteEmail(p: { toEmail: string; token: string; inviterName?: string | null; expiresAt: Date }) {
+  const client = resend();
+  const link = `${APP_URL}/admin-invite/${p.token}`;
+  const expiry = p.expiresAt.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" });
+  if (!client) {
+    console.error("[admin-invite] RESEND_API_KEY not set — skipping send. Manual link:", link);
+    return { sent: false, link };
+  }
+  const html = `
+  <div style="font-family:Arial,sans-serif;max-width:600px;margin:24px auto;padding:24px;background:#fff;border-radius:12px">
+    <h1 style="color:#1F3A8A;margin:0 0 16px">You've been invited as a platform administrator</h1>
+    <p>${p.inviterName ? `${esc(p.inviterName)} has` : "You've been"} invited you to administer <strong>Your Events App</strong> as a platform admin (SUPERADMIN).</p>
+    <p>Click below to set a password and activate your admin account. You'll be asked for a strong password.</p>
+    <p style="margin:24px 0">
+      <a href="${link}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+        Accept invite &rarr; Set up admin account
+      </a>
+    </p>
+    <p style="color:#64748b;font-size:13px">Or paste this link into your browser:<br><span style="word-break:break-all">${link}</span></p>
+    <p style="color:#64748b;font-size:13px">This invite expires on <strong>${expiry}</strong>. If you weren't expecting this, ignore the email.</p>
+  </div>`;
+  try {
+    const res = await client.emails.send({ from: FROM, to: p.toEmail, subject: "You're invited to administer Your Events App", html });
+    return { sent: !!res.data?.id, link, providerId: res.data?.id };
+  } catch (e) {
+    console.error("[admin-invite] send failed:", e);
+    return { sent: false, link };
+  }
+}
+
+/**
+ * Security notice to the platform owner(s) whenever a SUPERADMIN invite is
+ * created or accepted, so owners always know when a new admin is minted.
+ */
+export async function sendAdminInviteOwnerNotice(p: { toEmails: string[]; subject: string; body: string }) {
+  const client = resend();
+  if (!client || p.toEmails.length === 0) return { sent: false };
+  const html = `
+  <div style="font-family:Arial,sans-serif;max-width:600px;margin:24px auto;padding:24px;background:#fff;border-radius:12px">
+    <h1 style="color:#B91C1C;margin:0 0 16px">Security notice</h1>
+    <p>${p.body}</p>
+    <p style="color:#64748b;font-size:13px">If this wasn't expected, revoke it from the admin area at <span style="word-break:break-all">${APP_URL}/admin/superadmins</span> and rotate access immediately.</p>
+  </div>`;
+  try {
+    await client.emails.send({ from: FROM, to: p.toEmails, subject: p.subject, html });
+    return { sent: true };
+  } catch (e) {
+    console.error("[admin-invite] owner notice failed:", e);
+    return { sent: false };
+  }
+}
