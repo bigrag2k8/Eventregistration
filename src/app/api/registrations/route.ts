@@ -7,6 +7,7 @@ import { computeTotals } from "@/server/pricing";
 import { issueTickets, reserveSeats, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 import { eventEntitlements } from "@/lib/plans";
+import { canAcceptPayments } from "@/lib/connect";
 import { getSession } from "@/lib/auth";
 
 /** Thrown inside the reservation transaction when seats can't be claimed. */
@@ -179,6 +180,18 @@ export async function POST(req: Request) {
     const fieldHints: Record<string, string[]> = {};
     if (msg.includes("promo")) fieldHints.promoCode = [msg];
     return NextResponse.json({ error: msg, fieldErrors: fieldHints }, { status: 400 });
+  }
+
+  // Gate Connect-readiness BEFORE the transaction. If the order will need
+  // payment but the organizer hasn't completed Stripe Connect, the downstream
+  // /api/checkout/session call would 503 — but by then we've already claimed a
+  // promo use and reserved a seat for a registration that can never be paid.
+  // Refusing here keeps the promo counter and seat inventory honest. Free
+  // orders (total === 0 after discount) don't need Connect and pass through.
+  if (totals.total > 0 && !canAcceptPayments(event.organization)) {
+    return NextResponse.json({
+      error: "This organizer hasn't finished setting up payments. Please contact them, or try again later.",
+    }, { status: 503 });
   }
 
   // Reserve the seats and create the registration in one transaction so the
