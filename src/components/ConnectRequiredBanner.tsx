@@ -54,10 +54,10 @@ export async function ConnectRequiredBanner({ session }: Props) {
           </div>
         </div>
         <Link
-          href="/dashboard/billing"
+          href="/dashboard/settings#payouts"
           className="whitespace-nowrap rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700"
         >
-          {partial ? "Resume in Billing →" : "Connect Stripe →"}
+          {partial ? "Resume Stripe setup →" : "Connect Stripe →"}
         </Link>
       </div>
     </div>
