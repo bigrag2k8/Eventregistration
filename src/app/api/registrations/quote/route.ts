@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
   const event = await prisma.event.findUnique({
     where: { id: input.eventId },
-    include: { ticketTypes: true, promoCodes: true },
+    include: { ticketTypes: true, promoCodes: true, organization: true },
   });
   if (!event || event.status !== "PUBLISHED") {
     return NextResponse.json({ error: "Event not available" }, { status: 404 });

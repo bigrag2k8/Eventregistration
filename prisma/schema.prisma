@@ -163,6 +163,10 @@ model Organization {
   fromEmail    String?      // custom sender for transactional emails (requires Resend domain verification)
   fromName     String?      // display name on emails (e.g. "Harmony Lodge Events")
   taxRatePct   Decimal? @db.Decimal(5, 2)
+  // When true, Stripe's card processing fee (2.9% + $0.30) is added as a line
+  // item to every paid registration in this org. The attendee pays it on top
+  // of the ticket; the organizer's payout is unchanged. SUPERADMIN-controlled
+  // from /admin/orgs/[id] — replaces the now-deprecated Event.passProcessingFee.
   passProcessingFee Boolean @default(false)
   // Stripe Connect (Express) — each org gets their own Stripe account so payments flow to them directly
   stripeAccountId                String?  @unique  // acct_… returned by stripe.accounts.create

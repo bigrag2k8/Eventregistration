@@ -333,14 +333,25 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{fmt(subtotal)}</dd></div>
           {discount > 0 && <div className="flex justify-between text-emerald-700"><dt>Discount</dt><dd>-{fmt(discount)}</dd></div>}
           {tax > 0 && <div className="flex justify-between"><dt>Tax</dt><dd>{fmt(tax)}</dd></div>}
-          {fee > 0 && <div className="flex justify-between"><dt>Processing fee</dt><dd>{fmt(fee)}</dd></div>}
+          {fee > 0 && (
+            <div className="flex justify-between">
+              <dt>
+                Payment processing fee{" "}
+                <span className="text-xs text-slate-400" title="Charged by Stripe to process your card. Your Events App does not keep any of this fee.">
+                  (Stripe)
+                </span>
+              </dt>
+              <dd>{fmt(fee)}</dd>
+            </div>
+          )}
           <div className="mt-2 flex justify-between border-t pt-2 text-base font-semibold">
             <dt>Total</dt><dd>{fmt(total)}</dd>
           </div>
         </dl>
         {total > 0 && (
           <p className="mt-3 text-xs text-slate-500">
-            A 4.5% processing fee is non-refundable. If you cancel, you&rsquo;ll be refunded your ticket price minus this fee, per the event&rsquo;s refund policy.
+            Our 4.5% platform fee is non-refundable. If you cancel, you&rsquo;ll be refunded your ticket price minus this fee, per the event&rsquo;s refund policy.
+            {fee > 0 && " The payment processing fee charged by Stripe is also non-refundable per Stripe's policy."}
           </p>
         )}
       </section>

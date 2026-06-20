@@ -265,6 +265,12 @@ export default async function EventLandingPage({ params }: Props) {
               })}
             </div>
 
+            {event.organization.passProcessingFee && visibleTickets.some((t) => t.priceCents > 0) && (
+              <p className="mt-3 text-xs text-slate-500">
+                A payment processing fee (2.9% + $0.30, charged by Stripe) is added at checkout for paid tickets.
+              </p>
+            )}
+
             {showWaitlist ? (
               <>
                 <div className="mt-4 rounded-lg bg-amber-50 p-3 text-center text-sm text-amber-800 ring-1 ring-amber-200">

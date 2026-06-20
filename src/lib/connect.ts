@@ -14,9 +14,20 @@
  */
 export const PLATFORM_FEE_PERCENT = 4.5;
 
+/**
+ * Minimum platform fee per paid transaction (in cents). Floor exists because
+ * Stripe's processing cost (2.9% + $0.30) eats more than the 4.5% percentage
+ * fee on tickets under ~$19 — without a floor the platform loses money on
+ * every small-dollar charge. $0.90 keeps the platform net-positive on every
+ * paid ticket. Does NOT apply to free transactions (feeBaseCents === 0).
+ */
+export const MIN_PLATFORM_FEE_CENTS = 90;
+
 /** Compute the application fee (in cents) from the fee base (the sale value). */
 export function platformFeeCents(feeBaseCents: number): number {
-  return Math.max(0, Math.round(feeBaseCents * (PLATFORM_FEE_PERCENT / 100)));
+  if (feeBaseCents <= 0) return 0;
+  const percentage = Math.round(feeBaseCents * (PLATFORM_FEE_PERCENT / 100));
+  return Math.max(percentage, MIN_PLATFORM_FEE_CENTS);
 }
 
 /**

@@ -121,7 +121,7 @@ function renderConfirmation(reg: any) {
         <tr><td>${esc(reg.ticketType.name)} × ${reg.quantity}</td><td align="right">$${(reg.subtotalCents/100).toFixed(2)}</td></tr>
         ${reg.discountCents>0?`<tr><td>Discount</td><td align="right">-$${(reg.discountCents/100).toFixed(2)}</td></tr>`:""}
         ${reg.taxCents>0?`<tr><td>Tax</td><td align="right">$${(reg.taxCents/100).toFixed(2)}</td></tr>`:""}
-        ${reg.feeCents>0?`<tr><td>Processing fee</td><td align="right">$${(reg.feeCents/100).toFixed(2)}</td></tr>`:""}
+        ${reg.feeCents>0?`<tr><td>Payment processing fee <span style="color:#94a3b8;font-size:11px">(Stripe)</span></td><td align="right">$${(reg.feeCents/100).toFixed(2)}</td></tr>`:""}
         <tr><td style="border-top:1px solid #e2e8f0;padding-top:8px"><strong>Total</strong></td>
             <td align="right" style="border-top:1px solid #e2e8f0;padding-top:8px"><strong>$${totalFmt}</strong></td></tr>
       </table>
@@ -364,7 +364,7 @@ export async function sendRefundRequestDecisionEmail(
 
   const amountLine =
     approved && typeof opts?.refundedCents === "number"
-      ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus the non-refundable 4.5% processing fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear.</p>`
+      ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus our non-refundable 4.5% platform fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear. If a payment processing fee was added to your order at checkout, that fee is charged by Stripe and is non-refundable per Stripe&rsquo;s policy.</p>`
       : approved
         ? `<p style="color:#475569">Your refund is being processed back to your original payment method and may take 5&ndash;10 business days to appear.</p>`
         : "";

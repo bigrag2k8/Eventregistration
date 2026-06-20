@@ -12,7 +12,7 @@ import {
   parseOverrides,
   effectivePlan,
 } from "@/lib/plans";
-import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction } from "./actions";
+import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction, setOrgPassProcessingFeeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -230,6 +230,38 @@ export default async function AdminOrgPage({
           <div className="flex items-center justify-between gap-3">
             <Link href="/admin" className="btn-secondary">Cancel</Link>
             <button type="submit" className="btn-primary">Save changes</button>
+          </div>
+        </form>
+
+        {/* Payment processing fee — pass through to attendees? */}
+        <form action={setOrgPassProcessingFeeAction} className="card">
+          <input type="hidden" name="orgId" value={org.id} />
+          <h2 className="text-lg font-semibold">Payment processing fee</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Stripe charges <strong>2.9% + $0.30</strong> to process each card payment. By default this org
+            absorbs it (our 4.5% platform fee covers our cost). Flip this on to add the Stripe fee as a
+            separate line item at checkout — the attendee pays it on top of the ticket price, and the
+            organizer keeps the full ticket revenue minus the 4.5% platform fee.
+          </p>
+          <label className="mt-4 flex items-start gap-3">
+            <input
+              type="checkbox"
+              name="passProcessingFee"
+              value="1"
+              defaultChecked={org.passProcessingFee}
+              className="mt-1"
+            />
+            <span className="text-sm">
+              <span className="font-medium">Pass Stripe&rsquo;s processing fee to attendees</span>
+              <br />
+              <span className="text-xs text-slate-500">
+                When on, the attendee sees a &ldquo;Payment processing fee (Stripe)&rdquo; line at checkout.
+                When off, the org absorbs it via its platform fee.
+              </span>
+            </span>
+          </label>
+          <div className="mt-4">
+            <button type="submit" className="btn-primary">Save</button>
           </div>
         </form>
 

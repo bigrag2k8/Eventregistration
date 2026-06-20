@@ -313,3 +313,46 @@ export async function deleteOrgAction(formData: FormData) {
 
   redirect(`/admin?org_deleted=${encodeURIComponent(org.name)}`);
 }
+
+/**
+ * SUPERADMIN-only: toggle whether this org's events pass Stripe's card-
+ * processing fee through to the attendee. Default off (organizer absorbs via
+ * the platform fee). When on, every paid registration adds a clearly-labeled
+ * "Payment processing fee" line at checkout. The 4.5% platform fee is unaffected.
+ */
+const passProcessingFeeSchema = z.object({
+  orgId: z.string().min(1),
+  passProcessingFee: z.string().optional(), // checkbox: "1" if checked, absent otherwise
+});
+
+export async function setOrgPassProcessingFeeAction(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
+
+  const parsed = passProcessingFeeSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    const orgId = String(formData.get("orgId") ?? "");
+    redirect(`/admin/orgs/${orgId}?error=validation`);
+  }
+  const { orgId, passProcessingFee } = parsed.data;
+  const value = passProcessingFee === "1";
+
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org || org.deletedAt) redirect("/admin?error=org_not_found");
+
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: { passProcessingFee: value },
+  });
+
+  await audit({
+    organizationId: org.id,
+    userId: session.sub,
+    action: "org.pass_processing_fee_set",
+    targetType: "Organization",
+    targetId: org.id,
+    metadata: { before: org.passProcessingFee, after: value, by: session.email },
+  });
+
+  redirect(`/admin/orgs/${org.id}?saved=1`);
+}

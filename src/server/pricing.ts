@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/db";
-import type { Event, PromoCode, TicketType } from "@prisma/client";
+import type { Event, Organization, PromoCode, TicketType } from "@prisma/client";
 
 export interface ComputeTotalsInput {
-  event: Event & { ticketTypes: TicketType[]; promoCodes: PromoCode[] };
+  // organization is required so the pricing layer can read passProcessingFee
+  // from the org (the source of truth, set by SUPERADMIN). The deprecated
+  // Event.passProcessingFee is no longer consulted.
+  event: Event & {
+    ticketTypes: TicketType[];
+    promoCodes: PromoCode[];
+    organization: Pick<Organization, "passProcessingFee">;
+  };
   ticketTypeId: string;
   quantity: number;
   promoCode?: string;
@@ -85,7 +92,7 @@ export async function computeTotals(input: ComputeTotalsInput) {
   const tax = Math.round((taxable * taxRate) / 100);
 
   let fee = 0;
-  if (input.event.passProcessingFee && taxable > 0) {
+  if (input.event.organization.passProcessingFee && taxable > 0) {
     fee = Math.round((taxable * PROCESSING_FEE_PCT) / 100) + PROCESSING_FEE_FIXED_CENTS;
   }
 
