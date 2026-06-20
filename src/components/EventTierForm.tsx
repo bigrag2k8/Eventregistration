@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 
 type Tier = "free" | "single_event";
 
@@ -150,22 +150,42 @@ export function TicketPriceField({ chargesEnabled }: { chargesEnabled: boolean }
 }
 
 /**
- * First ticket type's "quantity available". On a FREE event the whole event is
- * capped at 50 registrations, so cap this ticket's inventory to match and
- * default it to 50. Premium events allow blank (unlimited).
+ * Shared "free events are capped at 50" upsell shown above any input that the
+ * organizer might use to imply more than 50 registrations on a free event
+ * (event capacity, first ticket's quantity). Wording for the "blank" vs
+ * "above 50" cases is centralized here so the two surfaces can't drift.
+ */
+function FreeTierUpgradeWarning({ blank }: { blank: boolean }) {
+  return (
+    <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      <strong>Free events are capped at 50 registrations.</strong>{" "}
+      {blank
+        ? "Leaving this blank reads as unlimited, but free events still stop at 50."
+        : "Values above 50 won't be honoured on a free event."}{" "}
+      Switch to <strong>Single Event</strong> in the Event type section above
+      (one credit, $19) to lift the cap and unlock unlimited registrations,
+      vendor applications, and custom branding.
+    </div>
+  );
+}
+
+/**
+ * First ticket type's "quantity available". On a free event the whole event is
+ * capped at 50 registrations (FREE_EVENT_REGISTRATION_LIMIT) regardless of
+ * what's set here — so on free we warn instead of clamp, matching the
+ * CapacityField UX. Quantity 0 is never allowed (min=1) since a 0-quantity
+ * ticket type is meaningless; blank is treated as "unlimited" (warns on free).
  */
 export function TicketQuantityField() {
   const { tier } = useContext(TierCtx);
   const free = tier === "free";
   const [qty, setQty] = useState("50");
-
-  useEffect(() => {
-    // Switching to free: clamp to the 50-registration cap.
-    if (free) setQty((q) => (q === "" || Number(q) > 50 ? "50" : q));
-  }, [free]);
+  const blank = qty.trim() === "";
+  const overCap = free && (blank || Number(qty) > 50);
 
   return (
     <div>
+      {overCap && <FreeTierUpgradeWarning blank={blank} />}
       <label className="label">
         Quantity available {free ? "(max 50 on free events)" : "(blank = unlimited)"}
       </label>
@@ -173,7 +193,6 @@ export function TicketQuantityField() {
         name="ticketQuantity"
         type="number"
         min="1"
-        max={free ? 50 : undefined}
         value={qty}
         onChange={(e) => setQty(e.target.value)}
         className="input"
@@ -201,17 +220,7 @@ export function CapacityField() {
   const overCap = free && (blankOrZero || Number(cap) > 50);
   return (
     <div>
-      {overCap && (
-        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          <strong>Free events are capped at 50 registrations.</strong>{" "}
-          {blankOrZero
-            ? "Leaving this blank reads as unlimited, but free events still stop at 50."
-            : "Capacities above 50 won't be honoured on a free event."}{" "}
-          Switch to <strong>Single Event</strong> in the Event type section above
-          (one credit, $19) to lift the cap and unlock unlimited registrations,
-          vendor applications, and custom branding.
-        </div>
-      )}
+      {overCap && <FreeTierUpgradeWarning blank={blankOrZero} />}
       <label className="label">
         Capacity {free ? "(max 50 on free events)" : "(blank = unlimited)"}
       </label>
