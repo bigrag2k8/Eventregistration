@@ -65,11 +65,43 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
             )}
           </div>
         )}
-        {searchParams.canceled && (
-          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-            Checkout was canceled. No charge was made.
-          </div>
-        )}
+        {searchParams.canceled && (() => {
+          // Distinct messages so the cause isn't hidden behind a generic
+          // "canceled". `invalid_plan` and `stripe_error` are real config bugs
+          // — surfacing them tells the organizer (and support) what to fix.
+          const code = searchParams.canceled;
+          const MAP: Record<string, { tone: "amber" | "red"; body: React.ReactNode }> = {
+            "1": { tone: "amber", body: <>Checkout was canceled. No charge was made.</> },
+            invalid_plan: {
+              tone: "red",
+              body: (
+                <>
+                  <strong>We couldn&rsquo;t start checkout.</strong> The selected plan isn&rsquo;t configured correctly
+                  (the Stripe price ID is missing or empty). Contact support — this is a server-side configuration
+                  issue, not something you did wrong.
+                </>
+              ),
+            },
+            stripe_error: {
+              tone: "red",
+              body: (
+                <>
+                  <strong>Stripe didn&rsquo;t accept the request.</strong> The price ID may belong to a different
+                  Stripe account, or the account isn&rsquo;t set up to accept payments yet. Contact support.
+                </>
+              ),
+            },
+            existing_subscription: {
+              tone: "amber",
+              body: <>You already have an active subscription. Manage it from the existing billing area.</>,
+            },
+          };
+          const m = MAP[code] ?? MAP["1"];
+          const cls = m.tone === "red"
+            ? "rounded-lg bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200"
+            : "rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200";
+          return <div className={cls}>{m.body}</div>;
+        })()}
 
         {/* Event credits */}
         <section className="card flex flex-wrap items-start justify-between gap-4">
