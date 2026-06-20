@@ -114,6 +114,42 @@ export function EventTypePicker({ credits }: { credits: number }) {
 }
 
 /**
+ * First ticket type's price. If the org hasn't completed Stripe Connect
+ * onboarding and the organizer types a non-zero price, an inline amber heads-up
+ * appears above the input. The server still hard-blocks the create (paid ticket
+ * + no Connect → payouts_required) — this is a friendlier signal *before*
+ * submit, with a direct link straight to the Connect section in Settings.
+ */
+export function TicketPriceField({ chargesEnabled }: { chargesEnabled: boolean }) {
+  const [price, setPrice] = useState("0");
+  const needsConnect = !chargesEnabled && Number(price) > 0;
+  return (
+    <div>
+      {needsConnect && (
+        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <strong>Heads up — payouts not set up.</strong> Charging for tickets requires Stripe Connect.
+          You can save this as a draft, but you won&rsquo;t be able to publish or accept registrations until your
+          org finishes Stripe setup.{" "}
+          <a href="/dashboard/settings#payouts" className="font-medium underline hover:text-amber-950">
+            Connect Stripe →
+          </a>
+        </div>
+      )}
+      <label className="label">Price (USD) — 0 for free</label>
+      <input
+        name="ticketPrice"
+        type="number"
+        step="0.01"
+        min="0"
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        className="input"
+      />
+    </div>
+  );
+}
+
+/**
  * First ticket type's "quantity available". On a FREE event the whole event is
  * capped at 50 registrations, so cap this ticket's inventory to match and
  * default it to 50. Premium events allow blank (unlimited).

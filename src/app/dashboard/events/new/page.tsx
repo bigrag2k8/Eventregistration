@@ -6,7 +6,7 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { EventTierProvider, EventTypePicker, TicketQuantityField, VendorSettingsFields } from "@/components/EventTierForm";
+import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, VendorSettingsFields } from "@/components/EventTierForm";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +37,10 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
 
   const org = await prisma.organization.findUnique({
     where: { id: session.orgId },
-    select: { singleEventCredits: true },
+    select: { singleEventCredits: true, stripeAccountChargesEnabled: true },
   });
   const credits = org?.singleEventCredits ?? 0;
+  const chargesEnabled = !!org?.stripeAccountChargesEnabled;
 
   // Default start = next Saturday 9am local, end = same day 5pm
   // Default to next Saturday. Build the datetime-local default as a literal
@@ -180,10 +181,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
               <label className="label">Ticket name *</label>
               <input name="ticketName" required defaultValue="General Admission" className="input" />
             </div>
-            <div>
-              <label className="label">Price (USD) — 0 for free</label>
-              <input name="ticketPrice" type="number" step="0.01" min="0" defaultValue="0" className="input" />
-            </div>
+            <TicketPriceField chargesEnabled={chargesEnabled} />
             <TicketQuantityField />
             <div>
               <label className="label">Max per order</label>
