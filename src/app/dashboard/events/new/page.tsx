@@ -6,7 +6,7 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, VendorSettingsFields } from "@/components/EventTierForm";
+import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, CapacityField, VendorSettingsFields } from "@/components/EventTierForm";
 
 export const dynamic = "force-dynamic";
 
@@ -193,10 +193,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
         <section className="card">
           <h2 className="text-lg font-semibold">Settings</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">Capacity (blank = unlimited)</label>
-              <input name="capacity" type="number" min="1" className="input" placeholder="500" />
-            </div>
+            <CapacityField />
             <div>
               <label className="label">Contact email</label>
               <input name="contactEmail" type="email" className="input" placeholder="hello@yourorg.com" />

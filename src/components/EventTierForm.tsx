@@ -184,6 +184,51 @@ export function TicketQuantityField() {
 }
 
 /**
+ * Per-event capacity. Free events are capped at 50 registrations total
+ * (FREE_EVENT_REGISTRATION_LIMIT, enforced server-side at registration). If the
+ * organizer types a capacity above 50 or leaves it blank/zero (which they
+ * probably read as "unlimited") on a free event, show an amber heads-up
+ * suggesting they switch to Single Event so the cap actually disappears.
+ *
+ * Label flips between "(max 50 on free events)" and "(blank = unlimited)" so
+ * the field is honest about which regime they're in.
+ */
+export function CapacityField() {
+  const { tier } = useContext(TierCtx);
+  const free = tier === "free";
+  const [cap, setCap] = useState("");
+  const blankOrZero = cap.trim() === "" || cap.trim() === "0";
+  const overCap = free && (blankOrZero || Number(cap) > 50);
+  return (
+    <div>
+      {overCap && (
+        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <strong>Free events are capped at 50 registrations.</strong>{" "}
+          {blankOrZero
+            ? "Leaving this blank reads as unlimited, but free events still stop at 50."
+            : "Capacities above 50 won't be honoured on a free event."}{" "}
+          Switch to <strong>Single Event</strong> in the Event type section above
+          (one credit, $19) to lift the cap and unlock unlimited registrations,
+          vendor applications, and custom branding.
+        </div>
+      )}
+      <label className="label">
+        Capacity {free ? "(max 50 on free events)" : "(blank = unlimited)"}
+      </label>
+      <input
+        name="capacity"
+        type="number"
+        min="1"
+        value={cap}
+        onChange={(e) => setCap(e.target.value)}
+        className="input"
+        placeholder={free ? "50" : "500"}
+      />
+    </div>
+  );
+}
+
+/**
  * Vendor settings (toggle + notes + booth price). Vendor flow is a premium
  * feature, so these are disabled/greyed on a free event.
  */
