@@ -48,14 +48,30 @@ async function refundOrphanSession(session: any, regId: string, paymentIntentId:
 export async function POST(req: Request) {
   const body = await req.text();
   const sig = headers().get("stripe-signature") ?? "";
+
+  // STRIPE_WEBHOOK_SECRET can be a single whsec_ or a comma-separated list of
+  // them — useful when you have separate Stripe webhook endpoints for
+  // "Your account" events and "Connected accounts" events (each endpoint
+  // gets its own signing secret). We try each in turn; first match wins.
+  const secrets = (process.env.STRIPE_WEBHOOK_SECRET ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   let event;
-  try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET ?? "");
-  } catch (e: any) {
-    // Log signature failures (otherwise they 400 silently and look like the
-    // endpoint never received anything).
-    console.error("[webhook] signature verification failed", e?.message);
-    return new NextResponse(`Webhook signature failure: ${e.message}`, { status: 400 });
+  let lastErr: unknown;
+  for (const secret of secrets) {
+    try {
+      event = stripe.webhooks.constructEvent(body, sig, secret);
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (!event) {
+    const msg = (lastErr as { message?: string } | undefined)?.message ?? "no secret configured";
+    console.error("[webhook] signature verification failed against all configured secrets:", msg);
+    return new NextResponse(`Webhook signature failure: ${msg}`, { status: 400 });
   }
 
   // One line per received event so delivery is visible in app logs.
