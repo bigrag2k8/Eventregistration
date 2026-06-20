@@ -841,6 +841,22 @@ model PendingInvite {
   @@map("pending_invites")
 }
 
+// Platform-wide singleton config (one row, id = "singleton"). Currently holds
+// the maintenance-mode switch; the model is named generically so future
+// platform-level flags (default fee waivers, feature kill switches, etc.) can
+// live alongside without another migration.
+model PlatformConfig {
+  id                     String    @id @default("singleton")
+  maintenanceMode        Boolean   @default(false)
+  maintenanceUntil       DateTime?
+  maintenanceMessage     String?
+  maintenanceStartedById String?
+  maintenanceStartedAt   DateTime?
+  updatedAt              DateTime  @updatedAt
+
+  @@map("platform_config")
+}
+
 // Platform-admin (SUPERADMIN) invites. Unlike PendingInvite these are NOT tied
 // to an organization — platform admins are org-less (and the inviting owner may
 // have no org after a factory reset), so they get their own table. Accepting one

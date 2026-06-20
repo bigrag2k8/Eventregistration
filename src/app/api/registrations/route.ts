@@ -9,6 +9,7 @@ import { sendConfirmationEmail } from "@/lib/email";
 import { eventEntitlements } from "@/lib/plans";
 import { canAcceptPayments } from "@/lib/connect";
 import { getSession } from "@/lib/auth";
+import { maintenanceGuard } from "@/lib/maintenance";
 
 /** Thrown inside the reservation transaction when seats can't be claimed. */
 class SoldOutError extends Error {
@@ -66,6 +67,9 @@ const schema = z.object({
  * - Otherwise: status = PENDING; client must follow up with /api/checkout/session.
  */
 export async function POST(req: Request) {
+  // Maintenance window: block new registrations for non-SUPERADMINs.
+  const block = await maintenanceGuard(await getSession());
+  if (block) return block;
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     const flat = parsed.error.flatten();

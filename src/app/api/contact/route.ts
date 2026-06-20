@@ -3,6 +3,8 @@ import { z } from "zod";
 import { Resend } from "resend";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { esc } from "@/lib/email";
+import { maintenanceGuard } from "@/lib/maintenance";
+import { getSession } from "@/lib/auth";
 
 const CATEGORIES = ["attendees", "organizers", "everything-else"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -37,6 +39,9 @@ function resend(): Resend | null {
 }
 
 export async function POST(req: Request) {
+  // Maintenance window: don't queue support emails during downtime.
+  const block = await maintenanceGuard(await getSession());
+  if (block) return block;
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });

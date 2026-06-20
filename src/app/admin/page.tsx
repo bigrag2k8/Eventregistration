@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { FactoryResetCard } from "@/components/FactoryResetCard";
+import { MaintenanceModeCard } from "@/components/MaintenanceModeCard";
 import { isProtectedOwner } from "@/lib/owner";
+import { getMaintenanceState } from "@/lib/maintenance";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,7 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
   if (!session) redirect("/signin");
   if (session.role !== "SUPERADMIN") redirect("/dashboard");
 
-  const [orgCount, eventCount, regCount, pendingInvites, recentOrgs, me] = await Promise.all([
+  const [orgCount, eventCount, regCount, pendingInvites, recentOrgs, me, maintenance] = await Promise.all([
     prisma.organization.count({ where: { deletedAt: null } }),
     prisma.event.count({ where: { deletedAt: null } }),
     prisma.registration.count({ where: { status: "CONFIRMED" } }),
@@ -28,6 +30,7 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
       where: { id: session.sub },
       include: { organization: { select: { name: true } } },
     }),
+    getMaintenanceState(),
   ]);
 
   return (
@@ -118,6 +121,13 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
             </Link>
           </div>
         )}
+
+        <MaintenanceModeCard
+          active={maintenance.active}
+          message={maintenance.message}
+          until={maintenance.until?.toISOString() ?? null}
+          startedAt={maintenance.startedAt?.toISOString() ?? null}
+        />
 
         {/* Owner-only: only the protected OWNER_EMAIL account can factory-reset. */}
         {isProtectedOwner(session.email) && (

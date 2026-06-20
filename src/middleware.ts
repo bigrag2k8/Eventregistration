@@ -8,10 +8,19 @@ const PROTECTED = [/^\/dashboard/, /^\/checkin/, /^\/api\/admin/, /^\/admin/, /^
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Stamp the pathname onto a request header so server components (the root
+  // layout's maintenance gate, in particular) can read it via headers(). Done
+  // for ALL paths — including the public homepage and signin — so the gate
+  // can decide which paths to bypass during a maintenance window.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", pathname);
+  const passthrough = () => NextResponse.next({ request: { headers: requestHeaders } });
+
   // /api/admin/seed has its own secret-based auth
-  if (pathname.startsWith("/api/admin/seed")) return NextResponse.next();
+  if (pathname.startsWith("/api/admin/seed")) return passthrough();
   const needsAuth = PROTECTED.some((re) => re.test(pathname));
-  if (!needsAuth) return NextResponse.next();
+  if (!needsAuth) return passthrough();
 
   const token = req.cookies.get(process.env.SESSION_COOKIE_NAME ?? "eventflow_session")?.value;
   if (!token) return NextResponse.redirect(new URL("/signin", req.url));
@@ -32,9 +41,12 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith("/admin") && session.role !== "SUPERADMIN") {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
-  return NextResponse.next();
+  return passthrough();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/checkin/:path*", "/api/admin/:path*", "/admin/:path*", "/api/billing/:path*"],
+  // Run on every route except static assets so the x-pathname header is
+  // available everywhere the maintenance gate needs it. Existing auth gating
+  // only fires on the PROTECTED set inside the handler.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico)$).*)"],
 };

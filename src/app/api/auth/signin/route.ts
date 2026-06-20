@@ -5,6 +5,7 @@ import { attachSessionCookie, signSession, verifyPassword } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isProtectedOwner } from "@/lib/owner";
 import { audit } from "@/lib/audit";
+import { getMaintenanceState } from "@/lib/maintenance";
 
 const schema = z.object({ email: z.string().email(), password: z.string() });
 
@@ -37,6 +38,27 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
+  // Maintenance mode: only SUPERADMINs are allowed to sign in. Other roles get
+  // a clear 503 (not a generic auth error) so they understand what's happening.
+  // The check sits AFTER password verification so we don't leak "this account
+  // exists" via the maintenance message — only authenticated callers see it.
+  const maintenance = await getMaintenanceState();
+  const effectiveRole = isProtectedOwner(user.email) ? "SUPERADMIN" : user.role;
+  if (maintenance.active && effectiveRole !== "SUPERADMIN") {
+    await audit({
+      userId: user.id, action: "auth.signin_blocked_maintenance",
+      metadata: { email: parsed.data.email }, ipAddress: ip,
+    });
+    return NextResponse.json(
+      {
+        error: "maintenance",
+        message: maintenance.message ?? "Your Events App is undergoing a short maintenance. Please try again shortly.",
+        until: maintenance.until?.toISOString() ?? null,
+      },
+      { status: 503 },
+    );
+  }
+
   // A soft-deleted user must not be able to sign in (same generic message so
   // it isn't an account-enumeration oracle).
   if (user.deletedAt) {
