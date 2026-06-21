@@ -37,11 +37,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
 
       <form action={updateOrgSettingsAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
         <ErrorBanner code={searchParams?.error} />
-        {searchParams.saved && (
-          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ Settings saved. Public pages will reflect changes immediately.
-          </div>
-        )}
+        {/* Success acknowledgment is rendered globally by <SavedToast/> in the
+            root layout — a centered popup that auto-dismisses, so users don't
+            have to scroll back to the top of long forms to see "saved". */}
 
         <section className="card">
           <h2 className="text-lg font-semibold">Organization</h2>

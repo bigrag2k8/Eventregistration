@@ -1,9 +1,11 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { getSession } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/maintenance";
 import MaintenancePage from "@/app/maintenance/page";
+import { SavedToast } from "@/components/SavedToast";
 
 export const metadata: Metadata = {
   title: "Your Events App",
@@ -43,6 +45,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
         {inMaintenance ? <MaintenancePage /> : children}
+        <Suspense fallback={null}>
+          <SavedToast />
+        </Suspense>
       </body>
     </html>
   );

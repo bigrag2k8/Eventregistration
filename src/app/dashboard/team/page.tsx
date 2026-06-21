@@ -66,16 +66,8 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
 
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
         <ErrorBanner code={searchParams?.error} />
-        {searchParams.invited && (
-          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ Invite sent to <strong>{searchParams.invited}</strong>. They'll receive an email with a link to set up their account.
-          </div>
-        )}
-        {searchParams.updated && (
-          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ Updated <strong>{searchParams.updated}</strong>.
-          </div>
-        )}
+        {/* Success acknowledgments (invited / updated) render globally via
+            <SavedToast/> in the root layout. */}
 
         {/* Active members */}
         <section>
