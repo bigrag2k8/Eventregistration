@@ -156,6 +156,12 @@ const updateMemberSchema = z.object({
   email: z.string().email("Valid email is required").max(200),
   phone: z.string().max(40).optional(),
   role: z.enum(["ORGANIZER", "ADMIN", "STAFF", "VOLUNTEER"]),
+  addressLine1: z.string().max(200).optional(),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  zipCode: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
 });
 
 export async function updateMemberAction(formData: FormData) {
@@ -210,6 +216,13 @@ export async function updateMemberAction(formData: FormData) {
     if (collision) redirect("/dashboard/team?error=email_in_use");
   }
 
+  const nextAddressLine1 = data.addressLine1 || null;
+  const nextAddressLine2 = data.addressLine2 || null;
+  const nextCity = data.city || null;
+  const nextState = data.state || null;
+  const nextZipCode = data.zipCode || null;
+  const nextCountry = data.country || null;
+
   await prisma.user.update({
     where: { id: target.id },
     data: {
@@ -217,6 +230,12 @@ export async function updateMemberAction(formData: FormData) {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone || null,
+      addressLine1: nextAddressLine1,
+      addressLine2: nextAddressLine2,
+      city: nextCity,
+      state: nextState,
+      zipCode: nextZipCode,
+      country: nextCountry,
       role: data.role,
       // Bump sessionVersion so a role change forces re-auth on the next request
       // (same pattern used elsewhere when role/permissions change).
@@ -225,6 +244,14 @@ export async function updateMemberAction(formData: FormData) {
         : {}),
     },
   });
+
+  const addressChanged =
+    target.addressLine1 !== nextAddressLine1 ||
+    target.addressLine2 !== nextAddressLine2 ||
+    target.city !== nextCity ||
+    target.state !== nextState ||
+    target.zipCode !== nextZipCode ||
+    target.country !== nextCountry;
 
   await audit({
     organizationId: session.orgId,
@@ -239,6 +266,12 @@ export async function updateMemberAction(formData: FormData) {
         email: target.email !== data.email ? { from: target.email, to: data.email } : undefined,
         phone: target.phone !== (data.phone || null) ? { from: target.phone, to: data.phone || null } : undefined,
         role: target.role !== data.role ? { from: target.role, to: data.role } : undefined,
+        address: addressChanged
+          ? {
+              from: [target.addressLine1, target.addressLine2, target.city, target.state, target.zipCode, target.country].filter(Boolean).join(", ") || null,
+              to: [nextAddressLine1, nextAddressLine2, nextCity, nextState, nextZipCode, nextCountry].filter(Boolean).join(", ") || null,
+            }
+          : undefined,
       },
     },
   });

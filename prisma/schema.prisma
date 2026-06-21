@@ -231,6 +231,14 @@ model User {
   firstName      String?
   lastName       String?
   phone          String?
+  // Personal mailing address — captured for team members so an organizer can
+  // ship credentials, swag, or paperwork to staff. Optional for all roles.
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  state          String?
+  zipCode        String?
+  country        String?
   role           Role     @default(ATTENDEE)
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)

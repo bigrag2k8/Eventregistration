@@ -102,6 +102,52 @@ export default async function EditTeamMemberPage({
         </section>
 
         <section className="card">
+          <h2 className="text-lg font-semibold">Mailing address</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Personal address for this team member. Optional — useful if you ship credentials,
+            badges, or paperwork to staff at their home.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label">Street address</label>
+              <input
+                name="addressLine1"
+                maxLength={200}
+                defaultValue={target.addressLine1 ?? ""}
+                placeholder="123 Main St"
+                className="input"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Address line 2</label>
+              <input
+                name="addressLine2"
+                maxLength={200}
+                defaultValue={target.addressLine2 ?? ""}
+                placeholder="Suite, unit, etc."
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">City</label>
+              <input name="city" maxLength={100} defaultValue={target.city ?? ""} className="input" />
+            </div>
+            <div>
+              <label className="label">State / Province</label>
+              <input name="state" maxLength={100} defaultValue={target.state ?? ""} className="input" />
+            </div>
+            <div>
+              <label className="label">ZIP / Postal code</label>
+              <input name="zipCode" maxLength={20} defaultValue={target.zipCode ?? ""} className="input" />
+            </div>
+            <div>
+              <label className="label">Country</label>
+              <input name="country" maxLength={100} defaultValue={target.country ?? ""} className="input" />
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
           <h2 className="text-lg font-semibold">Role</h2>
           <p className="mt-1 text-sm text-slate-500">
             Determines what this person can do in your organization. ORGANIZERS can edit team
