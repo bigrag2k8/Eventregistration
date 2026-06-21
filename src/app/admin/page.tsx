@@ -43,6 +43,8 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
           </div>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin">Overview</Link>
+            <Link href="/admin/organizers" className="opacity-80 hover:opacity-100">Organizers</Link>
+            <Link href="/admin/attendees" className="opacity-80 hover:opacity-100">Attendees</Link>
             <Link href="/admin/financials" className="opacity-80 hover:opacity-100">Financials</Link>
             <Link href="/admin/superadmins" className="opacity-80 hover:opacity-100">Admins</Link>
             <Link href="/admin/orgs/new" className="rounded-lg bg-white px-3 py-1 text-slate-900 hover:bg-slate-100">+ Invite organization</Link>
@@ -72,6 +74,35 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
           <Stat label="Events" value={String(eventCount)} />
           <Stat label="Confirmed registrations" value={String(regCount)} />
           <Stat label="Pending invites" value={String(pendingInvites)} />
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/admin/organizers"
+            className="group flex items-center justify-between rounded-xl bg-white p-5 ring-1 ring-slate-200 transition hover:ring-brand-400 hover:shadow"
+          >
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500">Browse</div>
+              <div className="mt-0.5 text-lg font-semibold">All organizers</div>
+              <div className="text-sm text-slate-500">
+                Search, filter by plan/status/Connect, export CSV
+              </div>
+            </div>
+            <span className="text-2xl text-slate-300 transition group-hover:text-brand-600">→</span>
+          </Link>
+          <Link
+            href="/admin/attendees"
+            className="group flex items-center justify-between rounded-xl bg-white p-5 ring-1 ring-slate-200 transition hover:ring-brand-400 hover:shadow"
+          >
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500">Browse</div>
+              <div className="mt-0.5 text-lg font-semibold">All attendees</div>
+              <div className="text-sm text-slate-500">
+                Filter by date, org, event, status; export CSV
+              </div>
+            </div>
+            <span className="text-2xl text-slate-300 transition group-hover:text-brand-600">→</span>
+          </Link>
         </div>
 
         <div className="mt-8 flex items-center justify-between">

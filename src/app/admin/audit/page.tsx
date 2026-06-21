@@ -55,7 +55,14 @@ export default async function PlatformAuditLogPage({ searchParams }: {
             <span className="font-semibold">Audit log</span>
             <span className="rounded-full bg-red-500/30 px-2 py-0.5 text-xs">SUPERADMIN</span>
           </div>
-          <SignOutButton className="text-sm opacity-80 hover:text-red-300" />
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/admin" className="opacity-80 hover:opacity-100">Overview</Link>
+            <Link href="/admin/organizers" className="opacity-80 hover:opacity-100">Organizers</Link>
+            <Link href="/admin/attendees" className="opacity-80 hover:opacity-100">Attendees</Link>
+            <Link href="/admin/financials" className="opacity-80 hover:opacity-100">Financials</Link>
+            <Link href="/admin/audit">Audit log</Link>
+            <SignOutButton className="text-sm opacity-80 hover:text-red-300" />
+          </nav>
         </div>
       </header>
 
