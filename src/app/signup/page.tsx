@@ -25,6 +25,13 @@ export default function SignUpPage() {
           password: fd.get("password"),
           orgName: fd.get("orgName"),
           orgSlug: fd.get("orgSlug"),
+          contactPhone: fd.get("contactPhone"),
+          addressLine1: fd.get("addressLine1"),
+          addressLine2: fd.get("addressLine2"),
+          city: fd.get("city"),
+          state: fd.get("state"),
+          zipCode: fd.get("zipCode"),
+          country: fd.get("country"),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -71,6 +78,10 @@ export default function SignUpPage() {
               <input name="email" required type="email" className="input" />
             </div>
             <div className="sm:col-span-2">
+              <label className="label">Phone *</label>
+              <input name="contactPhone" required maxLength={40} className="input" placeholder="(555) 123-4567" />
+            </div>
+            <div className="sm:col-span-2">
               <label className="label">Password *</label>
               <input name="password" required type="password" minLength={8} className="input" />
               <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
@@ -83,6 +94,39 @@ export default function SignUpPage() {
           <p className="mt-1 text-xs text-slate-500">This is the name attendees will see when they register for your events.</p>
           <div className="mt-3 space-y-3">
             <OrgNameSlugFields namePlaceholder="Acme Events" slugPlaceholder="acme-events" onValidityChange={setSlugValid} />
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 className="text-base font-semibold">Mailing address</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Where your organization is based. Used for billing receipts, tax documents, and account verification.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label">Street address *</label>
+              <input name="addressLine1" required maxLength={200} className="input" placeholder="123 Main St" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Address line 2</label>
+              <input name="addressLine2" maxLength={200} className="input" placeholder="Suite, unit, etc. (optional)" />
+            </div>
+            <div>
+              <label className="label">City *</label>
+              <input name="city" required maxLength={100} className="input" />
+            </div>
+            <div>
+              <label className="label">State / Province *</label>
+              <input name="state" required maxLength={100} className="input" />
+            </div>
+            <div>
+              <label className="label">ZIP / Postal code *</label>
+              <input name="zipCode" required maxLength={20} className="input" />
+            </div>
+            <div>
+              <label className="label">Country *</label>
+              <input name="country" required maxLength={100} defaultValue="United States" className="input" />
+            </div>
           </div>
         </section>
 

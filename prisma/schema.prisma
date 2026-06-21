@@ -160,6 +160,14 @@ model Organization {
   website      String?
   contactEmail String?
   contactPhone String?
+  // Mailing address — captured during signup (required for new orgs); legacy
+  // rows may be null until the owner completes it on /dashboard/settings.
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zipCode      String?
+  country      String?
   fromEmail    String?      // custom sender for transactional emails (requires Resend domain verification)
   fromName     String?      // display name on emails (e.g. "Harmony Lodge Events")
   taxRatePct   Decimal? @db.Decimal(5, 2)

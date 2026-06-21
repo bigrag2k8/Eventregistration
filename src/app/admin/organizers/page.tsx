@@ -168,6 +168,7 @@ export default async function AdminOrganizersPage({
               <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
                 <th className="px-4 py-3">Organization</th>
                 <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Address</th>
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Payments</th>
@@ -188,8 +189,24 @@ export default async function AdminOrganizersPage({
                     {o.contactEmail ? (
                       <a href={`mailto:${o.contactEmail}`} className="hover:underline">{o.contactEmail}</a>
                     ) : <span className="text-slate-400">—</span>}
-                    {o.contactPhone && (
+                    {o.contactPhone ? (
                       <div className="text-xs text-slate-500">{o.contactPhone}</div>
+                    ) : (
+                      <div className="text-xs text-amber-700">no phone</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {o.addressLine1 ? (
+                      <>
+                        <div>{o.addressLine1}</div>
+                        {o.addressLine2 && <div>{o.addressLine2}</div>}
+                        <div>
+                          {[o.city, o.state, o.zipCode].filter(Boolean).join(", ")}
+                        </div>
+                        {o.country && <div className="text-slate-500">{o.country}</div>}
+                      </>
+                    ) : (
+                      <span className="text-amber-700">no address</span>
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{o.subscriptionPlan}</td>
@@ -233,7 +250,7 @@ export default async function AdminOrganizersPage({
                 </tr>
               ))}
               {orgs.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-500">No organizations match.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-500">No organizations match.</td></tr>
               )}
             </tbody>
           </table>

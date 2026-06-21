@@ -90,6 +90,17 @@ export default async function AdminOrgPage({
               <h1 className="text-2xl font-bold">{org.name}</h1>
               <p className="font-mono text-xs text-slate-500">{org.slug}</p>
               {org.contactEmail && <p className="mt-1 text-sm text-slate-600">{org.contactEmail}</p>}
+              {org.contactPhone && <p className="text-sm text-slate-600">{org.contactPhone}</p>}
+              {org.addressLine1 ? (
+                <div className="mt-2 text-xs text-slate-500">
+                  <div>{org.addressLine1}</div>
+                  {org.addressLine2 && <div>{org.addressLine2}</div>}
+                  <div>{[org.city, org.state, org.zipCode].filter(Boolean).join(", ")}</div>
+                  {org.country && <div>{org.country}</div>}
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-amber-700">No mailing address on file</div>
+              )}
               <p className="mt-1 text-sm">
                 Payments:{" "}
                 {org.stripeAccountChargesEnabled ? (

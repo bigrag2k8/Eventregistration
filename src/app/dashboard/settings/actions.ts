@@ -15,7 +15,13 @@ const schema = z.object({
   bannerUrl: z.string().url().optional().or(z.literal("")),
   website: z.string().url().optional().or(z.literal("")),
   contactEmail: z.string().email().optional().or(z.literal("")),
-  contactPhone: z.string().max(40).optional(),
+  contactPhone: z.string().min(7, "Phone number is required").max(40),
+  addressLine1: z.string().min(1, "Street address is required").max(200),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().min(1, "City is required").max(100),
+  state: z.string().min(1, "State / province is required").max(100),
+  zipCode: z.string().min(1, "ZIP / postal code is required").max(20),
+  country: z.string().min(1, "Country is required").max(100),
 });
 
 function normalizeColor(c?: string) {
@@ -43,7 +49,13 @@ export async function updateOrgSettingsAction(formData: FormData) {
       bannerUrl: data.bannerUrl || null,
       website: data.website || null,
       contactEmail: data.contactEmail || null,
-      contactPhone: data.contactPhone || null,
+      contactPhone: data.contactPhone,
+      addressLine1: data.addressLine1,
+      addressLine2: data.addressLine2 || null,
+      city: data.city,
+      state: data.state,
+      zipCode: data.zipCode,
+      country: data.country,
       // Per-org custom email sender removed — all mail uses the platform sender
       // (events@yourevents.app). Clear any stale value a prior save left behind
       // so it can never override the verified sender.

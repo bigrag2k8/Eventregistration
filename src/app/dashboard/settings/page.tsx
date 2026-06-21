@@ -108,6 +108,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
 
         <section className="card">
           <h2 className="text-lg font-semibold">Contact</h2>
+          {!org.contactPhone && (
+            <div className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+              Please add your phone number to complete your organization profile.
+            </div>
+          )}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Public contact email</label>
@@ -115,13 +120,54 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
                      placeholder="hello@yourorg.com" />
             </div>
             <div>
-              <label className="label">Phone (optional)</label>
-              <input name="contactPhone" maxLength={40} defaultValue={org.contactPhone ?? ""} className="input" />
+              <label className="label">Phone *</label>
+              <input name="contactPhone" required maxLength={40} defaultValue={org.contactPhone ?? ""} className="input"
+                     placeholder="(555) 123-4567" />
             </div>
             <div className="sm:col-span-2">
               <label className="label">Website (optional)</label>
               <input name="website" type="url" defaultValue={org.website ?? ""} className="input"
                      placeholder="https://yourorg.com" />
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 className="text-lg font-semibold">Mailing address</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Where your organization is based. Used for billing receipts, tax documents, and account verification.
+          </p>
+          {!org.addressLine1 && (
+            <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+              Please add your mailing address to complete your organization profile.
+            </div>
+          )}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label">Street address *</label>
+              <input name="addressLine1" required maxLength={200} defaultValue={org.addressLine1 ?? ""} className="input"
+                     placeholder="123 Main St" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Address line 2</label>
+              <input name="addressLine2" maxLength={200} defaultValue={org.addressLine2 ?? ""} className="input"
+                     placeholder="Suite, unit, etc. (optional)" />
+            </div>
+            <div>
+              <label className="label">City *</label>
+              <input name="city" required maxLength={100} defaultValue={org.city ?? ""} className="input" />
+            </div>
+            <div>
+              <label className="label">State / Province *</label>
+              <input name="state" required maxLength={100} defaultValue={org.state ?? ""} className="input" />
+            </div>
+            <div>
+              <label className="label">ZIP / Postal code *</label>
+              <input name="zipCode" required maxLength={20} defaultValue={org.zipCode ?? ""} className="input" />
+            </div>
+            <div>
+              <label className="label">Country *</label>
+              <input name="country" required maxLength={100} defaultValue={org.country ?? "United States"} className="input" />
             </div>
           </div>
         </section>

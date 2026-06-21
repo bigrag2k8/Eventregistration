@@ -17,6 +17,13 @@ const schema = z.object({
   lastName: z.string().min(1).max(80),
   orgName: z.string().min(2).max(120),
   orgSlug: z.string().regex(/^[a-z0-9-]+$/).min(2).max(60),
+  contactPhone: z.string().min(7, "Phone number is required").max(40),
+  addressLine1: z.string().min(1, "Street address is required").max(200),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().min(1, "City is required").max(100),
+  state: z.string().min(1, "State / province is required").max(100),
+  zipCode: z.string().min(1, "ZIP / postal code is required").max(20),
+  country: z.string().min(1, "Country is required").max(100),
 });
 
 export async function POST(req: Request) {
@@ -30,7 +37,10 @@ export async function POST(req: Request) {
     const first = Object.values(flat.fieldErrors).flat()[0] ?? "Please check all fields.";
     return NextResponse.json({ error: String(first) }, { status: 400 });
   }
-  const { email, password, firstName, lastName, orgName, orgSlug } = parsed.data;
+  const {
+    email, password, firstName, lastName, orgName, orgSlug,
+    contactPhone, addressLine1, addressLine2, city, state, zipCode, country,
+  } = parsed.data;
 
   if (RESERVED_SLUGS.has(orgSlug)) {
     return NextResponse.json({ error: `"${orgSlug}" is reserved. Please choose another URL slug.` }, { status: 409 });
@@ -51,6 +61,13 @@ export async function POST(req: Request) {
           name: orgName,
           slug: orgSlug,
           contactEmail: email,
+          contactPhone,
+          addressLine1,
+          addressLine2: addressLine2 || null,
+          city,
+          state,
+          zipCode,
+          country,
           planSelected: false, // Locks dashboard until they pick a plan
           subscriptionPlan: "FREE",
           subscriptionStatus: "NONE",
@@ -62,6 +79,7 @@ export async function POST(req: Request) {
           passwordHash: await hashPassword(password),
           firstName,
           lastName,
+          phone: contactPhone,
           role: "ORGANIZER",
           organizationId: org.id,
           emailVerified: false,
