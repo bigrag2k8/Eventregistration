@@ -35,7 +35,7 @@ function makeEvent(ticketTypes: any[], overrides: Record<string, unknown> = {}) 
     presalePercent: null,
     presaleEndsAt: null,
     taxRatePct: null,
-    passProcessingFee: false,
+    organization: { passProcessingFee: false },
     ...overrides,
   };
 }
@@ -144,7 +144,7 @@ describe("computeTotals — tax & processing fee", () => {
   });
 
   it("adds the passed-through processing fee (2.9% + 30c)", async () => {
-    const event = makeEvent([makeTicket({ priceCents: 1000 })], { passProcessingFee: true });
+    const event = makeEvent([makeTicket({ priceCents: 1000 })], { organization: { passProcessingFee: true } });
     // fee = round(1000 * 2.9%) + 30 = 29 + 30 = 59
     expect(await run(event)).toMatchObject({ fee: 59, total: 1059 });
   });
