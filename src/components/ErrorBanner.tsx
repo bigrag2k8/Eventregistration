@@ -40,6 +40,7 @@ const MESSAGES: Record<string, string> = {
   cant_change_own_role: "You can't change your own role. Ask another organizer to do it.",
   last_organizer: "You can't demote the last organizer. Promote someone else first.",
   email_in_use: "That email is already in use by another account.",
+  not_found: "That record could not be found.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

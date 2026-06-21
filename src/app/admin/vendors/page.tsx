@@ -11,12 +11,22 @@ const PAGE_SIZE = 50;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const STATUS_KEYS = [
-  "CONFIRMED",
   "PENDING",
-  "CANCELLED",
+  "APPROVED",
+  "REJECTED",
+  "PAID",
   "REFUNDED",
-  "PARTIALLY_REFUNDED",
+  "WITHDRAWN",
 ] as const;
+
+const STATUS_STYLES: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-700",
+  APPROVED: "bg-blue-100 text-blue-700",
+  REJECTED: "bg-red-100 text-red-700",
+  PAID: "bg-emerald-100 text-emerald-700",
+  REFUNDED: "bg-slate-100 text-slate-600",
+  WITHDRAWN: "bg-slate-100 text-slate-600",
+};
 
 type SearchParams = {
   q?: string;
@@ -25,49 +35,45 @@ type SearchParams = {
   status?: string;
   from?: string;
   to?: string;
-  checkedIn?: string;
   page?: string;
 };
 
-function buildWhere(sp: SearchParams): Prisma.RegistrationWhereInput {
-  const where: Prisma.RegistrationWhereInput = { deletedAt: null };
+function buildWhere(sp: SearchParams): Prisma.VendorApplicationWhereInput {
+  const where: Prisma.VendorApplicationWhereInput = {};
 
   if (sp.q && sp.q.trim()) {
     const q = sp.q.trim();
     where.OR = [
       { email: { contains: q, mode: "insensitive" } },
-      { firstName: { contains: q, mode: "insensitive" } },
-      { lastName: { contains: q, mode: "insensitive" } },
+      { companyName: { contains: q, mode: "insensitive" } },
+      { contactFirstName: { contains: q, mode: "insensitive" } },
+      { contactLastName: { contains: q, mode: "insensitive" } },
       { phone: { contains: q, mode: "insensitive" } },
-      { company: { contains: q, mode: "insensitive" } },
     ];
   }
   if (sp.orgId) where.event = { organizationId: sp.orgId };
   if (sp.eventId) where.eventId = sp.eventId;
   if (sp.status && (STATUS_KEYS as readonly string[]).includes(sp.status)) {
     where.status = sp.status as (typeof STATUS_KEYS)[number];
-  } else if (!sp.status) {
-    where.status = { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] };
   }
-
   if (sp.from && DATE_RE.test(sp.from)) {
-    where.createdAt = { ...(where.createdAt as object), gte: new Date(sp.from) };
+    where.submittedAt = { ...(where.submittedAt as object), gte: new Date(sp.from) };
   }
   if (sp.to && DATE_RE.test(sp.to)) {
     const end = new Date(sp.to);
     end.setUTCDate(end.getUTCDate() + 1);
-    where.createdAt = { ...(where.createdAt as object), lt: end };
+    where.submittedAt = { ...(where.submittedAt as object), lt: end };
   }
 
   return where;
 }
 
-function fmtMoney(cents: number, currency: string): string {
-  const sym = currency === "USD" ? "$" : "";
-  return sym + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtMoney(cents: number | null | undefined): string {
+  if (cents == null) return "—";
+  return "$" + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default async function AdminAttendeesPage({
+export default async function AdminVendorsPage({
   searchParams,
 }: {
   searchParams: SearchParams;
@@ -80,10 +86,10 @@ export default async function AdminAttendeesPage({
   const skip = (page - 1) * PAGE_SIZE;
   const where = buildWhere(searchParams);
 
-  const [regs, total, orgs, events] = await Promise.all([
-    prisma.registration.findMany({
+  const [vendors, total, orgs, events] = await Promise.all([
+    prisma.vendorApplication.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { submittedAt: "desc" },
       skip,
       take: PAGE_SIZE,
       include: {
@@ -96,11 +102,9 @@ export default async function AdminAttendeesPage({
             organization: { select: { id: true, name: true, slug: true } },
           },
         },
-        ticketType: { select: { name: true } },
-        tickets: { select: { id: true, checkIn: { select: { id: true } } } },
       },
     }),
-    prisma.registration.count({ where }),
+    prisma.vendorApplication.count({ where }),
     prisma.organization.findMany({
       where: { deletedAt: null },
       select: { id: true, name: true },
@@ -126,7 +130,7 @@ export default async function AdminAttendeesPage({
   for (const [k, v] of Object.entries(searchParams)) {
     if (v && k !== "page") exportQs.set(k, v);
   }
-  const exportHref = `/api/admin/attendees/export.csv${exportQs.toString() ? `?${exportQs.toString()}` : ""}`;
+  const exportHref = `/api/admin/vendors/export.csv${exportQs.toString() ? `?${exportQs.toString()}` : ""}`;
 
   const hasFilter =
     !!searchParams.q ||
@@ -143,14 +147,14 @@ export default async function AdminAttendeesPage({
           <div className="flex items-center gap-3">
             <Link href="/admin" className="font-bold">Platform Admin</Link>
             <span className="text-slate-500">/</span>
-            <span className="font-semibold">Attendees</span>
+            <span className="font-semibold">Vendors</span>
             <span className="rounded-full bg-red-500/30 px-2 py-0.5 text-xs">SUPERADMIN</span>
           </div>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin" className="opacity-80 hover:opacity-100">Overview</Link>
             <Link href="/admin/organizers" className="opacity-80 hover:opacity-100">Organizers</Link>
-            <Link href="/admin/vendors" className="opacity-80 hover:opacity-100">Vendors</Link>
-            <Link href="/admin/attendees">Attendees</Link>
+            <Link href="/admin/vendors">Vendors</Link>
+            <Link href="/admin/attendees" className="opacity-80 hover:opacity-100">Attendees</Link>
             <Link href="/admin/financials" className="opacity-80 hover:opacity-100">Financials</Link>
             <Link href="/admin/audit" className="opacity-80 hover:opacity-100">Audit log</Link>
             <SignOutButton className="text-sm opacity-80 hover:text-red-300" />
@@ -161,9 +165,9 @@ export default async function AdminAttendeesPage({
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Attendees</h1>
+            <h1 className="text-2xl font-bold">Vendors</h1>
             <p className="text-sm text-slate-500">
-              Every registration across every organization. {total.toLocaleString()} result{total === 1 ? "" : "s"}.
+              Every vendor application across every event. {total.toLocaleString()} result{total === 1 ? "" : "s"}.
             </p>
           </div>
           <a href={exportHref} className="btn-secondary">Export CSV</a>
@@ -176,7 +180,7 @@ export default async function AdminAttendeesPage({
               name="q"
               defaultValue={searchParams.q ?? ""}
               className="input"
-              placeholder="Name, email, phone, company"
+              placeholder="Company, contact, email, phone"
             />
           </div>
           <div>
@@ -204,14 +208,14 @@ export default async function AdminAttendeesPage({
           <div>
             <label className="label">Status</label>
             <select name="status" defaultValue={searchParams.status ?? ""} className="input">
-              <option value="">Confirmed + Partial refunds (default)</option>
+              <option value="">All statuses</option>
               {STATUS_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
           </div>
           <div className="flex items-end gap-2">
             <button type="submit" className="btn-secondary">Filter</button>
             {hasFilter && (
-              <Link href="/admin/attendees" className="text-sm text-slate-500 hover:text-slate-900">Clear</Link>
+              <Link href="/admin/vendors" className="text-sm text-slate-500 hover:text-slate-900">Clear</Link>
             )}
           </div>
         </form>
@@ -220,81 +224,73 @@ export default async function AdminAttendeesPage({
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-3">Attendee</th>
+                <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Address</th>
                 <th className="px-4 py-3">Organization</th>
                 <th className="px-4 py-3">Event</th>
-                <th className="px-4 py-3">Ticket</th>
-                <th className="px-4 py-3 text-right">Qty</th>
-                <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Check-in</th>
-                <th className="px-4 py-3">Registered</th>
+                <th className="px-4 py-3 text-right">Quoted</th>
+                <th className="px-4 py-3">Submitted</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {regs.map((r) => {
-                const fullName = `${r.firstName} ${r.lastName}`.trim();
-                const checkedTickets = r.tickets.filter((t) => t.checkIn);
-                const checkLabel =
-                  r.tickets.length === 0
-                    ? "—"
-                    : checkedTickets.length === r.tickets.length
-                    ? "yes"
-                    : checkedTickets.length === 0
-                    ? "no"
-                    : `${checkedTickets.length}/${r.tickets.length}`;
-                return (
-                  <tr key={r.id}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{fullName}</div>
-                      {r.company && <div className="text-xs text-slate-500">{r.company}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      <a href={`mailto:${r.email}`} className="hover:underline">{r.email}</a>
-                      {r.phone && <div className="text-xs text-slate-500">{r.phone}</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/orgs/${r.event.organization.id}`}
-                        className="text-brand-700 hover:underline"
-                      >
-                        {r.event.organization.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="max-w-xs truncate" title={r.event.name}>{r.event.name}</div>
-                      <div className="text-xs text-slate-500">
-                        {r.event.startAt.toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{r.ticketType.name}</td>
-                    <td className="px-4 py-3 text-right">{r.quantity}</td>
-                    <td className="px-4 py-3 text-right font-medium">{fmtMoney(r.totalCents, r.currency)}</td>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      <span
-                        className={
-                          r.status === "CONFIRMED"
-                            ? "text-emerald-700"
-                            : r.status === "REFUNDED" || r.status === "PARTIALLY_REFUNDED"
-                            ? "text-amber-700"
-                            : r.status === "CANCELLED"
-                            ? "text-red-700"
-                            : "text-slate-500"
-                        }
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs">{checkLabel}</td>
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap" title={r.createdAt.toISOString()}>
-                      {r.createdAt.toLocaleDateString()}
-                    </td>
-                  </tr>
-                );
-              })}
-              {regs.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-500">No attendees match these filters.</td></tr>
+              {vendors.map((v) => (
+                <tr key={v.id}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{v.companyName}</div>
+                    {v.productCategory && (
+                      <div className="text-xs text-slate-500">{v.productCategory}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <div>{`${v.contactFirstName} ${v.contactLastName}`.trim()}</div>
+                    <a href={`mailto:${v.email}`} className="text-xs text-slate-500 hover:underline">{v.email}</a>
+                    {v.phone && <div className="text-xs text-slate-500">{v.phone}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {v.addressLine1 ? (
+                      <>
+                        <div>{v.addressLine1}</div>
+                        {v.addressLine2 && <div>{v.addressLine2}</div>}
+                        <div>{[v.city, v.state, v.zipCode].filter(Boolean).join(", ")}</div>
+                        {v.country && <div className="text-slate-500">{v.country}</div>}
+                      </>
+                    ) : (
+                      <span className="text-amber-700">no address</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link href={`/admin/orgs/${v.event.organization.id}`} className="text-brand-700 hover:underline">
+                      {v.event.organization.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="max-w-xs truncate" title={v.event.name}>{v.event.name}</div>
+                    <div className="text-xs text-slate-500">{v.event.startAt.toLocaleDateString()}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-mono ${STATUS_STYLES[v.status]}`}>
+                      {v.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">{fmtMoney(v.quotedPriceCents)}</td>
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                    {v.submittedAt.toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/admin/vendors/${v.id}/edit`}
+                      className="text-xs font-medium text-brand-700 hover:underline"
+                    >
+                      Edit
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {vendors.length === 0 && (
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-500">No vendors match these filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -302,11 +298,11 @@ export default async function AdminAttendeesPage({
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-500">Page {page} of {totalPages} · {total.toLocaleString()} registrations</span>
+            <span className="text-slate-500">Page {page} of {totalPages} · {total.toLocaleString()} vendors</span>
             <div className="flex gap-2">
               {page > 1 && (
                 <Link
-                  href={{ pathname: "/admin/attendees", query: { ...searchParams, page: page - 1 } }}
+                  href={{ pathname: "/admin/vendors", query: { ...searchParams, page: page - 1 } }}
                   className="btn-secondary"
                 >
                   ← Previous
@@ -314,7 +310,7 @@ export default async function AdminAttendeesPage({
               )}
               {page < totalPages && (
                 <Link
-                  href={{ pathname: "/admin/attendees", query: { ...searchParams, page: page + 1 } }}
+                  href={{ pathname: "/admin/vendors", query: { ...searchParams, page: page + 1 } }}
                   className="btn-secondary"
                 >
                   Next →
@@ -323,11 +319,6 @@ export default async function AdminAttendeesPage({
             </div>
           </div>
         )}
-
-        <p className="text-xs text-slate-400">
-          The default view shows CONFIRMED and PARTIALLY_REFUNDED registrations. To include pending or cancelled
-          orders, change the status filter.
-        </p>
       </div>
     </main>
   );

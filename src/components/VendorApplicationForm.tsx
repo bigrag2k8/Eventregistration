@@ -18,7 +18,7 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
   const [form, setForm] = useState({
     companyName: "", contactFirstName: "", contactLastName: "",
     email: "", phone: "", website: "", logoUrl: "",
-    addressLine1: "", addressLine2: "", city: "", state: "", zipCode: "", country: "",
+    addressLine1: "", addressLine2: "", city: "", state: "", zipCode: "", country: "United States",
     description: "", productCategory: "", boothPreference: "",
     sponsorshipLevel: "", electricalNeeds: false,
     additionalRequests: "",
@@ -78,8 +78,8 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
             <input required type="email" className="input" value={form.email} onChange={(e)=>set("email", e.target.value)} />
           </div>
           <div>
-            <label className="label">Phone</label>
-            <input className="input" value={form.phone} onChange={(e)=>set("phone", e.target.value)} />
+            <label className="label">Phone *</label>
+            <input required maxLength={40} placeholder="(555) 123-4567" className="input" value={form.phone} onChange={(e)=>set("phone", e.target.value)} />
           </div>
           <div>
             <label className="label">Website</label>
@@ -91,31 +91,31 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
           </div>
         </div>
 
-        <h3 className="mt-4 text-sm font-medium text-slate-700">Address (optional)</h3>
+        <h3 className="mt-4 text-sm font-medium text-slate-700">Mailing address *</h3>
         <div className="mt-2 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Street address</label>
-            <input className="input" placeholder="123 Main St" value={form.addressLine1} onChange={(e)=>set("addressLine1", e.target.value)} />
+            <label className="label">Street address *</label>
+            <input required maxLength={200} className="input" placeholder="123 Main St" value={form.addressLine1} onChange={(e)=>set("addressLine1", e.target.value)} />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Address line 2</label>
-            <input className="input" placeholder="Suite, unit, etc." value={form.addressLine2} onChange={(e)=>set("addressLine2", e.target.value)} />
+            <input maxLength={200} className="input" placeholder="Suite, unit, etc. (optional)" value={form.addressLine2} onChange={(e)=>set("addressLine2", e.target.value)} />
           </div>
           <div>
-            <label className="label">City</label>
-            <input className="input" value={form.city} onChange={(e)=>set("city", e.target.value)} />
+            <label className="label">City *</label>
+            <input required maxLength={100} className="input" value={form.city} onChange={(e)=>set("city", e.target.value)} />
           </div>
           <div>
-            <label className="label">State / Province</label>
-            <input className="input" value={form.state} onChange={(e)=>set("state", e.target.value)} />
+            <label className="label">State / Province *</label>
+            <input required maxLength={100} className="input" value={form.state} onChange={(e)=>set("state", e.target.value)} />
           </div>
           <div>
-            <label className="label">ZIP / Postal code</label>
-            <input className="input" value={form.zipCode} onChange={(e)=>set("zipCode", e.target.value)} />
+            <label className="label">ZIP / Postal code *</label>
+            <input required maxLength={20} className="input" value={form.zipCode} onChange={(e)=>set("zipCode", e.target.value)} />
           </div>
           <div>
-            <label className="label">Country</label>
-            <input className="input" value={form.country} onChange={(e)=>set("country", e.target.value)} />
+            <label className="label">Country *</label>
+            <input required maxLength={100} className="input" value={form.country} onChange={(e)=>set("country", e.target.value)} />
           </div>
         </div>
       </section>

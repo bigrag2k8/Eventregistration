@@ -44,6 +44,7 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin">Overview</Link>
             <Link href="/admin/organizers" className="opacity-80 hover:opacity-100">Organizers</Link>
+            <Link href="/admin/vendors" className="opacity-80 hover:opacity-100">Vendors</Link>
             <Link href="/admin/attendees" className="opacity-80 hover:opacity-100">Attendees</Link>
             <Link href="/admin/financials" className="opacity-80 hover:opacity-100">Financials</Link>
             <Link href="/admin/superadmins" className="opacity-80 hover:opacity-100">Admins</Link>
@@ -76,7 +77,7 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
           <Stat label="Pending invites" value={String(pendingInvites)} />
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/admin/organizers"
             target="_blank"
@@ -88,6 +89,21 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
               <div className="mt-0.5 text-lg font-semibold">All organizers ↗</div>
               <div className="text-sm text-slate-500">
                 Search, filter by plan/status/Connect, export CSV
+              </div>
+            </div>
+            <span className="text-2xl text-slate-300 transition group-hover:text-brand-600">→</span>
+          </Link>
+          <Link
+            href="/admin/vendors"
+            target="_blank"
+            rel="noopener"
+            className="group flex items-center justify-between rounded-xl bg-white p-5 ring-1 ring-slate-200 transition hover:ring-brand-400 hover:shadow"
+          >
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500">Browse</div>
+              <div className="mt-0.5 text-lg font-semibold">All vendors ↗</div>
+              <div className="text-sm text-slate-500">
+                Filter by org/event/status; edit and export CSV
               </div>
             </div>
             <span className="text-2xl text-slate-300 transition group-hover:text-brand-600">→</span>

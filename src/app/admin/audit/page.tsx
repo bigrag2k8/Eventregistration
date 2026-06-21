@@ -58,6 +58,7 @@ export default async function PlatformAuditLogPage({ searchParams }: {
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin" className="opacity-80 hover:opacity-100">Overview</Link>
             <Link href="/admin/organizers" className="opacity-80 hover:opacity-100">Organizers</Link>
+            <Link href="/admin/vendors" className="opacity-80 hover:opacity-100">Vendors</Link>
             <Link href="/admin/attendees" className="opacity-80 hover:opacity-100">Attendees</Link>
             <Link href="/admin/financials" className="opacity-80 hover:opacity-100">Financials</Link>
             <Link href="/admin/audit">Audit log</Link>

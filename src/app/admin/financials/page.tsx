@@ -189,6 +189,7 @@ export default async function AdminFinancialsPage({
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin" className="opacity-80 hover:opacity-100">Overview</Link>
             <Link href="/admin/organizers" className="opacity-80 hover:opacity-100">Organizers</Link>
+            <Link href="/admin/vendors" className="opacity-80 hover:opacity-100">Vendors</Link>
             <Link href="/admin/attendees" className="opacity-80 hover:opacity-100">Attendees</Link>
             <Link href="/admin/financials">Financials</Link>
             <Link href="/admin/audit" className="opacity-80 hover:opacity-100">Audit log</Link>
