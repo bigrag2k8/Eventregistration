@@ -35,11 +35,11 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
   const [ticketTypeId, setTicketTypeId] = useState(event.ticketTypes[0]?.id);
   const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({
+    company: "",
     firstName: prefill?.firstName ?? "",
     lastName: prefill?.lastName ?? "",
     email: prefill?.email ?? "",
-    phone: prefill?.phone ?? "", company: "",
-    jobTitle: "", dietary: "", accessibility: "", specialRequests: "",
+    phone: prefill?.phone ?? "",
     addressLine1: "", addressLine2: "", city: "", state: "", zipCode: "", country: "",
     promoCode: "",
   });
@@ -224,6 +224,11 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       <section className="card">
         <h2 className="text-lg font-semibold">2. Your info</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label">Company</label>
+            <input className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
+            {fieldErr("company")}
+          </div>
           <div>
             <label className="label">First name *</label>
             <input required className={inputClass("firstName")} value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} />
@@ -244,19 +249,6 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
             <input required className={inputClass("phone")} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
             {fieldErr("phone")}
           </div>
-          <div>
-            <label className="label">Company</label>
-            <input className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
-            {fieldErr("company")}
-          </div>
-          <div>
-            <label className="label">Job title</label>
-            <input className={inputClass("jobTitle")} value={form.jobTitle} onChange={(e) => setField("jobTitle", e.target.value)} />
-            {fieldErr("jobTitle")}
-          </div>
-          <div><label className="label">Dietary restrictions</label><input className="input" value={form.dietary} onChange={(e) => setField("dietary", e.target.value)} /></div>
-          <div><label className="label">Accessibility</label><input className="input" value={form.accessibility} onChange={(e) => setField("accessibility", e.target.value)} /></div>
-          <div className="sm:col-span-2"><label className="label">Special requests</label><textarea className="input" rows={2} value={form.specialRequests} onChange={(e) => setField("specialRequests", e.target.value)} /></div>
         </div>
 
         <h3 className="mt-4 text-sm font-medium text-slate-700">Address (optional)</h3>
