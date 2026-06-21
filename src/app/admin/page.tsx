@@ -79,11 +79,13 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <Link
             href="/admin/organizers"
+            target="_blank"
+            rel="noopener"
             className="group flex items-center justify-between rounded-xl bg-white p-5 ring-1 ring-slate-200 transition hover:ring-brand-400 hover:shadow"
           >
             <div>
               <div className="text-xs uppercase tracking-wider text-slate-500">Browse</div>
-              <div className="mt-0.5 text-lg font-semibold">All organizers</div>
+              <div className="mt-0.5 text-lg font-semibold">All organizers ↗</div>
               <div className="text-sm text-slate-500">
                 Search, filter by plan/status/Connect, export CSV
               </div>
@@ -92,11 +94,13 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
           </Link>
           <Link
             href="/admin/attendees"
+            target="_blank"
+            rel="noopener"
             className="group flex items-center justify-between rounded-xl bg-white p-5 ring-1 ring-slate-200 transition hover:ring-brand-400 hover:shadow"
           >
             <div>
               <div className="text-xs uppercase tracking-wider text-slate-500">Browse</div>
-              <div className="mt-0.5 text-lg font-semibold">All attendees</div>
+              <div className="mt-0.5 text-lg font-semibold">All attendees ↗</div>
               <div className="text-sm text-slate-500">
                 Filter by date, org, event, status; export CSV
               </div>
