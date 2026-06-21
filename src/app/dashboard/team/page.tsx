@@ -25,10 +25,12 @@ const INVITE_STATUS_STYLES: Record<string, string> = {
   EXPIRED:  "bg-red-100 text-red-700",
 };
 
-export default async function TeamPage({ searchParams }: { searchParams: { invited?: string; error?: string } }) {
+export default async function TeamPage({ searchParams }: { searchParams: { invited?: string; updated?: string; error?: string } }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
+  // Only ORGANIZERs see the Edit link per product spec; ADMIN/SUPERADMIN view-only here.
+  const canEdit = session.role === "ORGANIZER";
 
   const [org, members, invites] = await Promise.all([
     prisma.organization.findUnique({ where: { id: session.orgId } }),
@@ -69,6 +71,11 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
             ✓ Invite sent to <strong>{searchParams.invited}</strong>. They'll receive an email with a link to set up their account.
           </div>
         )}
+        {searchParams.updated && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Updated <strong>{searchParams.updated}</strong>.
+          </div>
+        )}
 
         {/* Active members */}
         <section>
@@ -102,16 +109,26 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
                     <td className="px-4 py-3 text-slate-500">{m.createdAt.toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-slate-500">{m.lastLoginAt ? m.lastLoginAt.toLocaleDateString() : "—"}</td>
                     <td className="px-4 py-3 text-right">
-                      {m.id !== session.sub && m.role !== "SUPERADMIN" && (
-                        <form action={removeMemberAction} className="inline">
-                          <input type="hidden" name="userId" value={m.id} />
-                          <ConfirmButton
-                            label="Remove"
-                            confirmText={`Remove ${m.firstName ?? m.email} from ${org.name}? They will lose access immediately.`}
-                            className="text-xs text-red-600 hover:underline"
-                          />
-                        </form>
-                      )}
+                      <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+                        {canEdit && m.role !== "SUPERADMIN" && (
+                          <Link
+                            href={`/dashboard/team/${m.id}/edit`}
+                            className="text-xs font-medium text-brand-700 hover:underline"
+                          >
+                            Edit
+                          </Link>
+                        )}
+                        {canEdit && m.id !== session.sub && m.role !== "SUPERADMIN" && (
+                          <form action={removeMemberAction} className="inline">
+                            <input type="hidden" name="userId" value={m.id} />
+                            <ConfirmButton
+                              label="Remove"
+                              confirmText={`Remove ${m.firstName ?? m.email} from ${org.name}? They will lose access immediately.`}
+                              className="text-xs text-red-600 hover:underline"
+                            />
+                          </form>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

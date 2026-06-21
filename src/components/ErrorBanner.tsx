@@ -35,6 +35,11 @@ const MESSAGES: Record<string, string> = {
   delete_name_mismatch: "The org name you typed didn't match. Try again exactly.",
   delete_own_org: "You can't delete your own organization — ask another SUPERADMIN.",
   delete_owner_org: "The owner's organization can't be deleted from here. Use the factory reset instead.",
+  member_not_found: "That team member could not be found in your organization.",
+  cant_edit_superadmin: "Platform SUPERADMINs can only be edited from the platform admin area.",
+  cant_change_own_role: "You can't change your own role. Ask another organizer to do it.",
+  last_organizer: "You can't demote the last organizer. Promote someone else first.",
+  email_in_use: "That email is already in use by another account.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

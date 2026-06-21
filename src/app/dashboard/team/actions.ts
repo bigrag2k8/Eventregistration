@@ -149,6 +149,104 @@ export async function revokeTeamInviteAction(formData: FormData) {
   revalidatePath("/dashboard/team");
 }
 
+const updateMemberSchema = z.object({
+  userId: z.string().min(1),
+  firstName: z.string().min(1, "First name is required").max(80),
+  lastName: z.string().min(1, "Last name is required").max(80),
+  email: z.string().email("Valid email is required").max(200),
+  phone: z.string().max(40).optional(),
+  role: z.enum(["ORGANIZER", "ADMIN", "STAFF", "VOLUNTEER"]),
+});
+
+export async function updateMemberAction(formData: FormData) {
+  // ORGANIZER role only — the user explicitly asked for "only organizers can
+  // modify team members". ADMIN/STAFF/VOLUNTEER may VIEW the team page but
+  // can't edit anyone.
+  const session = requireRole(["ORGANIZER"], await getSession());
+  if (!session.orgId) throw new Error("No organization linked to your account");
+
+  const parsed = updateMemberSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0] ?? "validation";
+    redirect(`/dashboard/team?error=${encodeURIComponent(String(first))}`);
+  }
+  const data = parsed.data;
+
+  const target = await prisma.user.findFirst({
+    where: { id: data.userId, organizationId: session.orgId, deletedAt: null },
+  });
+  if (!target) redirect("/dashboard/team?error=member_not_found");
+
+  if (target.role === "SUPERADMIN") {
+    redirect("/dashboard/team?error=cant_edit_superadmin");
+  }
+
+  // Self-demotion guard: can't change your own role here (would lock you out
+  // if you were the only organizer). Update name/email/phone is still fine.
+  const isSelf = target.id === session.sub;
+  if (isSelf && data.role !== target.role) {
+    redirect("/dashboard/team?error=cant_change_own_role");
+  }
+
+  // Last-organizer guard: don't allow demoting the only remaining ORGANIZER
+  // in the org — would orphan the account from leadership.
+  if (target.role === "ORGANIZER" && data.role !== "ORGANIZER") {
+    const remainingOrgs = await prisma.user.count({
+      where: {
+        organizationId: session.orgId,
+        role: "ORGANIZER",
+        deletedAt: null,
+        id: { not: target.id },
+      },
+    });
+    if (remainingOrgs === 0) {
+      redirect("/dashboard/team?error=last_organizer");
+    }
+  }
+
+  // Email uniqueness — only check if email actually changed
+  if (data.email !== target.email) {
+    const collision = await prisma.user.findUnique({ where: { email: data.email } });
+    if (collision) redirect("/dashboard/team?error=email_in_use");
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phone: data.phone || null,
+      role: data.role,
+      // Bump sessionVersion so a role change forces re-auth on the next request
+      // (same pattern used elsewhere when role/permissions change).
+      ...(data.role !== target.role || data.email !== target.email
+        ? { sessionVersion: { increment: 1 } }
+        : {}),
+    },
+  });
+
+  await audit({
+    organizationId: session.orgId,
+    userId: session.sub,
+    action: "team.update",
+    targetType: "User",
+    targetId: target.id,
+    metadata: {
+      changed: {
+        firstName: target.firstName !== data.firstName ? { from: target.firstName, to: data.firstName } : undefined,
+        lastName: target.lastName !== data.lastName ? { from: target.lastName, to: data.lastName } : undefined,
+        email: target.email !== data.email ? { from: target.email, to: data.email } : undefined,
+        phone: target.phone !== (data.phone || null) ? { from: target.phone, to: data.phone || null } : undefined,
+        role: target.role !== data.role ? { from: target.role, to: data.role } : undefined,
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/team");
+  redirect(`/dashboard/team?updated=${encodeURIComponent(data.email)}`);
+}
+
 export async function removeMemberAction(formData: FormData) {
   const { session, org } = await authorizeOrg();
   const userId = String(formData.get("userId"));
