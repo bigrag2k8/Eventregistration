@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     orgId: url.searchParams.get("orgId") ?? undefined,
     eventId: url.searchParams.get("eventId") ?? undefined,
     status: url.searchParams.get("status") ?? undefined,
+    productCategory: url.searchParams.get("productCategory") ?? undefined,
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
   };
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
   if (sp.status && (STATUS_KEYS as readonly string[]).includes(sp.status)) {
     where.status = sp.status as (typeof STATUS_KEYS)[number];
   }
+  if (sp.productCategory) where.productCategory = sp.productCategory;
   if (sp.from && DATE_RE.test(sp.from)) {
     where.submittedAt = { ...(where.submittedAt as object), gte: new Date(sp.from) };
   }

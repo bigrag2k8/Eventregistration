@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { VENDOR_CATEGORIES } from "@/lib/vendor-categories";
 import { updateVendorAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -127,8 +128,17 @@ export default async function EditVendorPage({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label">Product category</label>
-                <input name="productCategory" maxLength={120} defaultValue={vendor.productCategory ?? ""} className="input" />
+                <label className="label">Product category *</label>
+                <select name="productCategory" required defaultValue={vendor.productCategory ?? ""} className="input">
+                  <option value="">Select a category…</option>
+                  {/* Include any legacy free-text value so it stays selected when editing */}
+                  {vendor.productCategory && !(VENDOR_CATEGORIES as readonly string[]).includes(vendor.productCategory) && (
+                    <option value={vendor.productCategory}>{vendor.productCategory} (legacy)</option>
+                  )}
+                  {VENDOR_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="label">Booth preference</label>

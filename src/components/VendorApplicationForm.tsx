@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { VENDOR_CATEGORIES } from "@/lib/vendor-categories";
 
 interface Props {
   eventId: string;
@@ -129,8 +130,13 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label">Product category</label>
-              <input className="input" placeholder="e.g. Tech, Food, Apparel, Services" value={form.productCategory} onChange={(e)=>set("productCategory", e.target.value)} />
+              <label className="label">Product category *</label>
+              <select required className="input" value={form.productCategory} onChange={(e)=>set("productCategory", e.target.value)}>
+                <option value="">Select a category…</option>
+                {VENDOR_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">Booth size preference</label>

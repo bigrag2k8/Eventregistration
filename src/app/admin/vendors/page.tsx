@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
+import { VENDOR_CATEGORIES } from "@/lib/vendor-categories";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ type SearchParams = {
   orgId?: string;
   eventId?: string;
   status?: string;
+  productCategory?: string;
   from?: string;
   to?: string;
   page?: string;
@@ -56,6 +58,7 @@ function buildWhere(sp: SearchParams): Prisma.VendorApplicationWhereInput {
   if (sp.status && (STATUS_KEYS as readonly string[]).includes(sp.status)) {
     where.status = sp.status as (typeof STATUS_KEYS)[number];
   }
+  if (sp.productCategory) where.productCategory = sp.productCategory;
   if (sp.from && DATE_RE.test(sp.from)) {
     where.submittedAt = { ...(where.submittedAt as object), gte: new Date(sp.from) };
   }
@@ -137,6 +140,7 @@ export default async function AdminVendorsPage({
     !!searchParams.orgId ||
     !!searchParams.eventId ||
     !!searchParams.status ||
+    !!searchParams.productCategory ||
     !!searchParams.from ||
     !!searchParams.to;
 
@@ -210,6 +214,13 @@ export default async function AdminVendorsPage({
             <select name="status" defaultValue={searchParams.status ?? ""} className="input">
               <option value="">All statuses</option>
               {STATUS_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          <div className="lg:col-span-2">
+            <label className="label">Product category</label>
+            <select name="productCategory" defaultValue={searchParams.productCategory ?? ""} className="input">
+              <option value="">All categories</option>
+              {VENDOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="flex items-end gap-2">

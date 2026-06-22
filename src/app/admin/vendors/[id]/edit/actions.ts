@@ -21,7 +21,7 @@ const schema = z.object({
   state: z.string().min(1, "State / province is required").max(100),
   zipCode: z.string().min(1, "ZIP / postal code is required").max(20),
   country: z.string().min(1, "Country is required").max(100),
-  productCategory: z.string().max(120).optional(),
+  productCategory: z.string().min(1, "Product category is required").max(120),
   boothPreference: z.string().max(200).optional(),
   sponsorshipLevel: z.string().max(120).optional(),
   electricalNeeds: z.string().optional(),
