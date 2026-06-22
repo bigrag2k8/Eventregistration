@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { loadGoogleMaps, parseAddressComponents } from "@/lib/google-maps-loader";
+import { useEffect, useRef, useState } from "react";
+import { hasGoogleMapsKey, loadGoogleMaps, parseAddressComponents } from "@/lib/google-maps-loader";
 
 /**
  * Self-managed mailing-address section. Renders the six address inputs with
@@ -33,6 +33,13 @@ export function AddressFields({ defaults, required }: Props) {
   const zipRef = useRef<HTMLInputElement>(null);
   const countryRef = useRef<HTMLInputElement>(null);
 
+  // 'loading' | 'ready' | 'unavailable' — drives a small hint under the
+  // street-address field so the user knows whether suggestions will appear.
+  type AcStatus = "loading" | "ready" | "unavailable";
+  const [status, setStatus] = useState<AcStatus>(
+    hasGoogleMapsKey() ? "loading" : "unavailable"
+  );
+
   useEffect(() => {
     let cancelled = false;
     loadGoogleMaps()
@@ -53,9 +60,10 @@ export function AddressFields({ defaults, required }: Props) {
           if (zipRef.current) zipRef.current.value = parsed.zipCode;
           if (countryRef.current) countryRef.current.value = parsed.country;
         });
+        if (!cancelled) setStatus("ready");
       })
       .catch(() => {
-        // Silent fallback to plain inputs.
+        if (!cancelled) setStatus("unavailable");
       });
     return () => {
       cancelled = true;
@@ -74,10 +82,26 @@ export function AddressFields({ defaults, required }: Props) {
           required={required}
           maxLength={200}
           defaultValue={defaults?.addressLine1 ?? ""}
-          placeholder="Start typing your address"
+          placeholder={
+            status === "ready"
+              ? "Start typing your address"
+              : status === "loading"
+              ? "Loading address suggestions…"
+              : "Enter your street address"
+          }
           className="input"
           autoComplete="off"
         />
+        {status === "ready" && (
+          <p className="mt-1 text-xs text-emerald-700">
+            Type to see suggestions — picking one will fill the other fields.
+          </p>
+        )}
+        {status === "unavailable" && (
+          <p className="mt-1 text-xs text-amber-700">
+            Address suggestions unavailable — please fill in each field manually.
+          </p>
+        )}
       </div>
       <div className="sm:col-span-2">
         <label className="label">Address line 2</label>

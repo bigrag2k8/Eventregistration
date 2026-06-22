@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { loadGoogleMaps, parseAddressComponents, type ParsedAddress } from "@/lib/google-maps-loader";
+import { useEffect, useRef, useState } from "react";
+import { hasGoogleMapsKey, loadGoogleMaps, parseAddressComponents, type ParsedAddress } from "@/lib/google-maps-loader";
 
 /**
  * Controlled single-input variant of the address autocomplete. Drop in where
@@ -43,6 +43,11 @@ export function AddressAutocompleteInput({
     onPlaceSelectedRef.current = onPlaceSelected;
   }, [onPlaceSelected]);
 
+  type AcStatus = "loading" | "ready" | "unavailable";
+  const [status, setStatus] = useState<AcStatus>(
+    hasGoogleMapsKey() ? "loading" : "unavailable"
+  );
+
   useEffect(() => {
     let cancelled = false;
     loadGoogleMaps()
@@ -59,27 +64,47 @@ export function AddressAutocompleteInput({
           const parsed = parseAddressComponents(place);
           onPlaceSelectedRef.current(parsed);
         });
+        if (!cancelled) setStatus("ready");
       })
       .catch(() => {
-        // Silent fallback to plain input.
+        if (!cancelled) setStatus("unavailable");
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const resolvedPlaceholder =
+    status === "ready"
+      ? placeholder
+      : status === "loading"
+      ? "Loading address suggestions…"
+      : "Enter your street address";
+
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      id={id}
-      name={name}
-      required={required}
-      placeholder={placeholder}
-      className={className}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      autoComplete="off"
-    />
+    <>
+      <input
+        ref={inputRef}
+        type="text"
+        id={id}
+        name={name}
+        required={required}
+        placeholder={resolvedPlaceholder}
+        className={className}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete="off"
+      />
+      {status === "ready" && (
+        <p className="mt-1 text-xs text-emerald-700">
+          Type to see suggestions — picking one will fill the other fields.
+        </p>
+      )}
+      {status === "unavailable" && (
+        <p className="mt-1 text-xs text-amber-700">
+          Address suggestions unavailable — please fill in each field manually.
+        </p>
+      )}
+    </>
   );
 }
