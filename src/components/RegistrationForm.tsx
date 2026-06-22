@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 
 interface TicketType {
   id: string; name: string; priceCents: number; quantityTotal: number | null;
@@ -255,7 +256,11 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="label">Street address</label>
-            <input className="input" placeholder="123 Main St" value={form.addressLine1} onChange={(e) => setField("addressLine1", e.target.value)} />
+            <AddressAutocompleteInput
+              value={form.addressLine1}
+              onChange={(v) => setField("addressLine1", v)}
+              onPlaceSelected={(parsed) => setForm((f) => ({ ...f, ...parsed }))}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Address line 2</label>

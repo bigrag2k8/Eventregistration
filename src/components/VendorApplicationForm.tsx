@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { VENDOR_CATEGORIES } from "@/lib/vendor-categories";
+import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 
 interface Props {
   eventId: string;
@@ -95,7 +96,12 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
         <div className="mt-2 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="label">Street address *</label>
-            <input required maxLength={200} className="input" placeholder="123 Main St" value={form.addressLine1} onChange={(e)=>set("addressLine1", e.target.value)} />
+            <AddressAutocompleteInput
+              required
+              value={form.addressLine1}
+              onChange={(v) => set("addressLine1", v)}
+              onPlaceSelected={(parsed) => setForm((f) => ({ ...f, ...parsed }))}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="label">Address line 2</label>

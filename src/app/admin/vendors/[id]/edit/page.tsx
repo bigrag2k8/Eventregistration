@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { AddressFields } from "@/components/AddressFields";
 import { VENDOR_CATEGORIES } from "@/lib/vendor-categories";
 import { updateVendorAction } from "./actions";
 
@@ -91,31 +92,18 @@ export default async function EditVendorPage({
 
         <section className="card">
           <h2 className="text-lg font-semibold">Mailing address</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="label">Street address *</label>
-              <input name="addressLine1" required maxLength={200} defaultValue={vendor.addressLine1 ?? ""} className="input" placeholder="123 Main St" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Address line 2</label>
-              <input name="addressLine2" maxLength={200} defaultValue={vendor.addressLine2 ?? ""} className="input" placeholder="Suite, unit, etc." />
-            </div>
-            <div>
-              <label className="label">City *</label>
-              <input name="city" required maxLength={100} defaultValue={vendor.city ?? ""} className="input" />
-            </div>
-            <div>
-              <label className="label">State / Province *</label>
-              <input name="state" required maxLength={100} defaultValue={vendor.state ?? ""} className="input" />
-            </div>
-            <div>
-              <label className="label">ZIP / Postal code *</label>
-              <input name="zipCode" required maxLength={20} defaultValue={vendor.zipCode ?? ""} className="input" />
-            </div>
-            <div>
-              <label className="label">Country *</label>
-              <input name="country" required maxLength={100} defaultValue={vendor.country ?? "United States"} className="input" />
-            </div>
+          <div className="mt-4">
+            <AddressFields
+              required
+              defaults={{
+                addressLine1: vendor.addressLine1,
+                addressLine2: vendor.addressLine2,
+                city: vendor.city,
+                state: vendor.state,
+                zipCode: vendor.zipCode,
+                country: vendor.country,
+              }}
+            />
           </div>
         </section>
 

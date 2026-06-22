@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { OrgNameSlugFields } from "@/components/OrgNameSlugFields";
+import { AddressFields } from "@/components/AddressFields";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -102,31 +103,8 @@ export default function SignUpPage() {
           <p className="mt-1 text-xs text-slate-500">
             Where your organization is based. Used for billing receipts, tax documents, and account verification.
           </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="label">Street address *</label>
-              <input name="addressLine1" required maxLength={200} className="input" placeholder="123 Main St" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Address line 2</label>
-              <input name="addressLine2" maxLength={200} className="input" placeholder="Suite, unit, etc. (optional)" />
-            </div>
-            <div>
-              <label className="label">City *</label>
-              <input name="city" required maxLength={100} className="input" />
-            </div>
-            <div>
-              <label className="label">State / Province *</label>
-              <input name="state" required maxLength={100} className="input" />
-            </div>
-            <div>
-              <label className="label">ZIP / Postal code *</label>
-              <input name="zipCode" required maxLength={20} className="input" />
-            </div>
-            <div>
-              <label className="label">Country *</label>
-              <input name="country" required maxLength={100} defaultValue="United States" className="input" />
-            </div>
+          <div className="mt-3">
+            <AddressFields required />
           </div>
         </section>
 
