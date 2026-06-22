@@ -22,7 +22,7 @@ const PREREQS = [
 ];
 
 // The actual repeating flow — once the account + Stripe is set up, you run
-// every event from here on by walking through these four steps.
+// every event from here on by walking through these steps.
 const STEPS = [
   {
     n: "1",
@@ -32,15 +32,20 @@ const STEPS = [
   {
     n: "2",
     title: "Sell tickets & collect registrations",
-    body: "Share one link. Attendees register and pay by card; the price you set is the price they pay (we never tack on buyer fees). Promo codes, waitlists when you sell out, refund-request handling, and vendor booth applications all run from the same dashboard.",
+    body: "Share one link. Attendees register and pay by card; the price you set is the price they pay (we never tack on buyer fees). Promo codes, waitlists when you sell out, and refund-request handling all run from the same dashboard.",
   },
   {
     n: "3",
-    title: "Check people in",
-    body: "Every confirmed ticket gets a secure QR code emailed to the attendee. On event day, anyone on your team scans the QR from their phone — each ticket admits once, duplicates get flagged, and arrival counts update in real time so you know how full the venue is.",
+    title: "Manage vendors & booth applications",
+    body: "Flip on vendor registration and the public event page gets a \"Become a Vendor\" button. Applications land in your dashboard with the vendor's company info, mailing address, product category, and booth requests. Approve, adjust the booth price, and a secure payment link is emailed automatically — once they pay, they become a confirmed vendor with the same QR-ticketed credentials as attendees.",
   },
   {
     n: "4",
+    title: "Check people in",
+    body: "Every confirmed ticket — attendee or vendor — gets a secure QR code emailed to them. On event day, anyone on your team scans the QR from their phone; each code admits once, duplicates get flagged, and arrival counts update in real time so you know how full the venue is.",
+  },
+  {
+    n: "5",
     title: "Get paid",
     body: "Payouts land in the Stripe-linked bank account on Stripe's normal schedule (usually 2 business days). Track gross sales, our 5% platform fee, refunds, and net payout from the financials dashboard. Issue refunds with one click — we reverse the platform fee proportionally.",
   },
@@ -52,7 +57,7 @@ export default function HowItWorksPage() {
       <section className="mx-auto max-w-3xl px-4 py-16 text-center">
         <h1 className="text-4xl font-bold tracking-tight">How it works</h1>
         <p className="mt-4 text-lg text-slate-600">
-          Two one-time setup steps, then a repeatable four-step flow you run for every event.
+          Two one-time setup steps, then a repeatable five-step flow you run for every event.
         </p>
         <div className="mt-8">
           <Link href="/signup" className="btn-primary">Host an event — get started</Link>
@@ -93,7 +98,7 @@ export default function HowItWorksPage() {
           <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-800">
             For every event
           </span>
-          <span className="text-sm text-slate-500">Four steps, repeat as needed</span>
+          <span className="text-sm text-slate-500">Five steps, repeat as needed</span>
         </div>
         <div className="grid gap-6 sm:grid-cols-2">
           {STEPS.map((s) => (
