@@ -70,7 +70,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" aria-label="YourEvents home">
-            <LogoFull height={64} />
+            <LogoFull height={120} />
           </Link>
           <nav>
             <PublicAccountNav />
