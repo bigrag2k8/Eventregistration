@@ -79,6 +79,42 @@ export default function ComparePage() {
         </p>
       </section>
 
+      {/* Feature comparison */}
+      <section className="mx-auto max-w-5xl px-4 pb-12">
+        <h2 className="text-2xl font-bold">Feature comparison</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          What each platform offers out of the box. We&rsquo;re honest about where Eventbrite has
+          features we don&rsquo;t — they&rsquo;ve had a 15-year head start.
+        </p>
+        <div className="mt-6 overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                <th className="px-4 py-3">Feature</th>
+                <th className="px-4 py-3 text-center w-32">YourEvents</th>
+                <th className="px-4 py-3 text-center w-32">Eventbrite</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {FEATURES.map((f) => (
+                <tr key={f.feature}>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{f.feature}</div>
+                    {f.note && <div className="mt-0.5 text-xs text-slate-500">{f.note}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Cell value={f.ye} />
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Cell value={f.eb} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {/* Punchline */}
       <section className="mx-auto max-w-5xl px-4 pb-12">
         <div className="grid gap-4 sm:grid-cols-3">
@@ -197,42 +233,6 @@ export default function ComparePage() {
           $20 community event, that&rsquo;s roughly an extra $400 in your pocket versus
           Eventbrite, with no change to what attendees pay.
         </p>
-      </section>
-
-      {/* Feature comparison */}
-      <section className="mx-auto max-w-5xl px-4 pb-12">
-        <h2 className="text-2xl font-bold">Feature comparison</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          What each platform offers out of the box. We&rsquo;re honest about where Eventbrite has
-          features we don&rsquo;t — they&rsquo;ve had a 15-year head start.
-        </p>
-        <div className="mt-6 overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-3">Feature</th>
-                <th className="px-4 py-3 text-center w-32">YourEvents</th>
-                <th className="px-4 py-3 text-center w-32">Eventbrite</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {FEATURES.map((f) => (
-                <tr key={f.feature}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{f.feature}</div>
-                    {f.note && <div className="mt-0.5 text-xs text-slate-500">{f.note}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <Cell value={f.ye} />
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <Cell value={f.eb} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </section>
 
       {/* Who's it for */}
