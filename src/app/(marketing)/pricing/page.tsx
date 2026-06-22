@@ -117,6 +117,14 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-8 text-center text-sm text-slate-500">
+          Curious how this stacks up against Eventbrite?{" "}
+          <Link href="/compare" className="font-medium text-brand-700 hover:underline">
+            See the side-by-side comparison
+          </Link>
+          .
+        </p>
+
+        <p className="mt-3 text-center text-sm text-slate-500">
           Need higher volume or custom terms?{" "}
           <Link href="/contact" className="font-medium text-brand-700 hover:underline">
             Contact us
