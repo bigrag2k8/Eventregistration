@@ -78,9 +78,30 @@ export function loadGoogleMaps(): Promise<void> {
       script.async = true;
       script.defer = true;
       script.dataset.googleMapsLoader = "true";
-      script.onload = () => {
-        const wg = window as unknown as { google?: { maps?: { places?: unknown } } };
-        if (!wg.google?.maps?.places) {
+      script.onload = async () => {
+        // With `loading=async`, the main script's onload fires BEFORE the
+        // requested libraries finish loading. The Places library arrives in
+        // a separate `places.js` request triggered by the main script. We
+        // wait for it via google.maps.importLibrary (the modern API), and
+        // fall back to a short poll for older builds where importLibrary
+        // isn't yet defined.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const w = window as any;
+        try {
+          if (w.google?.maps?.importLibrary) {
+            await w.google.maps.importLibrary("places");
+          } else {
+            // Poll up to ~3s for the places namespace to appear.
+            const start = performance.now();
+            while (!w.google?.maps?.places && performance.now() - start < 3000) {
+              await new Promise((r) => setTimeout(r, 50));
+            }
+          }
+        } catch {
+          // fall through to the check below
+        }
+
+        if (!w.google?.maps?.places) {
           console.warn(
             "[YourEvents] Google Maps loaded but Places library is missing — check the Cloud Console restrictions on the key."
           );
