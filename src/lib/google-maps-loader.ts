@@ -13,12 +13,31 @@
 let scriptPromise: Promise<void> | null = null;
 
 /**
- * Tells callers whether the key is even present in the build. Cheap and sync,
- * so address components can render a "suggestions unavailable" hint up-front
- * instead of waiting for the script to time out.
+ * Cheap sync check for the build-time variable. Components use this for the
+ * initial "loading" vs "unavailable" state — the loader itself will also try
+ * the runtime fallback if the build-time var is missing, so this can return
+ * false and the script may still load successfully a moment later.
  */
 export function hasGoogleMapsKey(): boolean {
   return !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+}
+
+async function resolveKey(): Promise<string | null> {
+  // Build-time inlined value — preferred because no network round-trip.
+  const buildKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (buildKey) return buildKey;
+
+  // Runtime fallback: ask the server, which reads the env at request time.
+  // Lets autocomplete come online without a rebuild when the var is added
+  // to Railway after a build (a common source of confusion).
+  try {
+    const res = await fetch("/api/config/maps-key", { cache: "force-cache" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { key?: string | null };
+    return data.key || null;
+  } catch {
+    return null;
+  }
 }
 
 export function loadGoogleMaps(): Promise<void> {
@@ -28,61 +47,58 @@ export function loadGoogleMaps(): Promise<void> {
   if (w.google?.maps?.places) return Promise.resolve();
   if (scriptPromise) return scriptPromise;
 
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  if (!key) {
-    // Visible in console so site operators can see why autocomplete isn't
-    // working. Single warn per page-load (subsequent calls return the cached
-    // rejected promise — we don't cache the rejection here so the UI can
-    // re-try after a deploy that adds the var, but the next call will still
-    // emit nothing new since `scriptPromise` stays null and the path repeats).
-    console.warn(
-      "[YourEvents] Address autocomplete disabled — NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set in the build. Add it as a Railway env var and redeploy."
-    );
-    return Promise.reject(new Error("no-key"));
-  }
-
-  scriptPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-google-maps-loader="true"]'
-    );
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => {
-        scriptPromise = null;
-        reject(new Error("script-load-failed"));
-      });
-      return;
+  scriptPromise = (async () => {
+    const key = await resolveKey();
+    if (!key) {
+      console.warn(
+        "[YourEvents] Address autocomplete disabled — no Google Maps API key found. Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (or GOOGLE_MAPS_API_KEY for runtime-only) on Railway and redeploy."
+      );
+      // Reset so a later retry (e.g. after a deploy) can try again.
+      scriptPromise = null;
+      throw new Error("no-key");
     }
 
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      key
-    )}&libraries=places&v=weekly&loading=async`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.googleMapsLoader = "true";
-    script.onload = () => {
-      // Google emits its own console errors for InvalidKey / RefererNotAllowed
-      // / ApiNotActivated etc. — surface a hint so we know to look there.
-      const wg = window as unknown as { google?: { maps?: { places?: unknown } } };
-      if (!wg.google?.maps?.places) {
-        console.warn(
-          "[YourEvents] Google Maps loaded but Places library is missing — check the Cloud Console restrictions on the key."
-        );
-        reject(new Error("places-missing"));
+    return new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector<HTMLScriptElement>(
+        'script[data-google-maps-loader="true"]'
+      );
+      if (existing) {
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () => {
+          scriptPromise = null;
+          reject(new Error("script-load-failed"));
+        });
         return;
       }
-      resolve();
-    };
-    script.onerror = () => {
-      scriptPromise = null;
-      console.warn(
-        "[YourEvents] Google Maps script failed to load — could be an ad-blocker, network issue, or the key has HTTP referrer restrictions that exclude this origin."
-      );
-      reject(new Error("script-load-failed"));
-    };
-    document.head.appendChild(script);
-  });
+
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+        key
+      )}&libraries=places&v=weekly&loading=async`;
+      script.async = true;
+      script.defer = true;
+      script.dataset.googleMapsLoader = "true";
+      script.onload = () => {
+        const wg = window as unknown as { google?: { maps?: { places?: unknown } } };
+        if (!wg.google?.maps?.places) {
+          console.warn(
+            "[YourEvents] Google Maps loaded but Places library is missing — check the Cloud Console restrictions on the key."
+          );
+          reject(new Error("places-missing"));
+          return;
+        }
+        resolve();
+      };
+      script.onerror = () => {
+        scriptPromise = null;
+        console.warn(
+          "[YourEvents] Google Maps script failed to load — could be an ad-blocker, network issue, or the key has HTTP referrer restrictions that exclude this origin."
+        );
+        reject(new Error("script-load-failed"));
+      };
+      document.head.appendChild(script);
+    });
+  })();
 
   return scriptPromise;
 }

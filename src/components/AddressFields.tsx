@@ -35,10 +35,13 @@ export function AddressFields({ defaults, required }: Props) {
 
   // 'loading' | 'ready' | 'unavailable' — drives a small hint under the
   // street-address field so the user knows whether suggestions will appear.
+  // Always start in 'loading' (even when the build-time var is missing) so
+  // the runtime /api/config/maps-key fallback gets a chance to succeed.
   type AcStatus = "loading" | "ready" | "unavailable";
-  const [status, setStatus] = useState<AcStatus>(
-    hasGoogleMapsKey() ? "loading" : "unavailable"
-  );
+  const [status, setStatus] = useState<AcStatus>("loading");
+  // Reference kept so future tweaks (e.g. badge content) can short-circuit
+  // on the build-time var without re-running the loader.
+  void hasGoogleMapsKey;
 
   useEffect(() => {
     let cancelled = false;

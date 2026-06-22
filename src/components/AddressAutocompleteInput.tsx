@@ -43,10 +43,12 @@ export function AddressAutocompleteInput({
     onPlaceSelectedRef.current = onPlaceSelected;
   }, [onPlaceSelected]);
 
+  // Always begin in loading — the loader will try the runtime fallback even
+  // when the build-time var is missing, so an early "unavailable" verdict
+  // would hide a perfectly working autocomplete.
   type AcStatus = "loading" | "ready" | "unavailable";
-  const [status, setStatus] = useState<AcStatus>(
-    hasGoogleMapsKey() ? "loading" : "unavailable"
-  );
+  const [status, setStatus] = useState<AcStatus>("loading");
+  void hasGoogleMapsKey;
 
   useEffect(() => {
     let cancelled = false;
