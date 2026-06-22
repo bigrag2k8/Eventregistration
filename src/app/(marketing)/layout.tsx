@@ -17,7 +17,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" aria-label="YourEvents home">
-            <Logo height={56} />
+            <Logo height={36} />
           </Link>
           <nav>
             <PublicAccountNav />

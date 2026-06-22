@@ -41,7 +41,7 @@ export function SiteFooter() {
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="max-w-xs">
             <Link href="/" aria-label="YourEvents home">
-              <Logo height={56} />
+              <Logo height={36} />
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
               Registration, ticketing, and check-in for organizations of every size.

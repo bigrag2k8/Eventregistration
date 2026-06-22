@@ -1,25 +1,49 @@
 import Image from "next/image";
 
 /**
- * The YourEvents lockup — icon, wordmark, and the "Tickets, Vendors, Check-in.
- * Done." tagline — used in every header and nav across the app. Renders
- * /public/logo.png at a fixed height; width tracks the natural aspect ratio.
- *
- * Pick a height that gives the tagline room to read: 56px or taller for hero
- * areas, 48px for primary navs, 40px for sub-page breadcrumb headers. Below
- * ~40px the tagline starts to compress; that's the floor.
+ * Compact YourEvents wordmark — the icon + "YourEvents" lettering, no tagline.
+ * Renders /public/logo-mark.png. Use this in every nav/header where the
+ * tagline would be too small to read (anything under ~80px tall).
  */
 interface LogoProps {
-  /** Rendered height in pixels. Default 48 fits a primary nav comfortably. */
+  /** Rendered height in pixels. Default 32 fits a primary nav comfortably. */
   height?: number;
   className?: string;
-  /** Override the alt text when used in a non-nav context (e.g. screen-reader contexts). */
   alt?: string;
 }
 
-export function Logo({ height = 48, className = "", alt = "YourEvents — Tickets, Vendors, Check-in. Done." }: LogoProps) {
-  // Width number is just for next/image's aspect-ratio calculator; the actual
-  // rendered size is controlled by the style attribute below.
+export function Logo({ height = 32, className = "", alt = "YourEvents" }: LogoProps) {
+  return (
+    <Image
+      src="/logo-mark.png"
+      alt={alt}
+      width={480}
+      height={96}
+      priority
+      style={{ height: `${height}px`, width: "auto" }}
+      className={className}
+    />
+  );
+}
+
+/**
+ * Full YourEvents lockup — icon, wordmark, AND the "Tickets, Vendors, Check-in.
+ * Done." tagline. Renders /public/logo.png. Reserve this for spots with real
+ * vertical room: the homepage hero, the maintenance page, and email headers.
+ * In a 48px-tall nav the tagline becomes unreadable; use <Logo/> there.
+ */
+interface LogoFullProps {
+  /** Rendered height in pixels. Default 120 looks balanced on a homepage hero on desktop. */
+  height?: number;
+  className?: string;
+  alt?: string;
+}
+
+export function LogoFull({
+  height = 120,
+  className = "",
+  alt = "YourEvents — Tickets, Vendors, Check-in. Done.",
+}: LogoFullProps) {
   return (
     <Image
       src="/logo.png"

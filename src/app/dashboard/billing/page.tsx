@@ -29,7 +29,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" aria-label="YourEvents home"><Logo height={40} /></Link>
+            <Link href="/dashboard" aria-label="YourEvents home"><Logo height={28} /></Link>
             <span className="text-slate-300">/</span>
             <span className="font-semibold">Billing</span>
           </div>

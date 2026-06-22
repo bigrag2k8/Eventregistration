@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <header className="sticky top-0 z-20 border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link href="/" aria-label="YourEvents home" title="Back to yourevents.app home">
-            <Logo height={48} />
+            <Logo height={32} />
           </Link>
           <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
             <Link href="/dashboard" className="hover:text-brand-700">Dashboard</Link>

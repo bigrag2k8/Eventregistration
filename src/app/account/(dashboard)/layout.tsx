@@ -35,7 +35,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <Link href="/" aria-label="YourEvents home" title="Back to yourevents.app home">
-            <Logo height={48} />
+            <Logo height={32} />
           </Link>
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
