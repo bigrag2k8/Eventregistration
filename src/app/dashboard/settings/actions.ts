@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { stripe, stripeConfigured } from "@/lib/stripe";
 
 const schema = z.object({
   name: z.string().min(2).max(120),
@@ -38,6 +39,16 @@ export async function updateOrgSettingsAction(formData: FormData) {
   if (!parsed.success) redirect("/dashboard/settings?error=validation");
   const data = parsed.data;
 
+  // Snapshot the BEFORE state so we know whether name/website/email/phone
+  // changed and need to be synced to the connected Stripe account.
+  const before = await prisma.organization.findUnique({
+    where: { id: session.orgId },
+    select: {
+      name: true, website: true, contactEmail: true, contactPhone: true,
+      stripeAccountId: true,
+    },
+  });
+
   await prisma.organization.update({
     where: { id: session.orgId },
     data: {
@@ -63,6 +74,38 @@ export async function updateOrgSettingsAction(formData: FormData) {
       fromName: null,
     },
   });
+
+  // Sync to the connected Stripe account so the org's business name on the
+  // Stripe Checkout merchant header (and dashboard) matches what's saved
+  // here. Best-effort: if Stripe rejects (account not yet onboarded, missing
+  // capability, etc.) we log and move on — the org save itself already
+  // succeeded, and the next save will retry.
+  if (
+    before?.stripeAccountId &&
+    stripeConfigured &&
+    (
+      before.name !== data.name ||
+      before.website !== (data.website || null) ||
+      before.contactEmail !== (data.contactEmail || null) ||
+      before.contactPhone !== data.contactPhone
+    )
+  ) {
+    try {
+      // business_profile.name is what powers the merchant header on Stripe
+      // Checkout (the line above "by [account holder]"). The Stripe Express
+      // dashboard display name follows the same field automatically.
+      await stripe.accounts.update(before.stripeAccountId, {
+        business_profile: {
+          name: data.name,
+          url: data.website || undefined,
+          support_email: data.contactEmail || undefined,
+          support_phone: data.contactPhone || undefined,
+        },
+      });
+    } catch (e) {
+      console.warn("[settings] Stripe profile sync failed", e);
+    }
+  }
 
   // Revalidate everything that uses the org's branding
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
