@@ -5,9 +5,10 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
-import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updatePresaleAction, upgradeEventAction } from "./actions";
+import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
+import { EventLocationFields } from "@/components/EventLocationFields";
 import { AddTicketFields } from "@/components/AddTicketFields";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -400,6 +401,33 @@ export default async function EventManagePage({ params, searchParams }: { params
             <AddTicketFields presalePercent={presaleEnabled ? presalePct : null} />
             <div className="flex items-end">
               <button type="submit" className="btn-primary w-full">Add ticket type</button>
+            </div>
+          </form>
+        </section>
+
+        {/* Location — venue + address (or virtual URL) */}
+        <section className="card">
+          <h2 className="text-lg font-semibold">Location</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Update the venue name, street address, or virtual meeting URL. The map and directions
+            link on the public event page refresh as soon as you save.
+          </p>
+          <form action={updateLocationAction} className="mt-4">
+            <input type="hidden" name="eventId" value={event.id} />
+            <EventLocationFields
+              defaults={{
+                isVirtual: event.location?.isVirtual,
+                virtualUrl: event.location?.virtualUrl,
+                venueName: event.location?.venueName,
+                addressLine1: event.location?.addressLine1,
+                city: event.location?.city,
+                state: event.location?.state,
+                postalCode: event.location?.postalCode,
+                country: event.location?.country,
+              }}
+            />
+            <div className="mt-4 flex justify-end">
+              <button type="submit" className="btn-primary">Save location</button>
             </div>
           </form>
         </section>

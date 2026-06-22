@@ -194,6 +194,87 @@ export async function updateBasicsAction(formData: FormData) {
   redirect(`/dashboard/events/${event.id}?saved=1`);
 }
 
+const locationSchema = z.object({
+  isVirtual: z.string().optional(),
+  virtualUrl: z.string().max(500).optional(),
+  venueName: z.string().max(200).optional(),
+  addressLine1: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  postalCode: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
+});
+
+/**
+ * Upsert the EventLocation for an event. Lets organizers fix the venue or
+ * address after an event has been created — the new-event form captures it
+ * once, but venues move, typos happen, and an event might pivot from virtual
+ * to in-person (or vice versa).
+ */
+export async function updateLocationAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const { session, event } = await authorizeEvent(eventId);
+  const parsed = locationSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/events/${event.id}?error=validation`);
+  const data = parsed.data;
+
+  const isVirtual = data.isVirtual === "1";
+  const hasAddress = !!(data.addressLine1 && data.city);
+
+  // If the form is fully empty AND not virtual, treat as "remove location"
+  // — otherwise upsert with whatever the organizer filled in.
+  if (!hasAddress && !isVirtual && !data.venueName) {
+    await prisma.eventLocation.deleteMany({ where: { eventId: event.id } });
+  } else {
+    await prisma.eventLocation.upsert({
+      where: { eventId: event.id },
+      update: {
+        isVirtual,
+        virtualUrl: isVirtual ? data.virtualUrl || null : null,
+        venueName: data.venueName || null,
+        addressLine1: data.addressLine1 || "",
+        city: data.city || "",
+        state: data.state || null,
+        postalCode: data.postalCode || null,
+        country: data.country || "US",
+      },
+      create: {
+        eventId: event.id,
+        isVirtual,
+        virtualUrl: isVirtual ? data.virtualUrl || null : null,
+        venueName: data.venueName || null,
+        addressLine1: data.addressLine1 || "",
+        city: data.city || "",
+        state: data.state || null,
+        postalCode: data.postalCode || null,
+        country: data.country || "US",
+      },
+    });
+  }
+
+  await audit({
+    organizationId: event.organizationId,
+    eventId: event.id,
+    userId: session.sub,
+    action: "event.location.update",
+    targetType: "Event",
+    targetId: event.id,
+    metadata: {
+      isVirtual,
+      venueName: data.venueName ?? null,
+      address: hasAddress
+        ? [data.addressLine1, data.city, data.state, data.postalCode, data.country]
+            .filter(Boolean)
+            .join(", ")
+        : null,
+    },
+  });
+
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/events/${event.slug}`);
+  redirect(`/dashboard/events/${event.id}?saved=1`);
+}
+
 const ttSchema = z.object({
   name: z.string().min(1).max(120),
   price: z.string().default("0"),
