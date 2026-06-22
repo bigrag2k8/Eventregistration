@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { SignOutButton } from "@/components/SignOutButton";
 import { AccountNav } from "@/components/AccountNav";
+import { Logo } from "@/components/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,9 @@ export default async function AccountLayout({ children }: { children: React.Reac
     <div>
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <Link href="/" className="font-bold text-brand-700" title="Back to yourevents.app home">Your Events</Link>
+          <Link href="/" aria-label="YourEvents home" title="Back to yourevents.app home">
+            <Logo height={32} />
+          </Link>
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               {fullName && <div className="text-sm font-medium text-slate-900">{fullName}</div>}

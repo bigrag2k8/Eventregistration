@@ -5,6 +5,7 @@ import { getSession, requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { AddressFields } from "@/components/AddressFields";
+import { Logo } from "@/components/Logo";
 import { updateMemberAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export default async function EditTeamMemberPage({
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-bold text-brand-700">Your Events App</Link>
+            <Link href="/dashboard" aria-label="YourEvents home"><Logo height={28} /></Link>
             <span className="text-slate-300">/</span>
             <Link href="/dashboard/team" className="text-sm text-slate-600 hover:text-slate-900">Team</Link>
             <span className="text-slate-300">/</span>

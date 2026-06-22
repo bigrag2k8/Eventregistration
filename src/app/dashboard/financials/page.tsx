@@ -5,6 +5,7 @@ import { money } from "@/lib/format";
 import { PLANS, effectivePlan } from "@/lib/plans";
 import { resolveRange, RANGE_PRESETS, RANGE_ORDER } from "@/lib/finance-range";
 import { revenueSplit, perEventBreakdown, revenueTrend, promoDiscountTotal } from "@/server/finance";
+import { Logo } from "@/components/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function OrgFinancialsPage({
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-bold text-brand-700">Your Events App</Link>
+            <Link href="/dashboard" aria-label="YourEvents home"><Logo height={28} /></Link>
             <span className="text-slate-300">/</span>
             <span className="font-semibold">Financials</span>
           </div>

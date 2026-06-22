@@ -5,6 +5,7 @@ import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { requirePlanSelected } from "@/lib/plan-gate";
+import { Logo } from "@/components/Logo";
 import { resendTeamInviteAction, revokeTeamInviteAction, removeMemberAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,7 @@ export default async function TeamPage({ searchParams }: { searchParams: { invit
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-bold text-brand-700">Your Events App</Link>
+            <Link href="/dashboard" aria-label="YourEvents home"><Logo height={28} /></Link>
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{org.name} — Team</span>
           </div>

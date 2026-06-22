@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
+import { Logo } from "@/components/Logo";
 
 // Re-runs on every request — guarantees fresh random selection each time
 export const dynamic = "force-dynamic";
@@ -68,8 +69,8 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
     <main>
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" className="text-5xl font-bold text-brand-700">
-            Your Events App
+          <Link href="/" aria-label="YourEvents home">
+            <Logo height={48} />
           </Link>
           <nav>
             <PublicAccountNav />
