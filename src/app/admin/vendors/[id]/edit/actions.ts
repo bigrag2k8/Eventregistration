@@ -23,8 +23,6 @@ const schema = z.object({
   country: z.string().min(1, "Country is required").max(100),
   productCategory: z.string().min(1, "Product category is required").max(120),
   boothPreference: z.string().max(200).optional(),
-  sponsorshipLevel: z.string().max(120).optional(),
-  electricalNeeds: z.string().optional(),
   description: z.string().min(1, "Description is required").max(4000),
   additionalRequests: z.string().max(2000).optional(),
 });
@@ -59,8 +57,6 @@ export async function updateVendorAction(formData: FormData) {
     }
   }
 
-  const electricalNeeds = data.electricalNeeds === "1" || data.electricalNeeds === "on";
-
   await prisma.vendorApplication.update({
     where: { id: target.id },
     data: {
@@ -78,8 +74,6 @@ export async function updateVendorAction(formData: FormData) {
       country: data.country,
       productCategory: data.productCategory || null,
       boothPreference: data.boothPreference || null,
-      sponsorshipLevel: data.sponsorshipLevel || null,
-      electricalNeeds,
       description: data.description,
       additionalRequests: data.additionalRequests || null,
     },

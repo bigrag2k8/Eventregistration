@@ -144,16 +144,6 @@ export default async function EditVendorPage({
                 <label className="label">Booth preference</label>
                 <input name="boothPreference" maxLength={200} defaultValue={vendor.boothPreference ?? ""} className="input" />
               </div>
-              <div>
-                <label className="label">Sponsorship level</label>
-                <input name="sponsorshipLevel" maxLength={120} defaultValue={vendor.sponsorshipLevel ?? ""} className="input" />
-              </div>
-              <div className="flex items-end">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="electricalNeeds" value="1" defaultChecked={vendor.electricalNeeds} />
-                  Electrical power needed
-                </label>
-              </div>
             </div>
             <div>
               <label className="label">Additional requests</label>

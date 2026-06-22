@@ -21,7 +21,6 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
     email: "", phone: "", website: "", logoUrl: "",
     addressLine1: "", addressLine2: "", city: "", state: "", zipCode: "", country: "United States",
     description: "", productCategory: "", boothPreference: "",
-    sponsorshipLevel: "", electricalNeeds: false,
     additionalRequests: "",
   });
 
@@ -143,18 +142,6 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
               <input className="input" placeholder="e.g. 10x10, end-cap, corner" value={form.boothPreference} onChange={(e)=>set("boothPreference", e.target.value)} />
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">Sponsorship interest</label>
-              <input className="input" placeholder="e.g. Bronze, Silver, Gold tier" value={form.sponsorshipLevel} onChange={(e)=>set("sponsorshipLevel", e.target.value)} />
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={form.electricalNeeds} onChange={(e)=>set("electricalNeeds", e.target.checked)} />
-                Need electrical power at booth
-              </label>
-            </div>
-          </div>
           <div>
             <label className="label">Additional requests or notes</label>
             <textarea rows={3} className="input" value={form.additionalRequests} onChange={(e)=>set("additionalRequests", e.target.value)} />
@@ -179,7 +166,7 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
               form.email || form.phone || form.website || form.logoUrl ||
               form.addressLine1 || form.city || form.state || form.zipCode || form.country ||
               form.description || form.productCategory || form.boothPreference ||
-              form.sponsorshipLevel || form.additionalRequests;
+              form.additionalRequests;
             if (dirty && !confirm("Discard this application? Anything you've entered will be lost.")) {
               e.preventDefault();
             }
