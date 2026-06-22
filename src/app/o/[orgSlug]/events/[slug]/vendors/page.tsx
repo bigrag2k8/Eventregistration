@@ -45,6 +45,7 @@ export default async function VendorRegistrationPage({ params }: { params: { org
           eventSlug={event.slug}
           backHref={`/o/${params.orgSlug}/events/${event.slug}`}
           submittedHref={`/o/${params.orgSlug}/events/${event.slug}/vendors/submitted`}
+          defaultVendorPriceCents={event.defaultVendorPriceCents}
         />
       </div>
     </main>

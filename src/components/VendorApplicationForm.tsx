@@ -11,9 +11,11 @@ interface Props {
   eventSlug: string;
   backHref?: string;       // where Cancel returns to
   submittedHref?: string;  // where to redirect after successful submission
+  /** Default booth price the organizer pre-fills when approving. 0 = no default set; show "to be confirmed" copy. */
+  defaultVendorPriceCents?: number;
 }
 
-export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedHref }: Props) {
+export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedHref, defaultVendorPriceCents = 0 }: Props) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,10 +159,27 @@ export function VendorApplicationForm({ eventId, eventSlug, backHref, submittedH
 
       <section className="card bg-slate-50">
         <h2 className="text-lg font-semibold">Booth pricing</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          The organizer will confirm your booth fee when they review your application. You will only be
-          charged after approval, via a secure payment link emailed to you.
-        </p>
+        {defaultVendorPriceCents > 0 ? (
+          <>
+            <p className="mt-1 text-sm text-slate-600">
+              The default booth price for this event is{" "}
+              <strong className="text-slate-900">
+                ${(defaultVendorPriceCents / 100).toFixed(2)}
+              </strong>
+              . The organizer may adjust this when they review your application based on what
+              you&rsquo;re offering, the booth size, or any add-ons you request.
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              You will only be charged after the organizer approves your application, via a secure
+              payment link emailed to you.
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-slate-600">
+            The organizer will confirm your booth fee when they review your application. You will only be
+            charged after approval, via a secure payment link emailed to you.
+          </p>
+        )}
       </section>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
