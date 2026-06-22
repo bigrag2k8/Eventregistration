@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 
 /**
  * Shared site footer (columned, Eventbrite-style). Rendered on the homepage and
@@ -39,8 +40,8 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="max-w-xs">
-            <Link href="/" className="text-2xl font-bold text-brand-700">
-              Your Events App
+            <Link href="/" aria-label="YourEvents home">
+              <Logo height={56} />
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
               Registration, ticketing, and check-in for organizations of every size.
