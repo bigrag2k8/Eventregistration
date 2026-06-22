@@ -55,7 +55,13 @@ export default async function EventLandingPage({ params }: Props) {
   const presaleUnit = (cents: number) =>
     presaleActive && cents > 0 ? cents - Math.floor((cents * presalePct) / 100) : cents;
 
-  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+  // Single env var powers both the embedded map below and the address
+  // autocomplete on /signup, /vendor signup, /register, and the team/vendor
+  // edit forms. Falls back to the legacy NEXT_PUBLIC_GOOGLE_MAPS_KEY name so
+  // existing Railway configs keep working until that variable is removed.
+  const mapsKey =
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ??
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
   const mapsSrc = event.location && mapsKey
     ? `https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${encodeURIComponent(
         `${event.location.addressLine1}, ${event.location.city}`
