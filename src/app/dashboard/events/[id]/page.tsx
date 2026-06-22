@@ -273,7 +273,12 @@ export default async function EventManagePage({ params, searchParams }: { params
               <textarea name="refundPolicy" rows={2} defaultValue={event.refundPolicy ?? ""} className="input" />
             </div>
             <div className="sm:col-span-2 border-t pt-4">
-              <BannerImageInput defaultUrl={event.bannerUrl} />
+              <BannerImageInput
+                defaultUrl={event.bannerUrl}
+                defaultPositionX={event.bannerPositionX}
+                defaultPositionY={event.bannerPositionY}
+                defaultZoom={event.bannerZoom}
+              />
             </div>
             <div className="sm:col-span-2 border-t pt-4">
               <label className="flex items-start gap-2 text-sm">

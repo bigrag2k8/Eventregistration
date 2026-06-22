@@ -34,6 +34,9 @@ const schema = z.object({
   vendorApplicationNotes: z.string().optional(),
   defaultVendorPrice: z.string().optional(),
   bannerUrl: z.string().url().optional().or(z.literal("")),
+  bannerPositionX: z.string().optional(),
+  bannerPositionY: z.string().optional(),
+  bannerZoom: z.string().optional(),
   isPrivate: z.string().optional(),
   // "free" (basic, capped) or "single_event" (premium — spends one credit).
   tier: z.enum(["free", "single_event"]).default("free"),
@@ -135,6 +138,9 @@ export async function createEventAction(formData: FormData) {
       vendorApplicationNotes: data.vendorApplicationNotes || null,
       defaultVendorPriceCents: Math.round(parseFloat(data.defaultVendorPrice || "0") * 100),
       bannerUrl: data.bannerUrl || null,
+      bannerPositionX: data.bannerPositionX ? parseFloat(data.bannerPositionX) : 50,
+      bannerPositionY: data.bannerPositionY ? parseFloat(data.bannerPositionY) : 50,
+      bannerZoom: data.bannerZoom ? parseFloat(data.bannerZoom) : 1,
       organizationId: session.orgId,
       publishedAt: publish ? new Date() : null,
       location: hasAddress || isVirtual

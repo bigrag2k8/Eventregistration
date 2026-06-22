@@ -112,6 +112,11 @@ export default async function EventLandingPage({ params }: Props) {
               src={event.bannerUrl}
               alt={event.name}
               className="h-full w-full object-cover"
+              style={{
+                objectPosition: `${event.bannerPositionX}% ${event.bannerPositionY}%`,
+                transform: `scale(${event.bannerZoom})`,
+                transformOrigin: `${event.bannerPositionX}% ${event.bannerPositionY}%`,
+              }}
               loading="eager"
             />
           ) : (

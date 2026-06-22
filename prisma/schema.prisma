@@ -339,6 +339,12 @@ model Event {
   presaleEndsAt      DateTime?
   waitlistEnabled    Boolean     @default(true)
   bannerUrl          String?
+  // Banner crop framing: object-position-x / object-position-y as 0-100
+  // percentages, and a zoom multiplier (1.0 = no zoom, capped at 3.0 in the
+  // UI). Lets organizers re-frame an uploaded image without re-uploading it.
+  bannerPositionX    Float    @default(50)
+  bannerPositionY    Float    @default(50)
+  bannerZoom         Float    @default(1)
   promoVideoUrl      String?
   contactEmail       String?
   vendorRegistrationEnabled Boolean @default(false)

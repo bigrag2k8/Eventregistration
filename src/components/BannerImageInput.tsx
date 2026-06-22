@@ -1,33 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * Banner image uploader.
+ * Banner image uploader + crop positioner.
  *
- * Uploads directly from the browser to Cloudinary using an UNSIGNED upload
- * preset — zero load on our app server, and no image data ever touches us.
- * After upload, the resulting CDN URL is written into the hidden form input
- * `name="bannerUrl"` so the existing server action picks it up unchanged.
+ * Upload (Cloudinary unsigned preset) or paste a URL, then drag inside the
+ * preview frame to recenter the image and use the zoom slider to scale it.
+ * The preview matches the public event page's 16:6 frame exactly, so what
+ * the organizer sees here is what attendees see when the event publishes.
  *
- * Required env vars (Railway):
- *   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME   = "your-cloud"
- *   NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET = "yourevents_banner"  (created in
- *     Cloudinary dashboard → Settings → Upload → Add upload preset → mode:
- *     unsigned)
+ * Output goes to four hidden inputs the surrounding form picks up:
+ *   bannerUrl        — image URL
+ *   bannerPositionX  — 0-100, CSS object-position-x percentage
+ *   bannerPositionY  — 0-100, CSS object-position-y percentage
+ *   bannerZoom       — 1.0-3.0, CSS transform: scale() multiplier
  *
- * Falls back to a plain URL paste field if those env vars are missing, so
- * the form still works without Cloudinary configured.
+ * No server-side image processing — saves are CSS-only on the public page.
  */
 interface Props {
   name?: string;
   defaultUrl?: string | null;
+  defaultPositionX?: number;
+  defaultPositionY?: number;
+  defaultZoom?: number;
   label?: string;
   hint?: string;
 }
 
 const SUGGESTED_URLS = [
-  // Free Unsplash images organizers can use for testing without uploading
   {
     label: "Fitness / Conference",
     url: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1600&h=600&fit=crop&q=80",
@@ -46,20 +47,76 @@ const SUGGESTED_URLS = [
   },
 ];
 
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 3;
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export function BannerImageInput({
   name = "bannerUrl",
   defaultUrl,
+  defaultPositionX = 50,
+  defaultPositionY = 50,
+  defaultZoom = 1,
   label = "Event banner image",
-  hint = "Wide image (16:6 looks best). Shown at the top of the event page.",
+  hint = "Wide image (16:6 looks best). Drag to reposition and zoom to reframe.",
 }: Props) {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
   const cloudinaryReady = !!cloudName && !!uploadPreset;
 
   const [url, setUrl] = useState<string>(defaultUrl ?? "");
+  const [posX, setPosX] = useState<number>(defaultPositionX);
+  const [posY, setPosY] = useState<number>(defaultPositionY);
+  const [zoom, setZoom] = useState<number>(defaultZoom);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset framing when the image URL changes (new upload / pasted URL).
+  // Keeps existing framing when the parent passes a default URL on first mount.
+  const firstMountRef = useRef(true);
+  useEffect(() => {
+    if (firstMountRef.current) {
+      firstMountRef.current = false;
+      return;
+    }
+    setPosX(50);
+    setPosY(50);
+    setZoom(1);
+  }, [url]);
+
+  // Drag-to-reposition: track pointer movement inside the preview frame and
+  // shift posX/posY proportionally. One pixel of drag corresponds to about
+  // one frame-percent — the right amount for the zoom levels we allow.
+  const frameRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!url) return;
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startPosX: posX, startPosY: posY };
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragRef.current || !frameRef.current) return;
+    const frame = frameRef.current.getBoundingClientRect();
+    // Convert pixel delta to position percent. Higher zoom = pointer covers more
+    // of the source image per pixel, so each px of drag should shift posX less.
+    // The (zoom / (zoom - 1)) trick approximates the visible vs source ratio.
+    const sensitivity = 100 / Math.max(frame.width, 1) / Math.max(zoom, 1);
+    const sensitivityY = 100 / Math.max(frame.height, 1) / Math.max(zoom, 1);
+    const dx = (e.clientX - dragRef.current.startX) * sensitivity * 100;
+    const dy = (e.clientY - dragRef.current.startY) * sensitivityY * 100;
+    setPosX(clamp(dragRef.current.startPosX - dx, 0, 100));
+    setPosY(clamp(dragRef.current.startPosY - dy, 0, 100));
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    dragRef.current = null;
+  }
 
   async function handleFile(file: File) {
     if (!cloudinaryReady) {
@@ -78,10 +135,8 @@ export function BannerImageInput({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("upload_preset", uploadPreset!);
-      // Cloudinary will auto-create a folder named "eventflow/banners"
       formData.append("folder", "eventflow/banners");
 
-      // XMLHttpRequest so we can show progress (fetch doesn't expose upload progress)
       const data: { secure_url?: string; error?: { message: string } } =
         await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -110,21 +165,76 @@ export function BannerImageInput({
     }
   }
 
+  function resetFraming() {
+    setPosX(50);
+    setPosY(50);
+    setZoom(1);
+  }
+
   return (
     <div>
       <label className="label">{label}</label>
-      {/* The actual form-submitted value */}
+      {/* Hidden inputs the surrounding form picks up */}
       <input type="hidden" name={name} value={url} />
+      <input type="hidden" name="bannerPositionX" value={posX.toFixed(2)} />
+      <input type="hidden" name="bannerPositionY" value={posY.toFixed(2)} />
+      <input type="hidden" name="bannerZoom" value={zoom.toFixed(2)} />
 
-      {/* Preview */}
+      {/* Preview frame — drag inside to reposition */}
       {url ? (
-        <div className="mt-2 overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200">
+        <div
+          ref={frameRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          className="mt-2 aspect-[16/6] w-full cursor-grab overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200 active:cursor-grabbing select-none"
+          style={{ touchAction: "none" }}
+          title="Drag to reposition"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt="Event banner preview" className="aspect-[16/6] w-full object-cover" />
+          <img
+            src={url}
+            alt="Event banner preview"
+            draggable={false}
+            className="h-full w-full object-cover"
+            style={{
+              objectPosition: `${posX}% ${posY}%`,
+              transform: `scale(${zoom})`,
+              transformOrigin: `${posX}% ${posY}%`,
+            }}
+          />
         </div>
       ) : (
         <div className="mt-2 flex aspect-[16/6] w-full items-center justify-center rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 ring-1 ring-slate-200">
           <span className="text-sm">No banner yet — upload or paste a URL below</span>
+        </div>
+      )}
+
+      {/* Zoom + reset controls (only when there's an image) */}
+      {url && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="font-medium uppercase tracking-wider">Zoom</span>
+            <input
+              type="range"
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
+              step={0.05}
+              value={zoom}
+              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              className="w-48"
+            />
+            <span className="w-10 font-mono text-[11px] text-slate-500">{zoom.toFixed(2)}×</span>
+          </label>
+          <button
+            type="button"
+            onClick={resetFraming}
+            className="text-xs text-slate-600 hover:text-slate-900 hover:underline"
+          >
+            Reset framing
+          </button>
+          <span className="text-xs text-slate-400">Drag the image to reposition.</span>
         </div>
       )}
 
@@ -148,7 +258,7 @@ export function BannerImageInput({
         {url && (
           <button
             type="button"
-            onClick={() => { setUrl(""); setError(null); }}
+            onClick={() => { setUrl(""); setError(null); resetFraming(); }}
             className="text-sm text-red-600 hover:underline"
           >
             Remove

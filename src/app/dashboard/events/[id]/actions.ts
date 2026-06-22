@@ -145,6 +145,9 @@ const basicsSchema = z.object({
   vendorApplicationNotes: z.string().optional(),
   defaultVendorPrice: z.string().optional(),
   bannerUrl: z.string().url().optional().or(z.literal("")),
+  bannerPositionX: z.string().optional(),
+  bannerPositionY: z.string().optional(),
+  bannerZoom: z.string().optional(),
   isPrivate: z.string().optional(),
 });
 
@@ -185,6 +188,9 @@ export async function updateBasicsAction(formData: FormData) {
         : event.defaultVendorPriceCents,
       // bannerUrl: empty string from the form means "remove image"
       bannerUrl: data.bannerUrl ? data.bannerUrl : null,
+      bannerPositionX: data.bannerPositionX !== undefined ? parseFloat(data.bannerPositionX) : event.bannerPositionX,
+      bannerPositionY: data.bannerPositionY !== undefined ? parseFloat(data.bannerPositionY) : event.bannerPositionY,
+      bannerZoom: data.bannerZoom !== undefined ? parseFloat(data.bannerZoom) : event.bannerZoom,
     },
   });
   revalidatePath(`/dashboard/events/${event.id}`);
