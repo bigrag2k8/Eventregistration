@@ -148,6 +148,7 @@ const basicsSchema = z.object({
   bannerPositionX: z.string().optional(),
   bannerPositionY: z.string().optional(),
   bannerZoom: z.string().optional(),
+  bannerFitToFrame: z.string().optional(),
   isPrivate: z.string().optional(),
 });
 
@@ -191,6 +192,7 @@ export async function updateBasicsAction(formData: FormData) {
       bannerPositionX: data.bannerPositionX !== undefined ? parseFloat(data.bannerPositionX) : event.bannerPositionX,
       bannerPositionY: data.bannerPositionY !== undefined ? parseFloat(data.bannerPositionY) : event.bannerPositionY,
       bannerZoom: data.bannerZoom !== undefined ? parseFloat(data.bannerZoom) : event.bannerZoom,
+      bannerFitToFrame: data.bannerFitToFrame !== undefined ? data.bannerFitToFrame === "1" : event.bannerFitToFrame,
     },
   });
   revalidatePath(`/dashboard/events/${event.id}`);

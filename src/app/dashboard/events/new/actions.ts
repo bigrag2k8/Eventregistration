@@ -37,6 +37,7 @@ const schema = z.object({
   bannerPositionX: z.string().optional(),
   bannerPositionY: z.string().optional(),
   bannerZoom: z.string().optional(),
+  bannerFitToFrame: z.string().optional(),
   isPrivate: z.string().optional(),
   // "free" (basic, capped) or "single_event" (premium — spends one credit).
   tier: z.enum(["free", "single_event"]).default("free"),
@@ -141,6 +142,7 @@ export async function createEventAction(formData: FormData) {
       bannerPositionX: data.bannerPositionX ? parseFloat(data.bannerPositionX) : 50,
       bannerPositionY: data.bannerPositionY ? parseFloat(data.bannerPositionY) : 50,
       bannerZoom: data.bannerZoom ? parseFloat(data.bannerZoom) : 1,
+      bannerFitToFrame: data.bannerFitToFrame === "1",
       organizationId: session.orgId,
       publishedAt: publish ? new Date() : null,
       location: hasAddress || isVirtual

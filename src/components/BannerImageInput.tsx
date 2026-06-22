@@ -24,6 +24,7 @@ interface Props {
   defaultPositionX?: number;
   defaultPositionY?: number;
   defaultZoom?: number;
+  defaultFitToFrame?: boolean;
   label?: string;
   hint?: string;
 }
@@ -60,6 +61,7 @@ export function BannerImageInput({
   defaultPositionX = 50,
   defaultPositionY = 50,
   defaultZoom = 1,
+  defaultFitToFrame = false,
   label = "Event banner image",
   hint = "Wide image (16:6 looks best). Drag to reposition and zoom to reframe.",
 }: Props) {
@@ -71,6 +73,7 @@ export function BannerImageInput({
   const [posX, setPosX] = useState<number>(defaultPositionX);
   const [posY, setPosY] = useState<number>(defaultPositionY);
   const [zoom, setZoom] = useState<number>(defaultZoom);
+  const [fitToFrame, setFitToFrame] = useState<boolean>(defaultFitToFrame);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +98,7 @@ export function BannerImageInput({
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (!url) return;
+    if (!url || fitToFrame) return;
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { startX: e.clientX, startY: e.clientY, startPosX: posX, startPosY: posY };
@@ -179,8 +182,11 @@ export function BannerImageInput({
       <input type="hidden" name="bannerPositionX" value={posX.toFixed(2)} />
       <input type="hidden" name="bannerPositionY" value={posY.toFixed(2)} />
       <input type="hidden" name="bannerZoom" value={zoom.toFixed(2)} />
+      {/* Native checkboxes don't submit when unchecked, so always send an
+          explicit "1" or "0" instead via a hidden input. */}
+      <input type="hidden" name="bannerFitToFrame" value={fitToFrame ? "1" : "0"} />
 
-      {/* Preview frame — drag inside to reposition */}
+      {/* Preview frame — drag inside to reposition (disabled when fit-to-frame is on) */}
       {url ? (
         <div
           ref={frameRef}
@@ -188,21 +194,27 @@ export function BannerImageInput({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          className="mt-2 aspect-[16/6] w-full cursor-grab overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200 active:cursor-grabbing select-none"
+          className={`mt-2 aspect-[16/6] w-full overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200 select-none ${
+            fitToFrame ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+          }`}
           style={{ touchAction: "none" }}
-          title="Drag to reposition"
+          title={fitToFrame ? "Fit to frame is on — drag/zoom disabled" : "Drag to reposition"}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={url}
             alt="Event banner preview"
             draggable={false}
-            className="h-full w-full object-cover"
-            style={{
-              objectPosition: `${posX}% ${posY}%`,
-              transform: `scale(${zoom})`,
-              transformOrigin: `${posX}% ${posY}%`,
-            }}
+            className={`h-full w-full ${fitToFrame ? "object-contain" : "object-cover"}`}
+            style={
+              fitToFrame
+                ? undefined
+                : {
+                    objectPosition: `${posX}% ${posY}%`,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: `${posX}% ${posY}%`,
+                  }
+            }
           />
         </div>
       ) : (
@@ -211,30 +223,50 @@ export function BannerImageInput({
         </div>
       )}
 
-      {/* Zoom + reset controls (only when there's an image) */}
+      {/* Framing controls (only when there's an image) */}
       {url && (
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-          <label className="flex items-center gap-2 text-xs text-slate-600">
-            <span className="font-medium uppercase tracking-wider">Zoom</span>
+        <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+          <label className="flex items-center gap-2 text-xs">
             <input
-              type="range"
-              min={ZOOM_MIN}
-              max={ZOOM_MAX}
-              step={0.05}
-              value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
-              className="w-48"
+              type="checkbox"
+              checked={fitToFrame}
+              onChange={(e) => setFitToFrame(e.target.checked)}
+              className="rounded"
             />
-            <span className="w-10 font-mono text-[11px] text-slate-500">{zoom.toFixed(2)}×</span>
+            <span className="font-medium text-slate-700">Fit entire image to frame</span>
+            <span className="text-slate-500">
+              (shows the whole image with letterbox/pillarbox space if needed)
+            </span>
           </label>
-          <button
-            type="button"
-            onClick={resetFraming}
-            className="text-xs text-slate-600 hover:text-slate-900 hover:underline"
-          >
-            Reset framing
-          </button>
-          <span className="text-xs text-slate-400">Drag the image to reposition.</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              className={`flex items-center gap-2 text-xs ${fitToFrame ? "opacity-40" : "text-slate-600"}`}
+            >
+              <span className="font-medium uppercase tracking-wider">Zoom</span>
+              <input
+                type="range"
+                min={ZOOM_MIN}
+                max={ZOOM_MAX}
+                step={0.05}
+                value={zoom}
+                disabled={fitToFrame}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-48 disabled:cursor-not-allowed"
+              />
+              <span className="w-10 font-mono text-[11px] text-slate-500">{zoom.toFixed(2)}×</span>
+            </label>
+            <button
+              type="button"
+              onClick={resetFraming}
+              disabled={fitToFrame}
+              className="text-xs text-slate-600 hover:text-slate-900 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Reset framing
+            </button>
+            <span className={`text-xs ${fitToFrame ? "text-slate-400" : "text-slate-500"}`}>
+              {fitToFrame ? "Drag/zoom disabled" : "Drag the image to reposition."}
+            </span>
+          </div>
         </div>
       )}
 
@@ -258,7 +290,7 @@ export function BannerImageInput({
         {url && (
           <button
             type="button"
-            onClick={() => { setUrl(""); setError(null); resetFraming(); }}
+            onClick={() => { setUrl(""); setError(null); resetFraming(); setFitToFrame(false); }}
             className="text-sm text-red-600 hover:underline"
           >
             Remove

@@ -278,6 +278,7 @@ export default async function EventManagePage({ params, searchParams }: { params
                 defaultPositionX={event.bannerPositionX}
                 defaultPositionY={event.bannerPositionY}
                 defaultZoom={event.bannerZoom}
+                defaultFitToFrame={event.bannerFitToFrame}
               />
             </div>
             <div className="sm:col-span-2 border-t pt-4">

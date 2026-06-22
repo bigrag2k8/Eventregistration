@@ -345,6 +345,10 @@ model Event {
   bannerPositionX    Float    @default(50)
   bannerPositionY    Float    @default(50)
   bannerZoom         Float    @default(1)
+  // When true the banner uses object-fit:contain on the public page — shows
+  // the whole image at the cost of letterbox/pillarbox space. When false
+  // (default) it uses object-fit:cover with the position/zoom framing above.
+  bannerFitToFrame   Boolean  @default(false)
   promoVideoUrl      String?
   contactEmail       String?
   vendorRegistrationEnabled Boolean @default(false)

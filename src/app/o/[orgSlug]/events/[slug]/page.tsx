@@ -111,12 +111,16 @@ export default async function EventLandingPage({ params }: Props) {
             <img
               src={event.bannerUrl}
               alt={event.name}
-              className="h-full w-full object-cover"
-              style={{
-                objectPosition: `${event.bannerPositionX}% ${event.bannerPositionY}%`,
-                transform: `scale(${event.bannerZoom})`,
-                transformOrigin: `${event.bannerPositionX}% ${event.bannerPositionY}%`,
-              }}
+              className={`h-full w-full ${event.bannerFitToFrame ? "object-contain" : "object-cover"}`}
+              style={
+                event.bannerFitToFrame
+                  ? undefined
+                  : {
+                      objectPosition: `${event.bannerPositionX}% ${event.bannerPositionY}%`,
+                      transform: `scale(${event.bannerZoom})`,
+                      transformOrigin: `${event.bannerPositionX}% ${event.bannerPositionY}%`,
+                    }
+              }
               loading="eager"
             />
           ) : (
