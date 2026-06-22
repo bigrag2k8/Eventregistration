@@ -117,7 +117,7 @@ export default async function RefundRequestsPage({ params, searchParams }: Props
                               <input type="hidden" name="note" value="" />
                               <ConfirmButton
                                 label="Approve"
-                                confirmText={`Approve refund request from ${reg.firstName} ${reg.lastName}? This will refund ${money(reg.totalCents, reg.currency)} minus the 4.5% processing fee via Stripe.`}
+                                confirmText={`Approve refund request from ${reg.firstName} ${reg.lastName}? This will refund ${money(reg.totalCents, reg.currency)} minus the 5% processing fee via Stripe.`}
                                 className="text-xs text-emerald-700 hover:underline"
                               />
                             </form>

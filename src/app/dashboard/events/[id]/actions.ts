@@ -461,7 +461,7 @@ export async function deleteRegistrationAction(formData: FormData) {
 
 /**
  * Refund a paid registration through Stripe Connect. Organizers always get a
- * net refund (4.5% fee withheld). Only SUPERADMINs may issue a full refund.
+ * net refund (5% fee withheld). Only SUPERADMINs may issue a full refund.
  */
 export async function refundRegistrationAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
@@ -523,7 +523,7 @@ export async function refundRegistrationAction(formData: FormData) {
 }
 
 /**
- * Bulk-refund multiple registrations. Always net (withholds 4.5% fee) unless
+ * Bulk-refund multiple registrations. Always net (withholds 5% fee) unless
  * the caller is SUPERADMIN and passes mode=full. Processes sequentially so
  * Stripe rate limits aren't hit; skips already-refunded and free registrations.
  * Returns a JSON result string with success/failure counts.

@@ -318,7 +318,7 @@ export async function deleteOrgAction(formData: FormData) {
  * SUPERADMIN-only: toggle whether this org's events pass Stripe's card-
  * processing fee through to the attendee. Default off (organizer absorbs via
  * the platform fee). When on, every paid registration adds a clearly-labeled
- * "Payment processing fee" line at checkout. The 4.5% platform fee is unaffected.
+ * "Payment processing fee" line at checkout. The 5% platform fee is unaffected.
  */
 const passProcessingFeeSchema = z.object({
   orgId: z.string().min(1),

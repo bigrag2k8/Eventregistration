@@ -250,9 +250,9 @@ export default async function AdminOrgPage({
           <h2 className="text-lg font-semibold">Payment processing fee</h2>
           <p className="mt-1 text-sm text-slate-500">
             Stripe charges <strong>2.9% + $0.30</strong> to process each card payment. By default this org
-            absorbs it (our 4.5% platform fee covers our cost). Flip this on to add the Stripe fee as a
+            absorbs it (our 5% platform fee covers our cost). Flip this on to add the Stripe fee as a
             separate line item at checkout — the attendee pays it on top of the ticket price, and the
-            organizer keeps the full ticket revenue minus the 4.5% platform fee.
+            organizer keeps the full ticket revenue minus the 5% platform fee.
           </p>
           <label className="mt-4 flex items-start gap-3">
             <input

@@ -67,7 +67,7 @@ export function RefundRequestForm({ registrationId, accessKey }: Props) {
           onChange={(e) => setReason(e.target.value)}
         />
         <p className="mt-1 text-xs text-slate-500">
-          The 4.5% processing fee is non-refundable per the event's refund policy.
+          The 5% processing fee is non-refundable per the event's refund policy.
         </p>
       </div>
       <button type="submit" disabled={submitting || reason.length < 10} className="btn-primary w-full">

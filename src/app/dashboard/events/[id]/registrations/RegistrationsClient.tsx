@@ -73,8 +73,8 @@ export function RegistrationsClient({
       .slice(0, 15);
     const more = selected.size > 15 ? `\n  ...and ${selected.size - 15} more` : "";
     const feeNote = mode === "full"
-      ? "in FULL (100%), including the 4.5% processing fee"
-      : "minus the non-refundable 4.5% processing fee";
+      ? "in FULL (100%), including the 5% processing fee"
+      : "minus the non-refundable 5% processing fee";
     const msg = `Refund ${selected.size} registration(s) ${feeNote}?\n\n  - ${names.join("\n  - ")}${more}`;
     if (!confirm(msg)) return;
 
@@ -101,7 +101,7 @@ export function RegistrationsClient({
               onClick={() => handleBulkRefund("net")}
               className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              {pending ? "Processing..." : "Refund selected (minus 4.5%)"}
+              {pending ? "Processing..." : "Refund selected (minus 5%)"}
             </button>
             {isSuperAdmin && (
               <button
@@ -203,8 +203,8 @@ export function RegistrationsClient({
                               <input type="hidden" name="registrationId" value={r.id} />
                               <input type="hidden" name="mode" value="net" />
                               <ConfirmButton
-                                label="Refund minus 4.5% fee"
-                                confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the 4.5% processing fee ($${((r.totalCents * 0.045) / 100).toFixed(2)})?`}
+                                label="Refund minus 5% fee"
+                                confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the 5% processing fee ($${((r.totalCents * 0.05) / 100).toFixed(2)})?`}
                                 className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                               />
                             </form>
@@ -214,7 +214,7 @@ export function RegistrationsClient({
                               <input type="hidden" name="mode" value="full" />
                               <ConfirmButton
                                 label="Full refund (100%)"
-                                confirmText={`Refund the FULL $${(r.totalCents / 100).toFixed(2)} to ${r.firstName} ${r.lastName}, including the 4.5% processing fee?`}
+                                confirmText={`Refund the FULL $${(r.totalCents / 100).toFixed(2)} to ${r.firstName} ${r.lastName}, including the 5% processing fee?`}
                                 className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                               />
                             </form>
@@ -228,7 +228,7 @@ export function RegistrationsClient({
                           <input type="hidden" name="mode" value="net" />
                           <ConfirmButton
                             label="Refund"
-                            confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the non-refundable 4.5% processing fee ($${((r.totalCents * 0.045) / 100).toFixed(2)})?`}
+                            confirmText={`Refund ${r.firstName} ${r.lastName} the ticket price minus the non-refundable 5% processing fee ($${((r.totalCents * 0.05) / 100).toFixed(2)})?`}
                             className="text-xs text-brand-700 hover:underline"
                           />
                         </form>

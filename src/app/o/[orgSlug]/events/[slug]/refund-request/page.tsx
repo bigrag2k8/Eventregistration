@@ -34,7 +34,7 @@ export default async function RefundRequestPage({ params, searchParams }: Props)
     reg.totalCents > 0 &&
     !openRequest;
 
-  const feeCents = Math.ceil(reg.totalCents * 0.045);
+  const feeCents = Math.ceil(reg.totalCents * 0.05);
   const refundEstimate = reg.totalCents - feeCents;
 
   return (
@@ -59,7 +59,7 @@ export default async function RefundRequestPage({ params, searchParams }: Props)
             <span className="font-medium">{money(reg.totalCents, reg.currency)}</span>
           </div>
           <div className="mt-1 flex justify-between">
-            <span>Estimated refund (minus 4.5% processing fee)</span>
+            <span>Estimated refund (minus 5% processing fee)</span>
             <span className="font-medium">{money(refundEstimate, reg.currency)}</span>
           </div>
         </div>

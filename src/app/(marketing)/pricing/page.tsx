@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/plans";
-import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
+import { PLATFORM_FEE_PERCENT, MIN_PLATFORM_FEE_CENTS } from "@/lib/connect";
 
 // Stripe's standard US card rate, mirrored from PROCESSING_FEE_PCT /
 // PROCESSING_FEE_FIXED_CENTS in src/server/pricing.ts.
@@ -91,11 +91,18 @@ export default function PricingPage() {
           </p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="rounded-lg bg-white p-4 ring-1 ring-slate-200">
-              <div className="text-2xl font-bold">{PLATFORM_FEE_PERCENT}%</div>
+              <div className="text-2xl font-bold">
+                {PLATFORM_FEE_PERCENT}%
+                <span className="ml-1 text-base font-normal text-slate-500">
+                  (${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} min)
+                </span>
+              </div>
               <div className="mt-1 font-medium">Platform fee</div>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Per paid ticket or vendor booth, on the amount after any discounts — not on sales
-                tax. Deducted from your payout. It&apos;s how we keep hosting free events free.
+                tax. A ${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} minimum applies on small tickets
+                so we stay net-positive after Stripe&apos;s processing cost. Deducted from your
+                payout. It&apos;s how we keep hosting free events free.
               </p>
             </div>
             <div className="rounded-lg bg-white p-4 ring-1 ring-slate-200">

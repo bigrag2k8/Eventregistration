@@ -7,21 +7,22 @@
  */
 
 /**
- * Platform fee charged to organizers — 4.5% of the SALE VALUE
+ * Platform fee charged to organizers — 5% of the SALE VALUE
  * (ticket subtotal minus discounts). It is NOT charged on sales tax (a
  * government pass-through the organizer remits) or the processing fee (a
  * Stripe pass-through), matching how Eventbrite's service fee works.
  */
-export const PLATFORM_FEE_PERCENT = 4.5;
+export const PLATFORM_FEE_PERCENT = 5;
 
 /**
  * Minimum platform fee per paid transaction (in cents). Floor exists because
- * Stripe's processing cost (2.9% + $0.30) eats more than the 4.5% percentage
- * fee on tickets under ~$19 — without a floor the platform loses money on
- * every small-dollar charge. $0.90 keeps the platform net-positive on every
- * paid ticket. Does NOT apply to free transactions (feeBaseCents === 0).
+ * Stripe's processing cost (2.9% + $0.30) eats more than the 5% percentage
+ * fee on small tickets — without a floor the platform loses money on every
+ * small-dollar charge. $1.25 keeps the platform net-positive on every paid
+ * ticket and funds reinvestment beyond hosting costs. Does NOT apply to free
+ * transactions (feeBaseCents === 0).
  */
-export const MIN_PLATFORM_FEE_CENTS = 90;
+export const MIN_PLATFORM_FEE_CENTS = 125;
 
 /** Compute the application fee (in cents) from the fee base (the sale value). */
 export function platformFeeCents(feeBaseCents: number): number {

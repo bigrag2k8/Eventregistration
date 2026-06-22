@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: "%s · YourEvents",
   },
   description:
-    "Honest event ticketing for community organizers — workshops, fundraisers, small conferences, and vendor fairs. A flat 4.5% platform fee with a $0.90 minimum, so the price you set is the price your guests pay.",
+    "Honest event ticketing for community organizers — workshops, fundraisers, small conferences, and vendor fairs. A flat 5% platform fee with a $1.25 minimum, so the price you set is the price your guests pay.",
   icons: {
     // Browser tab + the bigger Apple/Android home-screen icons. Files live in
     // /public; Next inlines the right <link rel="..."> tags from this config.

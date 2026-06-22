@@ -347,7 +347,7 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         </dl>
         {total > 0 && (
           <p className="mt-3 text-xs text-slate-500">
-            Our 4.5% platform fee is non-refundable. If you cancel, you&rsquo;ll be refunded your ticket price minus this fee, per the event&rsquo;s refund policy.
+            Our 5% platform fee is non-refundable. If you cancel, you&rsquo;ll be refunded your ticket price minus this fee, per the event&rsquo;s refund policy.
             {fee > 0 && " The payment processing fee charged by Stripe is also non-refundable per Stripe's policy."}
           </p>
         )}

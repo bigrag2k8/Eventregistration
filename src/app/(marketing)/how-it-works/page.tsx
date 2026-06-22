@@ -42,7 +42,7 @@ const STEPS = [
   {
     n: "4",
     title: "Get paid",
-    body: "Payouts land in the Stripe-linked bank account on Stripe's normal schedule (usually 2 business days). Track gross sales, our 4.5% platform fee, refunds, and net payout from the financials dashboard. Issue refunds with one click — we reverse the platform fee proportionally.",
+    body: "Payouts land in the Stripe-linked bank account on Stripe's normal schedule (usually 2 business days). Track gross sales, our 5% platform fee, refunds, and net payout from the financials dashboard. Issue refunds with one click — we reverse the platform fee proportionally.",
   },
 ];
 

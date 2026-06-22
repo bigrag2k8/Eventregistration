@@ -30,7 +30,7 @@ const FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>"
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 /**
- * Refund a PAID vendor booth. Organizers always get a net refund (4.5% fee
+ * Refund a PAID vendor booth. Organizers always get a net refund (5% fee
  * withheld). Only SUPERADMINs may issue a full refund.
  */
 export async function refundVendorAction(formData: FormData) {

@@ -364,7 +364,7 @@ export async function sendRefundRequestDecisionEmail(
 
   const amountLine =
     approved && typeof opts?.refundedCents === "number"
-      ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus our non-refundable 4.5% platform fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear. If a payment processing fee was added to your order at checkout, that fee is charged by Stripe and is non-refundable per Stripe&rsquo;s policy.</p>`
+      ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus our non-refundable 5% platform fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear. If a payment processing fee was added to your order at checkout, that fee is charged by Stripe and is non-refundable per Stripe&rsquo;s policy.</p>`
       : approved
         ? `<p style="color:#475569">Your refund is being processed back to your original payment method and may take 5&ndash;10 business days to appear.</p>`
         : "";

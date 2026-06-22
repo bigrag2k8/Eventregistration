@@ -201,8 +201,8 @@ export default async function VendorsPage({ params, searchParams }: {
                             <input type="hidden" name="appId" value={a.id} />
                             <input type="hidden" name="mode" value="net" />
                             <ConfirmButton
-                              label="Refund minus 4.5% fee"
-                              confirmText={`Refund ${a.companyName} their booth payment minus the 4.5% processing fee ($${(((a.quotedPriceCents ?? 0) * 0.045) / 100).toFixed(2)})? Their vendor pass will be invalidated.`}
+                              label="Refund minus 5% fee"
+                              confirmText={`Refund ${a.companyName} their booth payment minus the 5% processing fee ($${(((a.quotedPriceCents ?? 0) * 0.05) / 100).toFixed(2)})? Their vendor pass will be invalidated.`}
                               className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                             />
                           </form>
@@ -212,7 +212,7 @@ export default async function VendorsPage({ params, searchParams }: {
                             <input type="hidden" name="mode" value="full" />
                             <ConfirmButton
                               label="Full refund (100%)"
-                              confirmText={`Refund ${a.companyName}'s FULL booth payment of $${((a.quotedPriceCents ?? 0) / 100).toFixed(2)}, including the 4.5% processing fee? Their vendor pass will be invalidated.`}
+                              confirmText={`Refund ${a.companyName}'s FULL booth payment of $${((a.quotedPriceCents ?? 0) / 100).toFixed(2)}, including the 5% processing fee? Their vendor pass will be invalidated.`}
                               className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                             />
                           </form>
@@ -226,7 +226,7 @@ export default async function VendorsPage({ params, searchParams }: {
                         <input type="hidden" name="mode" value="net" />
                         <ConfirmButton
                           label="Refund vendor"
-                          confirmText={`Refund ${a.companyName} their booth payment minus the non-refundable 4.5% processing fee ($${(((a.quotedPriceCents ?? 0) * 0.045) / 100).toFixed(2)})? Their vendor pass will be invalidated.`}
+                          confirmText={`Refund ${a.companyName} their booth payment minus the non-refundable 5% processing fee ($${(((a.quotedPriceCents ?? 0) * 0.05) / 100).toFixed(2)})? Their vendor pass will be invalidated.`}
                           className="text-xs text-brand-700 hover:underline"
                         />
                       </form>
