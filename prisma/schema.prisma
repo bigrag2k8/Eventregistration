@@ -93,6 +93,7 @@ enum EmailKind {
   ABANDONED_CART
   ORGANIZER_BLAST
   POST_EVENT
+  VENDOR_APPLICATION_RECEIVED
 }
 
 enum RefundRequestStatus {

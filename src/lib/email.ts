@@ -333,14 +333,17 @@ export async function sendRefundRequestReceivedEmail(refundRequestId: string) {
 }
 
 /**
- * Notify the organizer that a vendor just submitted an application for their
- * event. Goes to the event's contactEmail (falling back to the org's), with a
- * one-click link to the vendors dashboard so they can approve/reject and quote
- * a booth price. Sent from the platform sender since it's an internal alert.
+ * Notify every ORGANIZER/ADMIN team member of the org that owns the event that
+ * a vendor just submitted an application. Sent from the platform sender since
+ * it's an internal alert. Each send is logged independently to EmailLog so
+ * delivery is traceable per recipient.
  *
- * EmailLog is skipped for this alert — there's no registration to tie it to
- * and our enum doesn't yet include a VENDOR_APPLICATION_RECEIVED kind. The
- * Resend message id is still surfaced via console on failure for debugging.
+ * Recipient set:
+ *   1. Every active (non-deleted) User with role ORGANIZER or ADMIN in the org
+ *   2. PLUS the event's contactEmail and the org's contactEmail as fallbacks
+ *
+ * Addresses are case-insensitively de-duped — if the event's contactEmail is
+ * also a team member's email, they get one copy, not two.
  */
 export async function sendVendorApplicationReceivedEmail(applicationId: string) {
   const app = await prisma.vendorApplication.findUnique({
@@ -351,6 +354,7 @@ export async function sendVendorApplicationReceivedEmail(applicationId: string) 
           id: true,
           name: true,
           contactEmail: true,
+          organizationId: true,
           organization: { select: { contactEmail: true, name: true } },
         },
       },
@@ -358,9 +362,36 @@ export async function sendVendorApplicationReceivedEmail(applicationId: string) 
   });
   if (!app) return;
 
-  const to = app.event.contactEmail ?? app.event.organization?.contactEmail;
-  if (!to) {
-    console.warn("[vendor-application] no organizer contact email configured for event", app.event.id);
+  // Pull every ORGANIZER/ADMIN in the org. We DON'T include STAFF/VOLUNTEER —
+  // those roles handle check-in, not vendor approvals.
+  const teamMembers = await prisma.user.findMany({
+    where: {
+      organizationId: app.event.organizationId,
+      role: { in: ["ORGANIZER", "ADMIN"] },
+      deletedAt: null,
+    },
+    select: { email: true },
+  });
+
+  const seen = new Set<string>();
+  const recipients: string[] = [];
+  const add = (addr: string | null | undefined) => {
+    if (!addr) return;
+    const lower = addr.trim().toLowerCase();
+    if (!lower || seen.has(lower)) return;
+    seen.add(lower);
+    recipients.push(addr.trim());
+  };
+
+  for (const u of teamMembers) add(u.email);
+  add(app.event.contactEmail);
+  add(app.event.organization?.contactEmail);
+
+  if (recipients.length === 0) {
+    console.warn(
+      "[vendor-application] no team members or contact email configured for event",
+      app.event.id
+    );
     return;
   }
 
@@ -368,12 +399,7 @@ export async function sendVendorApplicationReceivedEmail(applicationId: string) 
   const subject = `New vendor application — ${app.event.name}`;
   const contactName = [app.contactFirstName, app.contactLastName].filter(Boolean).join(" ");
 
-  try {
-    const result = await resend().emails.send({
-      from: DEFAULT_FROM,
-      to,
-      subject,
-      html: `
+  const html = `
 <!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
   <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
     <tr><td>
@@ -393,18 +419,58 @@ export async function sendVendorApplicationReceivedEmail(applicationId: string) 
       <p style="margin:24px 0">
         <a href="${reviewUrl}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Review vendor application</a>
       </p>
-      <p style="color:#64748b;font-size:12px;margin-top:16px">You're receiving this because vendor registration is enabled for this event. To stop these emails, turn off &ldquo;Accept vendor applications&rdquo; on the event settings page.</p>
+      <p style="color:#64748b;font-size:12px;margin-top:16px">You're receiving this because you're listed as an organizer or admin for this event. To stop these emails, turn off &ldquo;Accept vendor applications&rdquo; on the event settings page, or have a fellow organizer remove you from the team.</p>
     </td></tr>
   </table>
-</body></html>`,
-    });
+</body></html>`;
 
-    if (!result.data?.id) {
-      console.warn("[vendor-application] organizer notify returned no message id:", result.error?.message);
-    }
-  } catch (e: any) {
-    console.error("[vendor-application] organizer notify failed:", e?.message);
-  }
+  // One Resend send per recipient so we get a per-recipient message id and
+  // per-recipient EmailLog row. Sends run in parallel but failures are
+  // contained — one bounce doesn't take down the rest of the team's notify.
+  await Promise.all(
+    recipients.map(async (to) => {
+      try {
+        const result = await resend().emails.send({
+          from: DEFAULT_FROM,
+          to,
+          subject,
+          html,
+        });
+
+        await prisma.emailLog.create({
+          data: {
+            registrationId: null,
+            toEmail: to,
+            kind: "VENDOR_APPLICATION_RECEIVED",
+            subject,
+            status: result.data?.id ? "SENT" : "FAILED",
+            providerId: result.data?.id ?? null,
+            errorMessage: result.error?.message ?? null,
+            sentAt: new Date(),
+          },
+        });
+      } catch (e: any) {
+        console.error(`[vendor-application] notify failed for ${to}:`, e?.message);
+        // Still record the attempt so the email log shows what we tried.
+        try {
+          await prisma.emailLog.create({
+            data: {
+              registrationId: null,
+              toEmail: to,
+              kind: "VENDOR_APPLICATION_RECEIVED",
+              subject,
+              status: "FAILED",
+              providerId: null,
+              errorMessage: e?.message ?? "send threw",
+              sentAt: new Date(),
+            },
+          });
+        } catch {
+          // EmailLog write itself failed — nothing actionable here, move on.
+        }
+      }
+    })
+  );
 }
 
 /**
