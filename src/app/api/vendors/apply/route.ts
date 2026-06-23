@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { sendVendorApplicationReceivedEmail } from "@/lib/email";
 
 const schema = z.object({
   eventId: z.string(),
@@ -73,6 +74,13 @@ export async function POST(req: Request) {
       country: input.country,
     },
   });
+
+  // Fire-and-forget: don't await the email send so a slow Resend response
+  // doesn't keep the vendor sitting on a spinner. Any send failure is logged
+  // server-side from within the helper.
+  sendVendorApplicationReceivedEmail(app.id).catch((e) =>
+    console.error("[vendor-apply] notify failed", e?.message)
+  );
 
   return NextResponse.json({ id: app.id, status: app.status });
 }

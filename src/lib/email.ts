@@ -333,6 +333,81 @@ export async function sendRefundRequestReceivedEmail(refundRequestId: string) {
 }
 
 /**
+ * Notify the organizer that a vendor just submitted an application for their
+ * event. Goes to the event's contactEmail (falling back to the org's), with a
+ * one-click link to the vendors dashboard so they can approve/reject and quote
+ * a booth price. Sent from the platform sender since it's an internal alert.
+ *
+ * EmailLog is skipped for this alert — there's no registration to tie it to
+ * and our enum doesn't yet include a VENDOR_APPLICATION_RECEIVED kind. The
+ * Resend message id is still surfaced via console on failure for debugging.
+ */
+export async function sendVendorApplicationReceivedEmail(applicationId: string) {
+  const app = await prisma.vendorApplication.findUnique({
+    where: { id: applicationId },
+    include: {
+      event: {
+        select: {
+          id: true,
+          name: true,
+          contactEmail: true,
+          organization: { select: { contactEmail: true, name: true } },
+        },
+      },
+    },
+  });
+  if (!app) return;
+
+  const to = app.event.contactEmail ?? app.event.organization?.contactEmail;
+  if (!to) {
+    console.warn("[vendor-application] no organizer contact email configured for event", app.event.id);
+    return;
+  }
+
+  const reviewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/events/${app.event.id}/vendors`;
+  const subject = `New vendor application — ${app.event.name}`;
+  const contactName = [app.contactFirstName, app.contactLastName].filter(Boolean).join(" ");
+
+  try {
+    const result = await resend().emails.send({
+      from: DEFAULT_FROM,
+      to,
+      subject,
+      html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      <h1 style="margin:0 0 8px;color:#1F3A8A">A vendor is waiting for your approval</h1>
+      <p style="color:#475569"><strong>${esc(app.companyName)}</strong> just submitted a vendor application for <strong>${esc(app.event.name)}</strong>. Review the details and approve or decline when you have a moment.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #e2e8f0;border-radius:8px">
+        <tr><td style="padding:16px">
+          <div style="color:#475569">Company: <strong>${esc(app.companyName)}</strong></div>
+          ${contactName ? `<div style="color:#475569;margin-top:8px">Contact: <strong>${esc(contactName)}</strong></div>` : ""}
+          <div style="color:#475569;margin-top:8px">Email: <a href="mailto:${esc(app.email)}" style="color:#1F3A8A">${esc(app.email)}</a></div>
+          ${app.phone ? `<div style="color:#475569;margin-top:8px">Phone: ${esc(app.phone)}</div>` : ""}
+          ${app.productCategory ? `<div style="color:#475569;margin-top:8px">Category: ${esc(app.productCategory)}</div>` : ""}
+          ${app.boothPreference ? `<div style="color:#475569;margin-top:8px">Booth preference: ${esc(app.boothPreference)}</div>` : ""}
+          ${app.description ? `<div style="color:#475569;margin-top:12px">Description:</div><div style="margin-top:4px">${esc(app.description).replace(/\n/g, "<br>")}</div>` : ""}
+        </td></tr>
+      </table>
+      <p style="margin:24px 0">
+        <a href="${reviewUrl}" style="display:inline-block;background:#1F3A8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Review vendor application</a>
+      </p>
+      <p style="color:#64748b;font-size:12px;margin-top:16px">You're receiving this because vendor registration is enabled for this event. To stop these emails, turn off &ldquo;Accept vendor applications&rdquo; on the event settings page.</p>
+    </td></tr>
+  </table>
+</body></html>`,
+    });
+
+    if (!result.data?.id) {
+      console.warn("[vendor-application] organizer notify returned no message id:", result.error?.message);
+    }
+  } catch (e: any) {
+    console.error("[vendor-application] organizer notify failed:", e?.message);
+  }
+}
+
+/**
  * Tell the attendee the outcome of their refund request. Branded (from the org)
  * since it's customer-facing. For approvals, pass the exact refunded amount so
  * the email matches what Stripe actually returned.
