@@ -17,7 +17,8 @@ const COLUMNS: { heading: string; links: { label: string; href: string }[] }[] =
   {
     heading: "Support",
     links: [
-      { label: "Help", href: "/help" },
+      { label: "User guide", href: "/guide" },
+      { label: "Help / FAQ", href: "/help" },
       { label: "Contact support", href: "/contact" },
       { label: "Status", href: "/status" },
     ],
