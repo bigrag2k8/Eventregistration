@@ -9,6 +9,7 @@ const COLUMNS: { heading: string; links: { label: string; href: string }[] }[] =
   {
     heading: "Product",
     links: [
+      { label: "Why YourEvents", href: "/why" },
       { label: "How it works", href: "/how-it-works" },
       { label: "Pricing", href: "/pricing" },
       { label: "vs Eventbrite", href: "/compare" },
