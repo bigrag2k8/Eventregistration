@@ -3,6 +3,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /**
+ * Tiny client-side button that triggers the browser print dialog. Exported
+ * separately so the /guide server-component page can render it without
+ * smuggling event handlers across the server/client boundary.
+ */
+export function PrintGuideButton({ className = "" }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (typeof window !== "undefined") window.print();
+      }}
+      className={className || "text-slate-600 hover:text-brand-700"}
+    >
+      Print this guide
+    </button>
+  );
+}
+
+/**
  * Interactive shell for the long-form /guide page.
  *
  * - Sticky left sidebar: table of contents auto-extracted from h2/h3 headings

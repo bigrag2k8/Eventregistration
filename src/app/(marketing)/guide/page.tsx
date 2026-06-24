@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserGuideShell } from "@/components/UserGuideShell";
+import { UserGuideShell, PrintGuideButton } from "@/components/UserGuideShell";
 
 export const metadata = {
   title: "User Guide — YourEvents",
@@ -40,17 +40,7 @@ export default function UserGuidePage() {
             >
               Download Word version
             </a>
-            <button
-              type="button"
-              onClick={() => {}}
-              className="text-slate-600 hover:text-brand-700"
-              // print() must run in the browser; this anchor uses native print.
-              // The print stylesheet flattens the sidebar and keeps content full-width.
-            >
-              <a href="#" onClick={(e) => { e.preventDefault(); if (typeof window !== "undefined") window.print(); }}>
-                Print this guide
-              </a>
-            </button>
+            <PrintGuideButton />
             <Link href="/help" className="text-slate-600 hover:text-brand-700">
               Or jump to the FAQ →
             </Link>
