@@ -116,9 +116,14 @@ export default async function AdminFinancialsPage({
       where: { deletedAt: null },
       _count: { _all: true },
     }),
-    // Subscription revenue (windowed by invoice paid time).
-    prisma.$queryRawUnsafe<Array<{ sub_rev: bigint }>>(`
-      SELECT COALESCE(SUM("amountPaidCents"),0)::bigint AS sub_rev
+    // Platform product revenue, split by kind (windowed by invoice/purchase time):
+    // one-time single-event passes (planKey 'SINGLE_EVENT') vs recurring subscription
+    // invoices (everything else).
+    prisma.$queryRawUnsafe<Array<{ sub_rev: bigint; se_rev: bigint; se_count: bigint }>>(`
+      SELECT
+        COALESCE(SUM(CASE WHEN "planKey" IS DISTINCT FROM 'SINGLE_EVENT' THEN "amountPaidCents" ELSE 0 END),0)::bigint AS sub_rev,
+        COALESCE(SUM(CASE WHEN "planKey" = 'SINGLE_EVENT' THEN "amountPaidCents" ELSE 0 END),0)::bigint AS se_rev,
+        COALESCE(SUM(CASE WHEN "planKey" = 'SINGLE_EVENT' THEN 1 ELSE 0 END),0)::bigint AS se_count
       FROM billing_invoices WHERE TRUE${whereTime}
     `),
     // Disputes / chargebacks (windowed by dispute creation time).
@@ -154,7 +159,9 @@ export default async function AdminFinancialsPage({
   const netGmvCents = grossCents - refundedCents;
   const takeRate = netGmvCents > 0 ? (feeNetCents / netGmvCents) * 100 : 0;
   const subRevCents = num(subRevRows[0]?.sub_rev);
-  const totalPlatformRevCents = feeNetCents + subRevCents;
+  const singleEventRevCents = num(subRevRows[0]?.se_rev);
+  const singleEventCount = num(subRevRows[0]?.se_count);
+  const totalPlatformRevCents = feeNetCents + subRevCents + singleEventRevCents;
   const disputeCount = num(disputeRows[0]?.cnt);
   const disputeAmtCents = num(disputeRows[0]?.amt);
   const upcoming = timingRows.find((r) => r.upcoming);
@@ -219,25 +226,25 @@ export default async function AdminFinancialsPage({
           </form>
         </div>
 
-        {/* Headline (windowed) */}
+        {/* Headline (windowed) — the three revenue streams that sum to total */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Total platform revenue" value={fmt(totalPlatformRevCents)} hint={`Fees + subscriptions · ${rangeLabel.toLowerCase()}`} accent />
+          <Stat label="Total platform revenue" value={fmt(totalPlatformRevCents)} hint={`Fees + passes + subscriptions · ${rangeLabel.toLowerCase()}`} accent />
           <Stat label="Platform fee revenue" value={fmt(feeNetCents)} hint="Ticket/vendor cut, net of refunds" />
-          <Stat label="Subscription revenue" value={fmt(subRevCents)} hint="Org plan invoices paid" />
-          <Stat label="Net GMV processed" value={fmt(netGmvCents)} hint="Sales volume, net of refunds" />
+          <Stat label="Single-event purchases" value={fmt(singleEventRevCents)} hint={`${singleEventCount.toLocaleString()} one-time pass${singleEventCount === 1 ? "" : "es"}`} />
+          <Stat label="Subscription revenue" value={fmt(subRevCents)} hint="Recurring plan invoices" />
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Net GMV processed" value={fmt(netGmvCents)} hint="Sales volume, net of refunds" small />
           <Stat label="Take rate" value={`${takeRate.toFixed(2)}%`} hint="Fee revenue ÷ net GMV" small />
           <Stat label="MRR" value={fmt(mrrCents)} hint={`ARR ${fmtCompact(arrCents)} · current`} small />
           <Stat label="Paid transactions" value={num(t.txns).toLocaleString()} small />
-          <Stat label="Disputes" value={String(disputeCount)} hint={disputeCount ? `${fmt(disputeAmtCents)} disputed` : "none in window"} small />
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Gross processed" value={fmt(grossCents)} small />
           <Stat label="Refunds" value={fmt(refundedCents)} small />
-          <Stat label="Active subscriptions" value={String((statusCounts.ACTIVE ?? 0) + (statusCounts.TRIALING ?? 0))} small hint="current" />
+          <Stat label="Disputes" value={String(disputeCount)} hint={disputeCount ? `${fmt(disputeAmtCents)} disputed` : "none in window"} small />
           <Stat label="Payments-disabled orgs" value={String(connectIncomplete.length)} small hint="can't transact" />
         </div>
 
@@ -349,8 +356,10 @@ export default async function AdminFinancialsPage({
         <p className="mt-6 text-xs text-slate-400">
           Platform fee figures are tracked from the deploy that added fee persistence forward; transactions
           recorded before that show $0 fee until backfilled from Stripe (run scripts/backfill-platform-fees.ts).
-          Subscription revenue comes from paid Stripe invoices. MRR/ARR, subscription status, and the
-          payments-disabled list are current snapshots (not affected by the selected window).
+          Single-event purchases are one-time pass payments captured at checkout; purchases made before capture
+          existed backfill via scripts/backfill-single-event-purchases.ts. Subscription revenue comes from recurring
+          Stripe invoices. MRR/ARR, subscription status, and the payments-disabled list are current snapshots
+          (not affected by the selected window).
         </p>
       </section>
     </main>

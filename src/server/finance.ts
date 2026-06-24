@@ -210,3 +210,26 @@ export async function promoDiscountTotal(scope: { eventId?: string; organization
   `;
   return Number(rows[0]?.disc ?? 0);
 }
+
+export interface SingleEventRevenue {
+  cents: number;
+  count: number;
+}
+
+/**
+ * One-time single-event pass purchases ($19 each), recorded in billing_invoices
+ * with planKey 'SINGLE_EVENT'. This is platform revenue that is neither a
+ * ticket/vendor fee nor a recurring subscription invoice. Windowed by the
+ * purchase time (billing_invoices.createdAt). Omit organizationId for all orgs.
+ */
+export async function singleEventRevenue(scope: { organizationId?: string | null; window?: TimeWindow }): Promise<SingleEventRevenue> {
+  const orgFrag = scope.organizationId ? Prisma.sql`AND "organizationId" = ${scope.organizationId}` : Prisma.empty;
+  const fromFrag = scope.window?.from ? Prisma.sql`AND "createdAt" >= ${scope.window.from}` : Prisma.empty;
+  const toFrag = scope.window?.to ? Prisma.sql`AND "createdAt" < ${scope.window.to}` : Prisma.empty;
+  const rows = await prisma.$queryRaw<Array<{ cents: bigint; count: bigint }>>`
+    SELECT COALESCE(SUM("amountPaidCents"),0)::bigint AS cents, COUNT(*)::bigint AS count
+    FROM billing_invoices
+    WHERE "planKey" = 'SINGLE_EVENT' ${orgFrag} ${fromFrag} ${toFrag}
+  `;
+  return { cents: Number(rows[0]?.cents ?? 0), count: Number(rows[0]?.count ?? 0) };
+}

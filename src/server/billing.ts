@@ -40,6 +40,13 @@ export async function handleBillingCheckoutCompleted(
         planSelected: true,
       },
     });
+    // One-time Checkout (mode: payment) never creates a Stripe invoice, so
+    // invoice.paid (which feeds platform "subscription/product" revenue) never
+    // fires for it. Record the purchase here or it stays invisible in financials.
+    // Non-fatal: a reporting-write failure must not block the credit grant.
+    await recordSingleEventPurchase(organizationId, session).catch((e) =>
+      console.error("[billing] failed to record single-event purchase revenue", e),
+    );
     return;
   }
 
@@ -51,6 +58,44 @@ export async function handleBillingCheckoutCompleted(
       subscriptionPlan: planKey as any,
       subscriptionStatus: "ACTIVE",
       planSelected: true,
+    },
+  });
+}
+
+/**
+ * Record a one-time single-event pass purchase as platform revenue.
+ *
+ * Stored in billing_invoices with planKey 'SINGLE_EVENT', keyed on the
+ * PaymentIntent id so this live-capture path and the Stripe backfill
+ * (scripts/backfill-single-event-purchases.ts) converge on the same row and
+ * never double-count. Idempotent via the unique stripeInvoiceId.
+ */
+export async function recordSingleEventPurchase(organizationId: string | null, session: any) {
+  const piId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+  const key = piId ?? (session.id ? String(session.id) : null);
+  if (!key) return;
+  const amount = session.amount_total ?? 0;
+  if (amount <= 0) return; // free/credited unlock — nothing collected
+
+  await prisma.billingInvoice.upsert({
+    where: { stripeInvoiceId: key },
+    create: {
+      stripeInvoiceId: key,
+      organizationId,
+      stripeCustomerId: session.customer ? String(session.customer) : null,
+      planKey: "SINGLE_EVENT",
+      amountPaidCents: amount,
+      currency: (session.currency ?? "usd").toUpperCase(),
+      status: "paid",
+      createdAt: session.created ? new Date(session.created * 1000) : new Date(),
+    },
+    update: {
+      amountPaidCents: amount,
+      status: "paid",
+      organizationId: organizationId ?? undefined,
     },
   });
 }

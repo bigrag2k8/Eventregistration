@@ -4,7 +4,7 @@ import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { PLANS, effectivePlan } from "@/lib/plans";
 import { resolveRange, RANGE_PRESETS, RANGE_ORDER } from "@/lib/finance-range";
-import { revenueSplit, perEventBreakdown, revenueTrend, promoDiscountTotal } from "@/server/finance";
+import { revenueSplit, perEventBreakdown, revenueTrend, promoDiscountTotal, singleEventRevenue } from "@/server/finance";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +22,12 @@ export default async function OrgFinancialsPage({
   if (range.from) createdAtFilter.gte = range.from;
   if (range.to) createdAtFilter.lt = range.to;
 
-  const [split, byEvent, trend, promoDiscount, org, taxAgg] = await Promise.all([
+  const [split, byEvent, trend, promoDiscount, singleEvent, org, taxAgg] = await Promise.all([
     revenueSplit({ organizationId: orgId, window }),
     perEventBreakdown(orgId, window),
     revenueTrend({ organizationId: orgId, window }, range.bucket, range.labelFmt),
     promoDiscountTotal({ organizationId: orgId, window }),
+    singleEventRevenue({ organizationId: orgId, window }),
     orgId ? prisma.organization.findUnique({ where: { id: orgId } }) : Promise.resolve(null),
     prisma.registration.aggregate({
       where: {
@@ -116,6 +117,32 @@ export default async function OrgFinancialsPage({
           <Stat label="Promo discounts" value={money(promoDiscount)} small hint="Given to buyers" />
           <Stat label="Tax collected" value={money(taxCollected)} small hint="To remit" />
         </div>
+
+        {/* What was paid to the platform: the per-sale fee PLUS one-time single-event
+            passes. Surfaces single-event purchases, which otherwise appear nowhere. */}
+        <section className="card">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500">Paid to YourEvents</div>
+              <div className="mt-1 text-2xl font-bold">{money(totalFees + singleEvent.cents)}</div>
+              <p className="mt-1 text-xs text-slate-400">
+                What {org ? org.name : "all organizations"} paid the platform this window — fees on sales plus single-event passes.
+              </p>
+            </div>
+            <div className="flex gap-8 text-sm">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">Platform fees on sales</div>
+                <div className="mt-0.5 text-lg font-semibold">{money(totalFees)}</div>
+                <div className="text-xs text-slate-400">Ticket + vendor cut</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">Single-event passes</div>
+                <div className="mt-0.5 text-lg font-semibold">{money(singleEvent.cents)}</div>
+                <div className="text-xs text-slate-400">{singleEvent.count} pass{singleEvent.count === 1 ? "" : "es"} · $19 each</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Trend */}
         <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
