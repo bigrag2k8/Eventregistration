@@ -657,7 +657,16 @@ model BillingInvoice {
   planKey          String?
   amountPaidCents  Int           @default(0)
   currency         String        @default("USD")
-  status           String        // 'paid'
+  status           String        // 'paid' | 'void'
+  /// Stripe livemode flag captured at write time. NULL for legacy rows written
+  /// before this column existed (their account of origin is unknown). The
+  /// financials subscription-revenue card only counts rows where this is not
+  /// FALSE, so a stray test/sandbox invoice (livemode=false) can't inflate revenue.
+  livemode         Boolean?
+  /// Set when a row is reconciled against the live Stripe account and found to have
+  /// NO matching live invoice (orphaned test/sandbox leftover). Voided rows are kept
+  /// for audit but excluded from every revenue total. See scripts/void-orphan-billing-invoices.ts.
+  voidedAt         DateTime?
   periodStart      DateTime?
   periodEnd        DateTime?
   /// Set to the Stripe invoice's paid/created time so financial windows are accurate.

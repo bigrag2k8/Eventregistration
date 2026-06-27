@@ -90,6 +90,7 @@ export async function recordSingleEventPurchase(organizationId: string | null, s
       amountPaidCents: amount,
       currency: (session.currency ?? "usd").toUpperCase(),
       status: "paid",
+      livemode: session.livemode ?? null,
       createdAt: session.created ? new Date(session.created * 1000) : new Date(),
     },
     update: {
@@ -244,6 +245,7 @@ export async function handleInvoicePaid(invoice: any) {
       amountPaidCents: invoice.amount_paid ?? 0,
       currency: (invoice.currency ?? "usd").toUpperCase(),
       status: invoice.status ?? "paid",
+      livemode: invoice.livemode ?? null,
       periodStart,
       periodEnd,
       createdAt,

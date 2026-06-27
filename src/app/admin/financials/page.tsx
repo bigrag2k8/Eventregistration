@@ -119,12 +119,16 @@ export default async function AdminFinancialsPage({
     // Platform product revenue, split by kind (windowed by invoice/purchase time):
     // one-time single-event passes (planKey 'SINGLE_EVENT') vs recurring subscription
     // invoices (everything else).
+    // Defensive: exclude voided rows (orphaned/unreconciled invoices with no live
+    // Stripe counterpart) from EVERY total, and only count a row as subscription
+    // revenue when its livemode is not FALSE — so a stray test/sandbox invoice can
+    // never inflate "Subscription revenue" / "Total platform revenue" again.
     prisma.$queryRawUnsafe<Array<{ sub_rev: bigint; se_rev: bigint; se_count: bigint }>>(`
       SELECT
-        COALESCE(SUM(CASE WHEN "planKey" IS DISTINCT FROM 'SINGLE_EVENT' THEN "amountPaidCents" ELSE 0 END),0)::bigint AS sub_rev,
+        COALESCE(SUM(CASE WHEN "planKey" IS DISTINCT FROM 'SINGLE_EVENT' AND "livemode" IS NOT FALSE THEN "amountPaidCents" ELSE 0 END),0)::bigint AS sub_rev,
         COALESCE(SUM(CASE WHEN "planKey" = 'SINGLE_EVENT' THEN "amountPaidCents" ELSE 0 END),0)::bigint AS se_rev,
         COALESCE(SUM(CASE WHEN "planKey" = 'SINGLE_EVENT' THEN 1 ELSE 0 END),0)::bigint AS se_count
-      FROM billing_invoices WHERE TRUE${whereTime}
+      FROM billing_invoices WHERE "voidedAt" IS NULL${whereTime}
     `),
     // Disputes / chargebacks (windowed by dispute creation time).
     prisma.$queryRawUnsafe<Array<{ cnt: bigint; amt: bigint }>>(`
