@@ -45,6 +45,7 @@ const MESSAGES: Record<string, string> = {
   cannot_reschedule_cancelled: "A cancelled event can't be rescheduled.",
   reschedule_dates_required: "Pick a new start and end date/time to reschedule.",
   already_cancelled: "This event is already cancelled.",
+  delete_has_registrations: "This event has registrations and can't be deleted. Cancel it (which refunds attendees) or Reschedule it instead.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

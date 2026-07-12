@@ -200,6 +200,16 @@ export async function rescheduleEventAction(formData: FormData) {
 export async function deleteAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);
+  // Delete hides the event and issues NO refunds — so once anyone has registered,
+  // only a SUPERADMIN may delete (platform cleanup, e.g. after a dispute/fraud
+  // review). Organizers must Cancel (refunds everyone) or Reschedule instead, so
+  // nobody can make a money-collecting event vanish without refunding attendees.
+  if (session.role !== "SUPERADMIN") {
+    const confirmedRegs = await prisma.registration.count({
+      where: { eventId: event.id, status: "CONFIRMED" },
+    });
+    if (confirmedRegs > 0) redirect(`/dashboard/events/${event.id}?error=delete_has_registrations`);
+  }
   await prisma.event.update({ where: { id: event.id }, data: { deletedAt: new Date(), status: "CANCELLED" } });
   await audit({
     organizationId: event.organizationId, eventId: event.id, userId: session.sub,

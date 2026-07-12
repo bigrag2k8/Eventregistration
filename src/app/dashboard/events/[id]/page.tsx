@@ -570,16 +570,42 @@ export default async function EventManagePage({ params, searchParams }: { params
             </form>
           )}
 
-          {/* Delete — soft-delete, hides the event, issues NO refunds. */}
-          <form action={deleteAction} className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-600">Delete (hide) this event. No refunds are issued; existing registrations remain.</p>
-            <input type="hidden" name="eventId" value={event.id} />
-            <ConfirmButton
-              label="Delete event"
-              confirmText={`Delete "${event.name}"? It will be removed from all public listings. No refunds are issued. This can't be undone from here.`}
-              className="btn-secondary text-red-700 hover:bg-red-50"
-            />
-          </form>
+          {/* Delete — soft-delete (hide), NO refunds. Allowed only with zero
+              registrations; once anyone's registered, organizers must Cancel or
+              Reschedule, and only a SUPERADMIN can force-delete (platform cleanup).
+              This closes the "delete to skip the refund and keep the cash" loophole. */}
+          {confirmedRegs === 0 ? (
+            <form action={deleteAction} className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-slate-600">Delete (hide) this event. No refunds are issued.</p>
+              <input type="hidden" name="eventId" value={event.id} />
+              <ConfirmButton
+                label="Delete event"
+                confirmText={`Delete "${event.name}"? It will be removed from all public listings. No refunds are issued. This can't be undone from here.`}
+                className="btn-secondary text-red-700 hover:bg-red-50"
+              />
+            </form>
+          ) : session.role === "SUPERADMIN" ? (
+            <form action={deleteAction} className="mt-4">
+              <input type="hidden" name="eventId" value={event.id} />
+              <p className="text-sm text-slate-600">
+                This event has {confirmedRegs} registration{confirmedRegs === 1 ? "" : "s"}. Deleting hides it and issues
+                <strong> no refunds</strong> — an organizer must Cancel or Reschedule instead. As a platform admin you can
+                force-delete, but use it only for cleanup after a dispute/fraud review.
+              </p>
+              <div className="mt-2">
+                <ConfirmButton
+                  label="Force-delete (admin)"
+                  confirmText={`ADMIN OVERRIDE: delete "${event.name}" which has ${confirmedRegs} registration(s)? No refunds will be issued. Use only for platform cleanup.`}
+                  className="btn-secondary text-red-700 hover:bg-red-50"
+                />
+              </div>
+            </form>
+          ) : (
+            <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600 ring-1 ring-slate-200">
+              This event has registrations, so it can&rsquo;t be deleted. To take it down, <strong>Cancel</strong> it
+              (which refunds everyone) or <strong>Reschedule</strong> it — that way no one is left stranded.
+            </div>
+          )}
         </section>
       </div>
     </main>
