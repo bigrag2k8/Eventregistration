@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { prisma } from "@/lib/db";
 import { renderQrPngDataUrl } from "@/server/tickets";
+import { signReviewToken } from "@/lib/auth";
 import { formatInTimeZone } from "date-fns-tz";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
@@ -690,6 +691,81 @@ export async function sendRefundRequestDecisionEmail(
   } catch (e: any) {
     console.error("[refund-request] attendee notify failed:", e?.message);
   }
+}
+
+/**
+ * Post-event "How was it?" invite with one-click star rating. Sent by the
+ * worker's inviteEventReviews job a few hours after the event ends, to verified
+ * registrants. Each star is its own link carrying a signed, single-purpose
+ * review token (see signReviewToken) — clicking one opens the review page with
+ * that rating pre-filled, no login required. Logged as POST_EVENT.
+ *
+ * Dedup is handled by the caller (reviewInvitedAt is stamped claim-first before
+ * this runs), so a send failure here won't loop.
+ */
+export async function sendReviewRequestEmail(registrationId: string) {
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { event: { include: { organization: true } } },
+  });
+  if (!reg) return;
+
+  const e: any = reg.event;
+  const org: any = e.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor)) ? org.brandColor : "#1F3A8A";
+  const orgName = esc(org.name ?? "");
+  const logo = org.logoUrl
+    ? `<img src="${esc(org.logoUrl)}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    : "";
+  const when = formatInTimeZone(e.startAt, e.timezone, "MMMM d, yyyy");
+
+  const token = await signReviewToken({ registrationId: reg.id });
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
+  const link = (rating: number) => `${base}/review/${token}?rating=${rating}`;
+
+  // One <a> per star. Email clients don't run JS, so each star is a distinct URL
+  // that pre-selects that rating on the landing page.
+  const stars = [1, 2, 3, 4, 5]
+    .map((n) => `<a href="${link(n)}" style="text-decoration:none;color:#EF9F27;font-size:34px;line-height:1;padding:0 3px" aria-label="${n} star${n > 1 ? "s" : ""}">&#9733;</a>`)
+    .join("");
+
+  const subject = `How was ${e.name}?`;
+  const html = `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      ${logo}
+      <h1 style="margin:0 0 8px;color:${brand}">How was ${esc(e.name)}?</h1>
+      <p style="color:#475569">Hi ${esc(reg.firstName)}, thanks for coming out on ${when}. Tap a star to rate it — it takes two seconds and helps other attendees find great organizers.</p>
+      <div style="text-align:center;margin:20px 0 8px">${stars}</div>
+      <p style="text-align:center;margin:0 0 8px">
+        <a href="${link(0)}" style="color:${brand};font-weight:bold;text-decoration:none">Write a review</a>
+      </p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:20px">You're getting this because you registered for ${esc(e.name)}${orgName ? `, hosted by ${orgName}` : ""}. No account needed — the link above signs you in for this review only.</p>
+    </td></tr>
+  </table>
+  <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">${orgName} · Powered by Your Events App</p>
+</body></html>`;
+
+  const result = await resend().emails.send({
+    from: buildFrom(org),
+    to: reg.email,
+    subject,
+    html,
+  });
+
+  await prisma.emailLog.create({
+    data: {
+      registrationId: reg.id,
+      toEmail: reg.email,
+      kind: "POST_EVENT",
+      subject,
+      status: result.data?.id ? "SENT" : "FAILED",
+      providerId: result.data?.id ?? null,
+      errorMessage: result.error?.message ?? null,
+      sentAt: new Date(),
+    },
+  });
 }
 
 export async function sendReminderEmail(registrationId: string, kind: "REMINDER_30D"|"REMINDER_7D"|"REMINDER_1D"|"REMINDER_1H") {

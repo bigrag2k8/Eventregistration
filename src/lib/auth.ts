@@ -307,3 +307,31 @@ export async function verifyTicketToken(token: string) {
     return null;
   }
 }
+
+/**
+ * Post-event review token: a signed, SINGLE-PURPOSE link mailed to a verified
+ * attendee so they can review without logging in. It authorizes exactly one
+ * thing — submitting/viewing the review for `registrationId` — and MUST NOT be
+ * treated as a session (it never issues the session cookie). Signed with the QR
+ * key (isolated from JWT_SECRET, SEC-02) under a distinct issuer so a review
+ * link can't be replayed as a QR ticket or vice versa. 60-day validity so a
+ * late click still lands after the event.
+ */
+export async function signReviewToken(payload: { registrationId: string }) {
+  return new SignJWT({ registrationId: payload.registrationId, typ: "review" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setIssuer("eventflow-review")
+    .setExpirationTime("60d")
+    .sign(QR_SECRET);
+}
+
+export async function verifyReviewToken(token: string): Promise<{ registrationId: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, QR_SECRET, { issuer: "eventflow-review" });
+    if (payload.typ !== "review" || typeof payload.registrationId !== "string") return null;
+    return { registrationId: payload.registrationId };
+  } catch {
+    return null;
+  }
+}

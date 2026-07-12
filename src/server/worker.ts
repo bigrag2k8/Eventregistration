@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
-import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail, sendEventRescheduledEmail } from "@/lib/email";
+import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail, sendEventRescheduledEmail, sendReviewRequestEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
 import { issueTickets, releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 
@@ -388,6 +388,44 @@ async function processRescheduledEvents() {
   }
 }
 
+// ── Post-event review invites ────────────────────────────────────────────────
+// A few hours after an event ends, email each verified (CONFIRMED) registrant a
+// one-click star-rating invite. Per-registration dedup via reviewInvitedAt,
+// stamped CLAIM-FIRST (before the send) so a crash or overlapping tick can't
+// double-invite — we accept "no retry on a failed send" here rather than risk
+// spamming attendees. Bounded to events that ended in the last 14 days so
+// enabling the feature doesn't retroactively email months-old attendees.
+const REVIEW_INVITE_MIN_AGE_MS = 3 * ONE_HOUR;
+const REVIEW_INVITE_MAX_AGE_MS = 14 * ONE_DAY;
+
+async function inviteEventReviews() {
+  const now = Date.now();
+  const regs = await prisma.registration.findMany({
+    where: {
+      status: "CONFIRMED",
+      reviewInvitedAt: null,
+      event: {
+        status: "PUBLISHED",
+        deletedAt: null,
+        endAt: { lt: new Date(now - REVIEW_INVITE_MIN_AGE_MS), gte: new Date(now - REVIEW_INVITE_MAX_AGE_MS) },
+      },
+    },
+    select: { id: true },
+    take: 200,
+  });
+  for (const r of regs) {
+    // Claim first: stamp, then send. If the send throws we don't retry (one
+    // invite per attendee is the intent), but we're guaranteed not to double-send.
+    await prisma.registration.update({ where: { id: r.id }, data: { reviewInvitedAt: new Date() } });
+    try {
+      await sendReviewRequestEmail(r.id);
+    } catch (e: any) {
+      console.error(`[worker] review invite failed for reg ${r.id}:`, e?.message);
+      Sentry.captureException(e, { tags: { job: "inviteEventReviews" }, extra: { regId: r.id } });
+    }
+  }
+}
+
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
 const LOCK_KEY = "worker:tick:lock";
 const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
@@ -420,6 +458,7 @@ async function tick() {
   try { await releaseEventPayouts(); } catch (e) { console.error("[worker] releaseEventPayouts error", e); Sentry.captureException(e, { tags: { job: "releaseEventPayouts" } }); }
   try { await refundCancelledEvents(); } catch (e) { console.error("[worker] refundCancelledEvents error", e); Sentry.captureException(e, { tags: { job: "refundCancelledEvents" } }); }
   try { await processRescheduledEvents(); } catch (e) { console.error("[worker] processRescheduledEvents error", e); Sentry.captureException(e, { tags: { job: "processRescheduledEvents" } }); }
+  try { await inviteEventReviews(); } catch (e) { console.error("[worker] inviteEventReviews error", e); Sentry.captureException(e, { tags: { job: "inviteEventReviews" } }); }
 }
 
 console.log("Your Events App worker started");

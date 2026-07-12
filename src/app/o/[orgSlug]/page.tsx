@@ -26,6 +26,15 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
         select: { firstName: true, lastName: true, email: true, phone: true },
         orderBy: { createdAt: "asc" },
       },
+      // Recent published reviews (verified attendees). The rating aggregate is
+      // read from org.ratingAvg / org.reviewCount (cached). The event name is
+      // shown only for non-private events so a private event isn't outed here.
+      reviews: {
+        where: { status: "PUBLISHED" },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: { event: { select: { name: true, isPrivate: true } } },
+      },
     },
   });
   if (!org) return notFound();
@@ -42,6 +51,13 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
     .filter((e) => e.endAt < now)
     .sort((a, b) => b.startAt.getTime() - a.startAt.getTime())
     .slice(0, 6);
+
+  // Cached rating aggregate (recomputed on each review). null count → new org.
+  const ratingAvg = org.ratingAvg != null ? Number(org.ratingAvg) : null;
+  const reviewCount = org.reviewCount;
+  // "Verified organizer" reuses the payout-trust milestone: an org graduates to
+  // fast payouts only after 5 clean released events with no lost disputes.
+  const isVerified = org.fastPayoutsEnabled;
 
   return (
     <main>
@@ -92,6 +108,22 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                 {org.name}
               </h1>
               {org.tagline && <p className="mt-1 text-white/90 drop-shadow">{org.tagline}</p>}
+              {(reviewCount > 0 || isVerified) && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-white/95 drop-shadow">
+                  {reviewCount > 0 && ratingAvg != null && (
+                    <span className="inline-flex items-center gap-1.5 text-sm">
+                      <span style={{ color: "#FBBF24" }}>★</span>
+                      <span className="font-semibold">{ratingAvg.toFixed(1)}</span>
+                      <span className="text-white/75">({reviewCount} review{reviewCount === 1 ? "" : "s"})</span>
+                    </span>
+                  )}
+                  {isVerified && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs ring-1 ring-white/25">
+                      ✓ Verified organizer
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -198,7 +230,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
 
       {/* Past events — the org's track record */}
       {past.length > 0 && (
-        <section className="mx-auto max-w-6xl px-4 pb-16 pt-8">
+        <section className="mx-auto max-w-6xl px-4 pb-8 pt-8">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-slate-700">Past events</h2>
             <div className="h-px flex-1 bg-slate-200" />
@@ -210,8 +242,67 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
           </div>
         </section>
       )}
+
+      {/* Reviews — from verified attendees only */}
+      {org.reviews.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-8">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">
+              Reviews{reviewCount > 0 && ratingAvg != null ? ` · ★ ${ratingAvg.toFixed(1)}` : ""}
+            </h2>
+            <div className="h-px flex-1" style={{ background: "linear-gradient(to right, var(--org-brand), transparent)" }} />
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {org.reviews.map((r) => (
+              <div key={r.id} className="card">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-medium text-slate-500">
+                    {reviewInitials(r.authorName)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-sm font-medium">{r.authorName}</span>
+                      <Stars n={r.rating} />
+                      {r.attended && <span className="text-[11px] text-emerald-600">✓ Attended</span>}
+                    </div>
+                    {!r.event.isPrivate && (
+                      <div className="mt-0.5 text-xs text-slate-400">{r.event.name}</div>
+                    )}
+                    {r.comment && (
+                      <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-600">{r.comment}</p>
+                    )}
+                    {r.organizerReply && (
+                      <div className="mt-2.5 border-l-2 pl-3" style={{ borderColor: "var(--org-brand)" }}>
+                        <div className="text-xs font-medium text-slate-700">
+                          {org.name} <span className="font-normal text-slate-400">· organizer reply</span>
+                        </div>
+                        <p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed text-slate-600">{r.organizerReply}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
+}
+
+function Stars({ n }: { n: number }) {
+  return (
+    <span style={{ color: "#EF9F27", fontSize: "13px", letterSpacing: "1px" }} aria-label={`${n} out of 5 stars`}>
+      {"★".repeat(n)}
+      <span style={{ color: "#cbd5e1" }}>{"★".repeat(5 - n)}</span>
+    </span>
+  );
+}
+
+function reviewInitials(name?: string | null) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  const i = (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
+  return i.toUpperCase() || "•";
 }
 
 function initials(first?: string | null, last?: string | null) {

@@ -33,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
             <Link href="/dashboard" className="hover:text-brand-700">Dashboard</Link>
             {!isField && <Link href="/dashboard/financials" className="hover:text-brand-700">Financials</Link>}
+            {!isField && <Link href="/dashboard/reviews" className="hover:text-brand-700">Reviews</Link>}
             {!isField && <Link href="/dashboard/billing" className="hover:text-brand-700">Billing</Link>}
             {!isField && <Link href="/dashboard/audit" className="hover:text-brand-700">Audit log</Link>}
             {!isField && <Link href="/dashboard/settings" className="hover:text-brand-700">Settings</Link>}

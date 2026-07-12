@@ -96,6 +96,12 @@ enum EmailKind {
   VENDOR_APPLICATION_RECEIVED
 }
 
+enum ReviewStatus {
+  PUBLISHED
+  FLAGGED
+  HIDDEN
+}
+
 enum RefundRequestStatus {
   OPEN
   APPROVED
@@ -171,6 +177,11 @@ model Organization {
   //                      reachable only by their direct event link.
   showTeamPhones    Boolean @default(false)
   showPrivateEvents Boolean @default(true)
+  // Cached review aggregates for the public /o/[slug] page — recomputed whenever
+  // a review is posted/hidden (see recomputeOrgRating) so the page never runs a
+  // heavy aggregate on every hit. reviewCount counts PUBLISHED reviews only.
+  reviewCount       Int      @default(0)
+  ratingAvg         Decimal? @db.Decimal(3, 2)
   // Mailing address — captured during signup (required for new orgs); legacy
   // rows may be null until the owner completes it on /dashboard/settings.
   addressLine1 String?
@@ -226,6 +237,7 @@ model Organization {
   pendingInvites  PendingInvite[]
   billingInvoices BillingInvoice[]
   disputes        Dispute[]
+  reviews         Review[]
 
   @@map("organizations")
 }
@@ -407,6 +419,7 @@ model Event {
   refundRequests     RefundRequest[]
   assignments        EventAssignment[]
   pendingInvites     PendingInvite[]
+  reviews            Review[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, startAt])
@@ -564,6 +577,10 @@ model Registration {
   /// when this is null or older than the event's rescheduledAt (so a second
   /// reschedule re-emails everyone).
   rescheduleNotifiedAt DateTime?
+  /// Last time this attendee was emailed a post-event review invite. The worker
+  /// invites once per registration for ended events (claim-first: stamped before
+  /// send so a crash/overlap can't double-invite).
+  reviewInvitedAt   DateTime?
 
   stripeSessionId   String?
   stripePaymentIntentId String?
@@ -588,6 +605,7 @@ model Registration {
   answers           CustomAnswer[]
   emailLogs         EmailLog[]
   refundRequests    RefundRequest[]
+  review            Review?
 
   @@index([eventId, status])
   @@index([email])
@@ -618,6 +636,44 @@ model RefundRequest {
   @@index([eventId, status])
   @@index([registrationId])
   @@map("refund_requests")
+}
+
+/// A post-event review left by a VERIFIED attendee (one per registration). Only
+/// someone who registered for an event that has ended can leave one — the review
+/// invite email carries a signed, single-purpose token tied to their
+/// registrationId. Reviews attach to a specific event but aggregate to the
+/// organization (see Organization.reviewCount / ratingAvg). Organizers can reply
+/// but never delete; a SUPERADMIN can hide abusive content (status HIDDEN).
+model Review {
+  id             String       @id @default(cuid())
+  eventId        String
+  event          Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registrationId String       @unique
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  rating         Int          // 1..5
+  comment        String?      @db.Text
+  /// Display name snapshot at submit time, e.g. "Denise R." (first name + last
+  /// initial) — so we never expose the attendee's full name publicly.
+  authorName     String
+  /// True when at least one of this registration's tickets was checked in, which
+  /// promotes the review to a "✓ Attended" badge. Not a gate — registrants of an
+  /// ended event can review even if the organizer never scanned them in.
+  attended       Boolean      @default(false)
+
+  status         ReviewStatus @default(PUBLISHED)
+
+  organizerReply     String?   @db.Text
+  organizerRepliedAt DateTime?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([eventId, status])
+  @@map("reviews")
 }
 
 model Ticket {
