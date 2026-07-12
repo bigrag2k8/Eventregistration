@@ -9,6 +9,7 @@ import { updateOrgSettingsAction } from "./actions";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { MfaSetup } from "@/components/MfaSetup";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
+import { BrandColorInput } from "@/components/BrandColorInput";
 import { AddressFields } from "@/components/AddressFields";
 
 export const dynamic = "force-dynamic";
@@ -95,12 +96,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
             />
             <div>
               <label className="label">Primary brand color (hex)</label>
-              <div className="flex items-center gap-3">
-                <input name="brandColor" defaultValue={org.brandColor ?? ""} className="input flex-1 font-mono"
-                       placeholder="#1F3A8A" maxLength={7} />
-                <div className="h-10 w-12 rounded ring-1 ring-slate-300"
-                     style={{ backgroundColor: org.brandColor ?? "#1F3A8A" }} />
-              </div>
+              <BrandColorInput name="brandColor" defaultValue={org.brandColor} />
               <p className="mt-1 text-xs text-slate-500">Used for buttons, links, and accents on your public pages. Leave blank to use the default blue.</p>
             </div>
           </div>
