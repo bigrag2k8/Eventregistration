@@ -119,6 +119,32 @@ export async function upgradeEventAction(formData: FormData) {
   redirect(`/dashboard/events/${event.id}?upgraded=1`);
 }
 
+/**
+ * Cancel an event (distinct from delete). Marks it CANCELLED but keeps it VISIBLE
+ * (deletedAt stays null) so attendees see a "cancelled" page, and stamps cancelledAt
+ * so the worker (refundCancelledEvents) auto-refunds every paid attendee in full and
+ * emails them. Same authority as delete (ORGANIZER/ADMIN of the org, or SUPERADMIN).
+ */
+export async function cancelEventAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const { session, event } = await authorizeEvent(eventId);
+  if (event.status === "CANCELLED") redirect(`/dashboard/events/${event.id}?error=already_cancelled`);
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 500) || null;
+
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason },
+  });
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.cancel", targetType: "Event", targetId: event.id,
+    metadata: { name: event.name, slug: event.slug, reason },
+  });
+  // Refunds + attendee emails are issued asynchronously by the worker so a large
+  // event can't time out the request; the event flips to cancelled instantly.
+  redirect(`/dashboard/events/${event.id}?cancelled=1`);
+}
+
 export async function deleteAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);

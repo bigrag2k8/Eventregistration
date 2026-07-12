@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
-import { publishAction, unpublishAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
+import { publishAction, unpublishAction, cancelEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
 import { EventLocationFields } from "@/components/EventLocationFields";
@@ -476,12 +476,44 @@ export default async function EventManagePage({ params, searchParams }: { params
         {/* Danger zone */}
         <section className="card border-red-200 ring-red-100">
           <h2 className="text-lg font-semibold text-red-700">Danger zone</h2>
-          <form action={deleteAction} className="mt-3 flex items-center justify-between">
-            <p className="text-sm text-slate-600">Soft-delete this event. Existing registrations remain.</p>
+
+          {/* Cancel — refunds everyone, keeps the page visible as "cancelled". */}
+          {event.status === "CANCELLED" ? (
+            <div className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800 ring-1 ring-rose-200">
+              This event is cancelled. Paid attendees are being refunded in full automatically.
+            </div>
+          ) : (
+            <form action={cancelEventAction} className="mt-3 border-b border-red-100 pb-4">
+              <p className="text-sm text-slate-600">
+                <strong>Cancel event.</strong> Every paid attendee is automatically refunded in
+                full (ticket price + fees) and emailed. The event page stays visible, marked
+                &ldquo;cancelled.&rdquo; This can&rsquo;t be undone.
+              </p>
+              <input type="hidden" name="eventId" value={event.id} />
+              <textarea
+                name="reason"
+                rows={2}
+                maxLength={500}
+                placeholder="Optional note to attendees (why it's cancelled)…"
+                className="input mt-2 w-full text-sm"
+              />
+              <div className="mt-2">
+                <ConfirmButton
+                  label="Cancel event & refund attendees"
+                  confirmText={`Cancel "${event.name}"? Every paid attendee will be refunded in full and emailed. This can't be undone.`}
+                  className="btn-secondary text-red-700 hover:bg-red-50"
+                />
+              </div>
+            </form>
+          )}
+
+          {/* Delete — soft-delete, hides the event, issues NO refunds. */}
+          <form action={deleteAction} className="mt-4 flex items-center justify-between">
+            <p className="text-sm text-slate-600">Delete (hide) this event. No refunds are issued; existing registrations remain.</p>
             <input type="hidden" name="eventId" value={event.id} />
             <ConfirmButton
               label="Delete event"
-              confirmText={`Delete "${event.name}"? It will be removed from all public listings. This can't be undone from here.`}
+              confirmText={`Delete "${event.name}"? It will be removed from all public listings. No refunds are issued. This can't be undone from here.`}
               className="btn-secondary text-red-700 hover:bg-red-50"
             />
           </form>

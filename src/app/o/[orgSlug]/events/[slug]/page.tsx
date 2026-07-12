@@ -17,7 +17,9 @@ export default async function EventLandingPage({ params }: Props) {
     where: {
       slug: params.slug,
       organization: { slug: params.orgSlug, deletedAt: null },
-      status: "PUBLISHED",
+      // Include CANCELLED (but not soft-deleted) events so a cancelled event shows
+      // the "Event cancelled" state instead of a 404.
+      status: { in: ["PUBLISHED", "CANCELLED"] },
       deletedAt: null,
     },
     include: {

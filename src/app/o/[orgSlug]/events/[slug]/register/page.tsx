@@ -16,7 +16,9 @@ export default async function RegisterPage({ params, searchParams }: Props) {
     where: {
       slug: params.slug,
       organization: { slug: params.orgSlug, deletedAt: null },
-      status: "PUBLISHED",
+      // Resolve CANCELLED (not deleted) events too so the guard below can redirect
+      // them to the event page's "cancelled" state instead of 404ing.
+      status: { in: ["PUBLISHED", "CANCELLED"] },
       deletedAt: null,
     },
     include: {

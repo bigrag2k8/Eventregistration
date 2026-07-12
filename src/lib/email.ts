@@ -86,6 +86,67 @@ export async function sendConfirmationEmail(registrationId: string) {
   });
 }
 
+/**
+ * Notify an attendee that their event was cancelled. `refunded` controls the
+ * money line — true when a full refund was issued (paid ticket), false for a
+ * free registration. Sent by the worker's refundCancelledEvents job.
+ */
+export async function sendEventCancelledEmail(registrationId: string, refunded: boolean) {
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { event: { include: { organization: true } } },
+  });
+  if (!reg) return;
+
+  const e: any = reg.event;
+  const org: any = e.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor)) ? org.brandColor : "#1F3A8A";
+  const orgName = esc(org.name ?? "");
+  const logo = org.logoUrl
+    ? `<img src="${esc(org.logoUrl)}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    : "";
+  const reasonBlock = e.cancelReason
+    ? `<p style="color:#475569;background:#f8fafc;border-left:3px solid ${brand};padding:8px 12px;border-radius:4px"><strong>Note from the organizer:</strong> ${esc(e.cancelReason)}</p>`
+    : "";
+  const refundLine = refunded
+    ? `<p style="color:#0f766e"><strong>You've been refunded in full.</strong> The entire amount you paid — ticket price and any fees — is on its way back to your original payment method, and typically appears within 5–10 business days.</p>`
+    : `<p style="color:#475569">No payment was collected for your registration, so there's nothing to refund.</p>`;
+
+  const subject = `Cancelled: ${e.name}`;
+  const html = `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      ${logo}
+      <h1 style="margin:0 0 8px;color:${brand}">Event cancelled</h1>
+      <p style="color:#475569">Hi ${esc(reg.firstName)}, we're sorry to let you know that <strong>${esc(e.name)}</strong>${orgName ? `, hosted by ${orgName},` : ""} has been cancelled.</p>
+      ${reasonBlock}
+      ${refundLine}
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Questions? Just reply to this email to reach the organizer.</p>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const result = await resend().emails.send({
+    from: buildFrom(org),
+    to: reg.email,
+    subject,
+    html,
+  });
+
+  await prisma.emailLog.create({
+    data: {
+      registrationId: reg.id,
+      toEmail: reg.email,
+      kind: "CANCELLATION",
+      subject,
+      status: result.data?.id ? "SENT" : "FAILED",
+      providerId: result.data?.id ?? null,
+      sentAt: new Date(),
+    },
+  });
+}
+
 function renderConfirmation(reg: any) {
   const e = reg.event;
   const org = e.organization ?? {};

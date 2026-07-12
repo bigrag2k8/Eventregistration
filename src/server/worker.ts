@@ -9,9 +9,9 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
-import { sendReminderEmail, sendWaitlistPromotionEmail } from "@/lib/email";
-import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
+import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
+import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -227,6 +227,75 @@ async function maybeGraduateOrg(orgId: string, acct: string) {
   });
 }
 
+// ── Event cancellation refunds ──────────────────────────────────────────────
+// When an organizer CANCELS an event (status CANCELLED, deletedAt null, cancelledAt
+// set — NOT a soft delete), auto-refund every paid attendee IN FULL (ticket price +
+// platform fee, per the cancellation policy) and email them. Idempotent: a Stripe
+// idempotency key per registration means a retry never double-refunds, and each
+// registration flips to REFUNDED so it's processed once. reverse_transfer pulls the
+// money back from the organizer's Stripe balance (or, if it was already paid out,
+// the platform absorbs the shortfall — that IS the buyer-protection guarantee).
+async function refundCancelledEvents() {
+  const events = await prisma.event.findMany({
+    where: { status: "CANCELLED", deletedAt: null, cancelledAt: { not: null } },
+    select: { id: true, name: true, organizationId: true },
+    take: 20,
+  });
+  for (const e of events) {
+    const regs = await prisma.registration.findMany({
+      where: { eventId: e.id, status: "CONFIRMED" },
+      include: { payments: { where: { status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] } }, take: 1 } },
+      take: 50,
+    });
+    for (const reg of regs) {
+      try {
+        const pay = reg.payments[0];
+        if (pay?.stripePaymentIntentId) {
+          try {
+            await stripe.refunds.create(
+              {
+                payment_intent: pay.stripePaymentIntentId,
+                reverse_transfer: true,
+                refund_application_fee: true, // full refund incl. platform fee
+                metadata: { reason: "event_cancelled", registrationId: reg.id, eventId: e.id },
+              },
+              { idempotencyKey: `evtcancel:${reg.id}` },
+            );
+          } catch (err: any) {
+            // Already fully refunded (e.g. webhook redelivery) is success; anything
+            // else → leave the reg CONFIRMED so we retry next tick, and surface it.
+            if (err?.code !== "charge_already_refunded") {
+              console.error(`[worker] cancel-refund failed for reg ${reg.id}:`, err?.message);
+              Sentry.captureException(err, { tags: { job: "refundCancelledEvents" }, extra: { regId: reg.id } });
+              continue;
+            }
+          }
+        }
+        // Mark processed so we never touch it again (paid → REFUNDED; free → CANCELLED).
+        // The charge.refunded webhook independently releases the seat + invalidates
+        // tickets; both setting REFUNDED is idempotent.
+        await prisma.registration.update({
+          where: { id: reg.id },
+          data: { status: pay ? "REFUNDED" : "CANCELLED", cancelReason: "event_cancelled" },
+        });
+        try {
+          await sendEventCancelledEmail(reg.id, !!pay);
+        } catch (e2: any) {
+          console.error(`[worker] cancel email failed for reg ${reg.id}:`, e2?.message);
+        }
+        await audit({
+          organizationId: e.organizationId, eventId: e.id,
+          action: "event_cancel.refund", targetType: "Registration", targetId: reg.id,
+          metadata: { email: reg.email, refunded: !!pay },
+        });
+      } catch (err) {
+        console.error(`[worker] refundCancelledEvents reg ${reg.id} error`, err);
+        Sentry.captureException(err, { tags: { job: "refundCancelledEvents" } });
+      }
+    }
+  }
+}
+
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
 const LOCK_KEY = "worker:tick:lock";
 const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
@@ -257,6 +326,7 @@ async function tick() {
   try { await promoteWaitlist(); } catch (e) { console.error("[worker] promoteWaitlist error", e); Sentry.captureException(e, { tags: { job: "promoteWaitlist" } }); }
   try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); Sentry.captureException(e, { tags: { job: "purgeAbandonedCarts" } }); }
   try { await releaseEventPayouts(); } catch (e) { console.error("[worker] releaseEventPayouts error", e); Sentry.captureException(e, { tags: { job: "releaseEventPayouts" } }); }
+  try { await refundCancelledEvents(); } catch (e) { console.error("[worker] refundCancelledEvents error", e); Sentry.captureException(e, { tags: { job: "refundCancelledEvents" } }); }
 }
 
 console.log("Your Events App worker started");

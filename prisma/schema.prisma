@@ -337,6 +337,11 @@ model Event {
   /// organizer (1 day after endAt, for orgs on held/manual payouts). Null = not
   /// yet released, or the org is on fast payouts (Stripe pays them directly).
   payoutReleasedAt   DateTime?
+  /// Set by cancelEventAction when an organizer/admin CANCELS an event (distinct
+  /// from a soft delete). The event stays visible as "cancelled" (deletedAt null),
+  /// and the worker auto-refunds every paid attendee/vendor and emails them.
+  cancelledAt        DateTime?
+  cancelReason       String?     @db.Text
   maxPerOrder        Int?        @default(10)
   refundPolicy       String?     @db.Text
   cancellationPolicy String?     @db.Text
