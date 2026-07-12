@@ -514,6 +514,23 @@ async function tick() {
   try { await recomputeReputationScores(); } catch (e) { console.error("[worker] recomputeReputationScores error", e); Sentry.captureException(e, { tags: { job: "recomputeReputationScores" } }); }
 }
 
+// Apply pending migrations BEFORE the first tick. Railway starts web and worker
+// simultaneously; the worker's immediate tick used to race the web service's
+// migrate-at-boot and fail with P2022 on brand-new columns (one tick of Sentry
+// noise per migration deploy). prisma migrate deploy holds a DB advisory lock,
+// so when both services run it, one applies and the other waits then no-ops.
+// Done here in code (not the start command) so EVERY launch path is covered —
+// Railway's custom start command, docker-compose, and npm run worker alike.
+// Best-effort: if it fails we still start; jobs catch their own errors and the
+// web service remains the primary migrator.
+try {
+  console.log("[worker-boot] prisma migrate deploy (waits on advisory lock if web is applying)");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require("child_process").execSync("npx prisma migrate deploy", { stdio: "inherit" });
+} catch (e: any) {
+  console.error("[worker-boot] migrate deploy failed — starting anyway:", e?.message);
+}
+
 console.log("Your Events App worker started");
 tick();
 setInterval(tick, INTERVAL);
