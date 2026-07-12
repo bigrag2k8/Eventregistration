@@ -71,6 +71,11 @@ export default async function EventManagePage({ params, searchParams }: { params
   const confirmedRegs = await prisma.registration.count({
     where: { eventId: event.id, status: "CONFIRMED" },
   });
+  // A PUBLISHED event whose end time has passed is over (nothing sets a COMPLETED
+  // status), and a CANCELLED event is neither live nor a draft — the status label
+  // and register-closed messaging derive from these, not from status alone.
+  const isCancelled = event.status === "CANCELLED";
+  const hasEnded = isPublished && event.endAt < new Date();
 
   // Uniform action-grid box styles: same fixed height/width so the row of
   // event actions reads as a tidy grid instead of squished pills.
@@ -89,8 +94,11 @@ export default async function EventManagePage({ params, searchParams }: { params
             <span className="text-slate-300">/</span>
             <span className="font-semibold">{event.name}</span>
             <span className={`rounded-full px-2 py-0.5 text-xs ${
-              isPublished ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-            }`}>{event.status}</span>
+              isCancelled ? "bg-rose-100 text-rose-700"
+                : hasEnded ? "bg-slate-100 text-slate-600"
+                : isPublished ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-100 text-slate-600"
+            }`}>{isCancelled ? "CANCELLED" : hasEnded ? "ENDED" : event.status}</span>
             <span className={`rounded-full px-2 py-0.5 text-xs ${
               event.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
             }`}>{event.isPremium ? "Single Event" : "Free"}</span>
@@ -182,9 +190,17 @@ export default async function EventManagePage({ params, searchParams }: { params
         {/* Publish / unpublish + actions */}
         <section className="card">
           <div>
-            <h2 className="font-semibold">{isPublished ? "This event is live" : "This event is a draft"}</h2>
+            <h2 className="font-semibold">
+              {isCancelled ? "This event is cancelled"
+                : hasEnded ? "This event has ended"
+                : isPublished ? "This event is live"
+                : "This event is a draft"}
+            </h2>
             <p className="text-sm text-slate-500">
-              {isPublished ? "Anyone with the link can register." : "Not visible to attendees yet."}
+              {isCancelled ? "Attendees and vendors have been refunded and notified."
+                : hasEnded ? "Registration is closed. Reschedule it below to run it again on a new date."
+                : isPublished ? "Anyone with the link can register."
+                : "Not visible to attendees yet."}
             </p>
           </div>
           {/* Uniform action grid — equal-size boxes, two rows on wide screens. */}
