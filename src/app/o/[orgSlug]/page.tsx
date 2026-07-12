@@ -10,19 +10,28 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
   const org = await prisma.organization.findFirst({
     where: { slug: params.orgSlug, deletedAt: null },
     include: {
+      // Fetch all this org's published events (public AND private) — the
+      // organizer's OWN landing page shows them all. "Private" only hides an
+      // event from the app-wide home/discovery listings (see src/app/page.tsx),
+      // not from the organizer's page. Split into upcoming/past below.
       events: {
-        // All public, published events — split into upcoming/past below so the
-        // page shows a track record instead of an empty "no events".
-        where: { status: "PUBLISHED", deletedAt: null, isPrivate: false },
+        where: { status: "PUBLISHED", deletedAt: null },
         orderBy: { startAt: "asc" },
         include: { location: true, ticketTypes: true },
         take: 100,
+      },
+      // Organizers/admins shown publicly as the people behind the org.
+      members: {
+        where: { role: { in: ["ORGANIZER", "ADMIN"] }, deletedAt: null },
+        select: { firstName: true, lastName: true, email: true, phone: true },
+        orderBy: { createdAt: "asc" },
       },
     },
   });
   if (!org) return notFound();
 
   const now = new Date();
+  // All published events show on the organizer's own page (private included).
   const upcoming = org.events.filter((e) => e.endAt >= now);
   const past = org.events
     .filter((e) => e.endAt < now)
@@ -119,6 +128,37 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
         </section>
       )}
 
+      {/* Organizers — the people behind the org */}
+      {org.members.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-2 pt-2">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">Organizers</h2>
+            <div className="h-px flex-1" style={{ background: "linear-gradient(to right, var(--org-brand), transparent)" }} />
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {org.members.map((m) => (
+              <div key={m.email} className="card flex items-start gap-3">
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+                  style={{ backgroundColor: "var(--org-brand)" }}
+                >
+                  {initials(m.firstName, m.lastName)}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-medium">{[m.firstName, m.lastName].filter(Boolean).join(" ") || m.email}</div>
+                  <a href={`mailto:${m.email}`} className="mt-1 block truncate text-sm text-slate-600 hover:text-slate-900">
+                    ✉ {m.email}
+                  </a>
+                  {m.phone && (
+                    <a href={`tel:${m.phone}`} className="block text-sm text-slate-600 hover:text-slate-900">📞 {m.phone}</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Upcoming events */}
       <section className="mx-auto max-w-6xl px-4 pb-4 pt-4">
         <div className="flex items-center gap-3">
@@ -167,6 +207,11 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
       )}
     </main>
   );
+}
+
+function initials(first?: string | null, last?: string | null) {
+  const i = ((first ?? "").trim()[0] ?? "") + ((last ?? "").trim()[0] ?? "");
+  return i.toUpperCase() || "•";
 }
 
 function EventCard({ e, orgSlug, ended = false }: { e: any; orgSlug: string; ended?: boolean }) {
