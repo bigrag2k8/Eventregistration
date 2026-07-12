@@ -16,7 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
-    "worker": "tsx src/server/worker.ts"
+    "worker": "echo '[worker-boot] prisma migrate deploy (waits on advisory lock if web is applying)' && npx prisma migrate deploy && tsx src/server/worker.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
