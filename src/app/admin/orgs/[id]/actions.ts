@@ -10,6 +10,7 @@ import { OVERRIDABLE_LIMITS, parseOverrides, PlanOverrides } from "@/lib/plans";
 import { resyncOrgSubscription } from "@/server/billing";
 import { isProtectedOwner } from "@/lib/owner";
 import { notifyOps } from "@/lib/alert";
+import { stripe } from "@/lib/stripe";
 
 const PLAN_KEYS = ["FREE", "SINGLE_EVENT", "STARTER", "PRO", "ENTERPRISE"] as const;
 const STATUS_KEYS = ["NONE", "ACTIVE", "TRIALING", "PAST_DUE", "CANCELED", "INCOMPLETE"] as const;
@@ -352,6 +353,52 @@ export async function setOrgPassProcessingFeeAction(formData: FormData) {
     targetType: "Organization",
     targetId: org.id,
     metadata: { before: org.passProcessingFee, after: value, by: session.email },
+  });
+
+  redirect(`/admin/orgs/${org.id}?saved=1`);
+}
+
+/**
+ * SUPERADMIN-only: graduate an org to fast (daily) Stripe payouts. Flips
+ * fastPayoutsEnabled and pushes the daily schedule to Stripe. New orgs are HELD by
+ * default (manual payouts, released per-event by the worker 1 day after each event);
+ * the worker also auto-graduates an org after 5 clean events. Use this to promote
+ * a trusted org early. See docs/Payout-Hold-Phase0.md.
+ */
+export async function setOrgFastPayoutsAction(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
+
+  const orgId = String(formData.get("orgId") ?? "");
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org || org.deletedAt) redirect("/admin?error=org_not_found");
+  if (org.fastPayoutsEnabled) redirect(`/admin/orgs/${org.id}?saved=1`); // already fast
+
+  // Push the daily schedule to Stripe if the org has a connected account. (If it
+  // hasn't onboarded yet, the flag alone makes onboarding pick "daily".)
+  if (org.stripeAccountId) {
+    try {
+      await stripe.accounts.update(org.stripeAccountId, {
+        settings: { payouts: { schedule: { interval: "daily" } } },
+      });
+    } catch (e: any) {
+      console.error("[admin] fast-payouts stripe update failed:", e?.message);
+      redirect(`/admin/orgs/${org.id}?error=stripe_update_failed`);
+    }
+  }
+
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: { fastPayoutsEnabled: true },
+  });
+
+  await audit({
+    organizationId: org.id,
+    userId: session.sub,
+    action: "payout.fast_enabled",
+    targetType: "Organization",
+    targetId: org.id,
+    metadata: { by: session.email, manual: true },
   });
 
   redirect(`/admin/orgs/${org.id}?saved=1`);

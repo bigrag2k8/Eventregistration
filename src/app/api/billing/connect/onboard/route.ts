@@ -19,9 +19,9 @@ import { rateLimit } from "@/lib/rate-limit";
  *       the org skips Stripe's "what do you sell?" prompt and lowers the
  *       odds of an "additional review" requirement landing later.
  *
- *   - settings.payouts.schedule.interval = "daily"
- *       Faster than Eventbrite's 3-day hold. Pro tier later upgrades to
- *       instant payouts.
+ *   - settings.payouts.schedule.interval — "daily" for orgs with fastPayoutsEnabled,
+ *       else "manual" so a new org's ticket funds are held until the worker releases
+ *       them after each event (Phase 0 payout hold; see docs/Payout-Hold-Phase0.md).
  *
  *   - collection_options.fields = "currently_due" on every accountLink
  *       This is DEFERRED KYC: Stripe only collects the bare minimum
@@ -103,9 +103,13 @@ export async function POST() {
           last_name: me?.lastName ?? undefined,
           phone: org.contactPhone ?? undefined,
         },
-        // Daily payouts — much faster than Eventbrite's 3-day hold.
+        // Payout schedule by trust: proven orgs (fastPayoutsEnabled) get daily
+        // payouts; new orgs start on "manual" so their ticket funds are HELD in
+        // Stripe until the worker releases them 1 day after each event ends —
+        // the Phase 0 protection against sell-then-cancel fraud. See
+        // docs/Payout-Hold-Phase0.md.
         settings: {
-          payouts: { schedule: { interval: "daily" } },
+          payouts: { schedule: { interval: org.fastPayoutsEnabled ? "daily" : "manual" } },
         },
         metadata: {
           organizationId: org.id,

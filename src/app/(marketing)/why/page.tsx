@@ -4,7 +4,7 @@ import { PLATFORM_FEE_PERCENT, MIN_PLATFORM_FEE_CENTS } from "@/lib/connect";
 export const metadata = {
   title: "Why YourEvents — honest event management",
   description:
-    "Why community organizers choose YourEvents for event management — flat 5% fees, direct Stripe payouts, no surprise buyer charges, built-in vendor flow, and tools that actually fit small events.",
+    "Why community organizers choose YourEvents for event management — flat 5% fees, no surprise buyer charges, built-in buyer protection, vendor flow, and your brand on your event — not ours.",
 };
 
 const PILLARS = [
@@ -13,8 +13,8 @@ const PILLARS = [
     body: "A flat 5% fee with a $1.25 minimum on paid tickets. We charge the organizer, never the attendee. The price you set is the price they pay — no service fee, no $1.79 surcharge, no fine print at checkout.",
   },
   {
-    title: "Direct payouts to your bank",
-    body: "Money flows through your own Stripe Connect account on Stripe's normal schedule (usually 2 business days). We never hold your funds and we never delay your payouts until after the event.",
+    title: "Buyer protection, and payouts you earn",
+    body: "Attendee funds are held safely until your event happens — so buyers know that if an event is cancelled, their refund is guaranteed. Organizers who build a track record of great events unlock fast daily payouts straight to their own Stripe account. Trust that works both ways.",
   },
   {
     title: "Built for the events you actually run",
@@ -33,7 +33,7 @@ const FEATURES = [
 
 const PROBLEMS = [
   { issue: "A $10 ticket on Eventbrite costs your attendee $12.45.", answer: "On YourEvents, a $10 ticket costs $10." },
-  { issue: "Eventbrite holds your money until after the event.", answer: "We never touch your money. Stripe pays you in 2 business days." },
+  { issue: "Eventbrite puts their brand on your event and keeps your attendee list.", answer: "Your page, your logo, your attendees — the data is yours to keep." },
   { issue: "Vendor applications, attendee tickets, and check-in usually need three separate tools.", answer: "All three live on one dashboard." },
   { issue: "Most platforms charge a monthly fee whether you run events or not.", answer: "Free tier hosts free events forever. Paid events are pay-as-you-go." },
 ];
@@ -49,11 +49,11 @@ export default function WhyPage() {
           </span>
           <h1 className="mt-5 text-5xl font-bold tracking-tight text-slate-900">
             Event management without the hidden fees, the complexity,
-            <span className="text-brand-700"> or the wait for your money.</span>
+            <span className="text-brand-700"> or the middleman taking your brand.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600">
             Flat {PLATFORM_FEE_PERCENT}% pricing with a ${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} minimum.
-            Direct Stripe payouts to your bank. One dashboard for tickets, vendors,
+            Your brand and your attendee list stay yours. One dashboard for tickets, vendors,
             check-in, and refunds. Built for community organizers, not for global concert tours.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">

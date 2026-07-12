@@ -80,8 +80,12 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
 
       {/* Hero */}
       <section className="mx-auto max-w-4xl px-4 py-20 text-center">
-        <p className="text-[2.5rem] leading-tight text-slate-600">
-          Modern event registration, ticketing, and check-in for organizations of every size.
+        <h1 className="text-[2.5rem] font-bold leading-tight text-slate-900">
+          Your event. Your brand. Your revenue.
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+          Sell tickets and manage vendors on beautiful, branded pages — and keep more of
+          every dollar. Flat 5%, charged to you, never your attendees.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/signup" className="btn-primary">Host an event — get started</Link>

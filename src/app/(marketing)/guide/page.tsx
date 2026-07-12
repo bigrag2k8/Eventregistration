@@ -68,7 +68,7 @@ export default function UserGuidePage() {
         <h3>Key benefits</h3>
         <ul>
           <li>Flat pricing — 5% platform fee with a $1.25 minimum, no surprise buyer fees.</li>
-          <li>Direct Stripe payouts to your bank account; we never hold organizer funds.</li>
+          <li>Payouts through your own Stripe account — new organizers&rsquo; funds are protected until the day after each event (buyer protection), and established organizers earn fast daily payouts.</li>
           <li>Branded event pages with QR-coded tickets and instant refund handling.</li>
           <li>Vendor application and booth-payment flow built in — no separate system needed.</li>
         </ul>
@@ -725,7 +725,7 @@ export default function UserGuidePage() {
         {[
           { q: "Do I need an account to register for an event?", a: "No. You can register as a guest. An attendee account is created automatically if you want one, so you can view your tickets later by signing in with a magic link." },
           { q: "How much does YourEvents cost?", a: "Hosting free events is free. Paid events have a 5% platform fee with a $1.25 minimum per paid ticket. Vendor booth payments use the same fee." },
-          { q: "When do I get paid as an organizer?", a: "Payouts go directly to your Stripe-linked bank account on Stripe's normal schedule — typically 2 business days after the charge." },
+          { q: "When do I get paid as an organizer?", a: "New organizers: your funds are held for buyer protection and released to your Stripe-linked bank account the day after your event ends. After five successful events (or earlier on request), you graduate to fast daily payouts." },
           { q: "Why is there a minimum platform fee?", a: "Stripe's processing cost (2.9% + $0.30) eats more than 5% on tickets under $25. The $1.25 floor keeps the platform net-positive on every paid ticket." },
           { q: "Can I sell tickets in person at the door?", a: "Yes — log in on a phone and use the registration form to add walk-ups. They'll get tickets emailed immediately and the QR scans the same as online registrations." },
           { q: "What if I forgot my password?", a: "Click Forgot password on the sign-in page. You'll get a reset link by email valid for 30 minutes." },
@@ -738,7 +738,7 @@ export default function UserGuidePage() {
           { q: "Does YourEvents charge attendees any extra fees?", a: "No. The price you set is the price the attendee pays. We charge the organizer; we never tack a service fee onto the buyer's checkout." },
           { q: "What's the difference between Organizer, Admin, Staff, and Volunteer?", a: "Organizers and Admins manage the org (create events, see financials, invite team). Staff and Volunteers handle on-site check-in only. Staff vs. Volunteer is just a label for paid vs. unpaid helpers." },
           { q: "How many events can I create on the Free plan?", a: "One event per month, up to 50 registrations per event. Upgrade to a Single Event credit ($19) to lift the cap and unlock vendor flow and unlimited registrations." },
-          { q: "Do I have to use Stripe to get paid?", a: "Yes. Stripe Connect is the only payout method. They handle KYC and tax reporting; we never hold your money." },
+          { q: "Do I have to use Stripe to get paid?", a: "Yes. Stripe Connect is the only payout method. They handle KYC and tax reporting, and your funds sit in your own Stripe account until they're paid out to your bank." },
           { q: "Can I export my attendee list?", a: "Yes. From the Registrations page on your event, click Export CSV. The download includes every attendee with custom-question answers." },
           { q: "Can I import existing attendees from another platform?", a: "Bulk import isn't built into the dashboard yet. Email support if you have a large list to migrate." },
           { q: "How do I delete my account?", a: "Email support — we'll soft-delete your user record. Your organization will need to designate a new owner first." },

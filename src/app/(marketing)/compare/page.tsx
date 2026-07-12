@@ -32,7 +32,7 @@ const TICKET_PRICES = [5, 10, 15, 20, 25, 30, 50, 100];
 const FEATURES: Array<{ feature: string; ye: boolean | string; eb: boolean | string; note?: string }> = [
   // ── Where YourEvents is stronger or different ──
   { feature: "Flat pricing, no buyer fees", ye: true, eb: false, note: "Eventbrite adds 3.7% + $1.79 service fee + 2.9% processing to the attendee's bill by default." },
-  { feature: "Direct Stripe payouts (you control the money)", ye: true, eb: false, note: "Eventbrite holds funds until after the event." },
+  { feature: "Earn fast daily payouts with a clean track record", ye: true, eb: false, note: "Eventbrite holds every organizer's funds until after the event, always — there's no way to earn faster payouts. On YourEvents, established organizers graduate to daily payouts." },
   { feature: "Vendor application & booth payment flow", ye: true, eb: false, note: "Built-in vendor sign-up, organizer review, and Stripe payment-link checkout." },
   { feature: "Refund-request flow with platform-fee handling", ye: true, eb: "Limited", note: "Attendee can request, organizer approves/denies, fee reverses proportionally." },
   { feature: "No per-event purchase needed for first events", ye: true, eb: false, note: "Free tier with 50 attendees/event built in." },

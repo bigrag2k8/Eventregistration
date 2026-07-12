@@ -12,7 +12,7 @@ import {
   parseOverrides,
   effectivePlan,
 } from "@/lib/plans";
-import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction, setOrgPassProcessingFeeAction } from "./actions";
+import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction, setOrgPassProcessingFeeAction, setOrgFastPayoutsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -274,6 +274,31 @@ export default async function AdminOrgPage({
           <div className="mt-4">
             <button type="submit" className="btn-primary">Save</button>
           </div>
+        </form>
+
+        {/* Payout speed — held until after each event (new orgs), or fast/daily? */}
+        <form action={setOrgFastPayoutsAction} className="card">
+          <input type="hidden" name="orgId" value={org.id} />
+          <h2 className="text-lg font-semibold">Payout speed</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            New organizers are <strong>held</strong>: ticket funds stay in Stripe and are released
+            1 day after each event ends — so the platform can refund attendees if an event is
+            cancelled. Orgs auto-graduate to fast (daily) payouts after 5 clean events, or you can
+            enable it here manually for a trusted org.
+          </p>
+          <p className="mt-3 text-sm">
+            Current:{" "}
+            {org.fastPayoutsEnabled ? (
+              <span className="font-semibold text-emerald-700">Fast — daily payouts</span>
+            ) : (
+              <span className="font-semibold text-amber-700">Held — released after each event</span>
+            )}
+          </p>
+          {!org.fastPayoutsEnabled && (
+            <div className="mt-4">
+              <button type="submit" className="btn-primary">Enable fast payouts</button>
+            </div>
+          )}
         </form>
 
         <DeleteOrgCard

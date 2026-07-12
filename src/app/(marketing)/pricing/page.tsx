@@ -116,7 +116,13 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <p className="mt-8 text-center text-sm text-slate-500">
+        <p className="mt-8 text-center text-sm text-slate-600">
+          <span className="font-medium text-slate-800">Buyer protection built in:</span>{" "}
+          attendee funds are protected until your event happens — if an event is cancelled,
+          refunds are guaranteed.
+        </p>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
           Curious how this stacks up against Eventbrite?{" "}
           <Link href="/compare" className="font-medium text-brand-700 hover:underline">
             See the side-by-side comparison

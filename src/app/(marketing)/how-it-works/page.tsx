@@ -16,7 +16,7 @@ const PREREQS = [
   },
   {
     title: "Connect Stripe to get paid",
-    body: "From your dashboard, link a Stripe Connect account. This takes 5-10 minutes (Stripe verifies your identity and bank account). Payouts from every paid ticket and vendor booth go directly to your own bank — we never hold your money.",
+    body: "From your dashboard, link a Stripe Connect account. This takes 5-10 minutes (Stripe verifies your identity and bank account). Every paid ticket and vendor booth settles into your own Stripe account, and payouts land in your own bank.",
     cta: { label: "Why Stripe?", href: "/security" },
   },
 ];
@@ -47,7 +47,7 @@ const STEPS = [
   {
     n: "5",
     title: "Get paid",
-    body: "Payouts land in the Stripe-linked bank account on Stripe's normal schedule (usually 2 business days). Track gross sales, our 5% platform fee, refunds, and net payout from the financials dashboard. Issue refunds with one click — we reverse the platform fee proportionally.",
+    body: "New organizers' funds are released to their bank the day after each event — buyer protection that guarantees refunds if an event is cancelled. Established organizers get fast daily payouts. Track gross sales, our 5% platform fee, refunds, and net payout from the financials dashboard, and issue refunds with one click.",
   },
 ];
 

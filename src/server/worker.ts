@@ -11,6 +11,7 @@ import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
 import { sendReminderEmail, sendWaitlistPromotionEmail } from "@/lib/email";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
+import { audit } from "@/lib/audit";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -127,6 +128,82 @@ async function purgeAbandonedCarts() {
   }
 }
 
+// ── Phase 0 payout holds ────────────────────────────────────────────────────
+// New organizers are onboarded with "manual" Stripe payouts, so their ticket
+// money is HELD in Stripe. This job releases each event's net to the organizer
+// 1 day after the event ends, and graduates an org to fast (daily) payouts once
+// it has 5 clean released events with no lost disputes. See docs/Payout-Hold-Phase0.md.
+const RELEASE_HOLD_DAYS = 1;
+const CLEAN_EVENTS_TO_GRADUATE = 5;
+
+async function releaseEventPayouts() {
+  const cutoff = new Date(Date.now() - RELEASE_HOLD_DAYS * ONE_DAY);
+  const events = await prisma.event.findMany({
+    where: {
+      payoutReleasedAt: null,
+      deletedAt: null,
+      status: { not: "CANCELLED" },
+      endAt: { lt: cutoff },
+      organization: { fastPayoutsEnabled: false, stripeAccountId: { not: null } },
+    },
+    include: { organization: { select: { id: true, stripeAccountId: true } } },
+    take: 100,
+  });
+
+  for (const e of events) {
+    const acct = e.organization.stripeAccountId!;
+    // Net owed to the organizer for THIS event: paid ticket money − our fee − refunds.
+    const pays = await prisma.payment.findMany({
+      where: { status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] }, registration: { eventId: e.id } },
+      select: { amountCents: true, platformFeeCents: true, refundedAmountCents: true },
+    });
+    const net = pays.reduce((n, p) => n + (p.amountCents - p.platformFeeCents - p.refundedAmountCents), 0);
+
+    if (net <= 0) {
+      // Free / fully-refunded event — nothing to send; mark done so we stop scanning it.
+      await prisma.event.update({ where: { id: e.id }, data: { payoutReleasedAt: new Date() } });
+      continue;
+    }
+
+    // Only release once the connected account's USD balance has fully settled to
+    // cover the net (card funds settle ~2 business days after each charge). If it
+    // hasn't, leave payoutReleasedAt null and retry next tick — never partial-pay.
+    const bal = await stripe.balance.retrieve({}, { stripeAccount: acct });
+    const available = bal.available.find((b) => b.currency === "usd")?.amount ?? 0;
+    if (available < net) continue;
+
+    await stripe.payouts.create({ amount: net, currency: "usd" }, { stripeAccount: acct });
+    await prisma.event.update({ where: { id: e.id }, data: { payoutReleasedAt: new Date() } });
+    await audit({
+      organizationId: e.organization.id, eventId: e.id,
+      action: "payout.released", targetType: "Event", targetId: e.id,
+      metadata: { amountCents: net, stripeAccountId: acct },
+    });
+
+    await maybeGraduateOrg(e.organization.id, acct);
+  }
+}
+
+// Flip an org to fast (daily) payouts once it has 5 clean released events and no
+// lost disputes. Idempotent — skips if already fast.
+async function maybeGraduateOrg(orgId: string, acct: string) {
+  const [cleanReleased, lostDisputes, org] = await Promise.all([
+    prisma.event.count({ where: { organizationId: orgId, payoutReleasedAt: { not: null }, status: { not: "CANCELLED" }, deletedAt: null } }),
+    prisma.dispute.count({ where: { organizationId: orgId, status: "lost" } }),
+    prisma.organization.findUnique({ where: { id: orgId }, select: { fastPayoutsEnabled: true } }),
+  ]);
+  if (!org || org.fastPayoutsEnabled) return;                       // already fast
+  if (cleanReleased < CLEAN_EVENTS_TO_GRADUATE || lostDisputes > 0) return;
+
+  await stripe.accounts.update(acct, { settings: { payouts: { schedule: { interval: "daily" } } } });
+  await prisma.organization.update({ where: { id: orgId }, data: { fastPayoutsEnabled: true } });
+  await audit({
+    organizationId: orgId, action: "payout.auto_graduated",
+    targetType: "Organization", targetId: orgId,
+    metadata: { cleanReleasedEvents: cleanReleased, trigger: `${CLEAN_EVENTS_TO_GRADUATE}_clean_events` },
+  });
+}
+
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
 const LOCK_KEY = "worker:tick:lock";
 const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
@@ -156,6 +233,7 @@ async function tick() {
   try { await sendReminders(); } catch (e) { console.error("[worker] sendReminders error", e); Sentry.captureException(e, { tags: { job: "sendReminders" } }); }
   try { await promoteWaitlist(); } catch (e) { console.error("[worker] promoteWaitlist error", e); Sentry.captureException(e, { tags: { job: "promoteWaitlist" } }); }
   try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); Sentry.captureException(e, { tags: { job: "purgeAbandonedCarts" } }); }
+  try { await releaseEventPayouts(); } catch (e) { console.error("[worker] releaseEventPayouts error", e); Sentry.captureException(e, { tags: { job: "releaseEventPayouts" } }); }
 }
 
 console.log("Your Events App worker started");
