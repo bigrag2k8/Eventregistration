@@ -42,6 +42,14 @@ export async function publishAction(formData: FormData) {
 export async function unpublishAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);
+  // Escape hatch only while nobody's affected: once anyone has a confirmed
+  // registration, a live event can't quietly go back to draft (which would strand
+  // ticketholders with an invisible event). The exits become Reschedule (keep
+  // everyone) or Cancel (refund everyone).
+  const confirmedRegs = await prisma.registration.count({
+    where: { eventId: event.id, status: "CONFIRMED" },
+  });
+  if (confirmedRegs > 0) redirect(`/dashboard/events/${event.id}?error=unpublish_has_registrations`);
   await prisma.event.update({ where: { id: event.id }, data: { status: "DRAFT" } });
   await audit({
     organizationId: event.organizationId, eventId: event.id, userId: session.sub,
@@ -145,6 +153,50 @@ export async function cancelEventAction(formData: FormData) {
   redirect(`/dashboard/events/${event.id}?cancelled=1`);
 }
 
+/**
+ * Reschedule a LIVE event to a new date/time — the ONLY sanctioned way to change
+ * the date after publish (updateBasicsAction locks dates once published). Updates
+ * the schedule, re-publishes if a rained-out event had lapsed past its end time,
+ * clears reminder logs so 30d/7d/1d/1h re-fire for the new date, and stamps
+ * rescheduledAt so the worker reissues tickets + emails every attendee (with a
+ * refund option). Async so a big event can't time out the request.
+ */
+export async function rescheduleEventAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const { session, event } = await authorizeEvent(eventId);
+  if (event.status === "CANCELLED") redirect(`/dashboard/events/${event.id}?error=cannot_reschedule_cancelled`);
+
+  const tz = event.timezone;
+  const startRaw = String(formData.get("startAt") ?? "");
+  const endRaw = String(formData.get("endAt") ?? "");
+  if (!startRaw || !endRaw) redirect(`/dashboard/events/${event.id}?error=reschedule_dates_required`);
+  const startAt = fromZonedTime(startRaw, tz);
+  const endAt = fromZonedTime(endRaw, tz);
+  if (endAt <= startAt) redirect(`/dashboard/events/${event.id}?error=date_order`);
+
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { startAt, endAt, status: "PUBLISHED", rescheduledAt: new Date() },
+  });
+
+  // Reminders were keyed to the OLD date — clear them so the worker re-sends
+  // 30d/7d/1d/1h for the new date (its dedup would otherwise skip them).
+  await prisma.emailLog.deleteMany({
+    where: {
+      registration: { eventId: event.id },
+      kind: { in: ["REMINDER_30D", "REMINDER_7D", "REMINDER_1D", "REMINDER_1H"] },
+    },
+  });
+
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "event.reschedule", targetType: "Event", targetId: event.id,
+    metadata: { name: event.name, from: event.startAt.toISOString(), to: startAt.toISOString() },
+  });
+  // The worker (processRescheduledEvents) reissues tickets + emails attendees.
+  redirect(`/dashboard/events/${event.id}?rescheduled=1`);
+}
+
 export async function deleteAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);
@@ -186,9 +238,13 @@ export async function updateBasicsAction(formData: FormData) {
   const data = parsed.data;
   // Wall-clock input is interpreted in the event's timezone (form value, or
   // the existing one if the form didn't send it), then stored as a UTC instant.
-  const tz = data.timezone || event.timezone;
-  const startAt = fromZonedTime(data.startAt, tz);
-  const endAt = fromZonedTime(data.endAt, tz);
+  // Dates lock once the event is published — they can change ONLY through the
+  // Reschedule flow (which notifies attendees + reissues tickets). For a live
+  // event, ignore any date/timezone the form sends and keep the existing schedule.
+  const isDraft = event.status === "DRAFT";
+  const tz = isDraft ? (data.timezone || event.timezone) : event.timezone;
+  const startAt = isDraft ? fromZonedTime(data.startAt, tz) : event.startAt;
+  const endAt = isDraft ? fromZonedTime(data.endAt, tz) : event.endAt;
   // Friendly inline error instead of a server-side exception page
   if (endAt <= startAt) {
     redirect(`/dashboard/events/${event.id}?error=date_order`);

@@ -147,6 +147,82 @@ export async function sendEventCancelledEmail(registrationId: string, refunded: 
   });
 }
 
+/**
+ * Notify an attendee that the event date changed. Their ticket stays valid — the
+ * freshly reissued QR is attached (the worker calls reissueTickets first) — and we
+ * offer a refund for anyone who can't make the new date. Sent by the worker's
+ * processRescheduledEvents job; logged as CONFIRMATION (a re-confirm w/ new date).
+ */
+export async function sendEventRescheduledEmail(registrationId: string) {
+  const reg = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { event: { include: { location: true, organization: true } }, tickets: true },
+  });
+  if (!reg) return;
+
+  const e: any = reg.event;
+  const org: any = e.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor)) ? org.brandColor : "#1F3A8A";
+  const orgName = esc(org.name ?? "");
+  const logo = org.logoUrl
+    ? `<img src="${esc(org.logoUrl)}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    : "";
+  const when = formatInTimeZone(e.startAt, e.timezone, "EEEE, MMMM d 'at' h:mm a zzz");
+  const loc = e.location ? esc(`${e.location.venueName ?? ""} ${e.location.addressLine1 ?? ""}, ${e.location.city ?? ""}`) : "";
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
+  const refundUrl = `${base}/o/${esc(org.slug)}/events/${esc(e.slug)}/refund-request`;
+
+  const qrAttachments = await Promise.all(
+    reg.tickets.map(async (t: any, i: number) => ({
+      filename: `ticket-${i + 1}.png`,
+      content: (await renderQrPngDataUrl(t.qrToken)).split(",")[1],
+      content_id: `ticket-${i + 1}`,
+    })),
+  );
+
+  const subject = `New date: ${e.name}`;
+  const html = `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      ${logo}
+      <h1 style="margin:0 0 8px;color:${brand}">The date has changed 📅</h1>
+      <p style="color:#475569">Hi ${esc(reg.firstName)}, <strong>${esc(e.name)}</strong> has been rescheduled. Your registration is still valid — nothing to do.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border:1px solid #e2e8f0;border-radius:8px">
+        <tr><td style="padding:16px">
+          <div style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.05em">New date</div>
+          <strong style="font-size:18px;color:${brand}">📅 ${when}</strong><br>
+          ${loc ? `<span style="color:#475569">📍 ${loc}</span>` : ""}
+        </td></tr>
+      </table>
+      ${reg.tickets.length ? `<p style="color:#475569;margin-top:16px">Your updated ticket${reg.tickets.length > 1 ? "s are" : " is"} attached — scan the QR at the door as usual.</p>` : ""}
+      <p style="color:#475569;margin-top:16px">Can&rsquo;t make the new date? <a href="${refundUrl}" style="color:${brand};font-weight:600">Request a full refund</a>.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Questions? Just reply to this email to reach the organizer.</p>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const result = await resend().emails.send({
+    from: buildFrom(org),
+    to: reg.email,
+    subject,
+    html,
+    attachments: qrAttachments,
+  });
+
+  await prisma.emailLog.create({
+    data: {
+      registrationId: reg.id,
+      toEmail: reg.email,
+      kind: "CONFIRMATION",
+      subject,
+      status: result.data?.id ? "SENT" : "FAILED",
+      providerId: result.data?.id ?? null,
+      sentAt: new Date(),
+    },
+  });
+}
+
 function renderConfirmation(reg: any) {
   const e = reg.event;
   const org = e.organization ?? {};

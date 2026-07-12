@@ -9,9 +9,9 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
-import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail } from "@/lib/email";
+import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail, sendEventRescheduledEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
-import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
+import { issueTickets, releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -350,6 +350,44 @@ async function refundCancelledEvents() {
   }
 }
 
+// ── Reschedule notifications ─────────────────────────────────────────────────
+// After an organizer reschedules a live event, reissue every attendee's ticket
+// (fresh QR expiry for the — possibly later — new date) and email them the new
+// date + a refund option. Per-attendee dedup: process a registration whose
+// rescheduleNotifiedAt is null or older than the event's rescheduledAt, so a
+// SECOND reschedule re-notifies everyone. Async so a big event can't block the
+// request.
+async function processRescheduledEvents() {
+  const events = await prisma.event.findMany({
+    where: { rescheduledAt: { not: null }, deletedAt: null, status: "PUBLISHED" },
+    select: { id: true, rescheduledAt: true },
+    take: 20,
+  });
+  for (const e of events) {
+    const regs = await prisma.registration.findMany({
+      where: {
+        eventId: e.id,
+        status: "CONFIRMED",
+        OR: [{ rescheduleNotifiedAt: null }, { rescheduleNotifiedAt: { lt: e.rescheduledAt! } }],
+      },
+      select: { id: true },
+      take: 50,
+    });
+    for (const reg of regs) {
+      try {
+        await reissueTickets(reg.id).catch((err: any) =>
+          console.error(`[worker] reschedule reissue failed for reg ${reg.id}:`, err?.message),
+        );
+        await sendEventRescheduledEmail(reg.id);
+        await prisma.registration.update({ where: { id: reg.id }, data: { rescheduleNotifiedAt: new Date() } });
+      } catch (err) {
+        console.error(`[worker] processRescheduledEvents reg ${reg.id} error`, err);
+        Sentry.captureException(err, { tags: { job: "processRescheduledEvents" } });
+      }
+    }
+  }
+}
+
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
 const LOCK_KEY = "worker:tick:lock";
 const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
@@ -381,6 +419,7 @@ async function tick() {
   try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); Sentry.captureException(e, { tags: { job: "purgeAbandonedCarts" } }); }
   try { await releaseEventPayouts(); } catch (e) { console.error("[worker] releaseEventPayouts error", e); Sentry.captureException(e, { tags: { job: "releaseEventPayouts" } }); }
   try { await refundCancelledEvents(); } catch (e) { console.error("[worker] refundCancelledEvents error", e); Sentry.captureException(e, { tags: { job: "refundCancelledEvents" } }); }
+  try { await processRescheduledEvents(); } catch (e) { console.error("[worker] processRescheduledEvents error", e); Sentry.captureException(e, { tags: { job: "processRescheduledEvents" } }); }
 }
 
 console.log("Your Events App worker started");

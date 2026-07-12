@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
-import { publishAction, unpublishAction, cancelEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
+import { publishAction, unpublishAction, cancelEventAction, rescheduleEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
 import { EventLocationFields } from "@/components/EventLocationFields";
@@ -23,7 +23,7 @@ const TIMEZONES = [
   "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "UTC",
 ];
 
-export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string; upgraded?: string } }) {
+export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string; upgraded?: string; rescheduled?: string; cancelled?: string } }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
 
   const event = await prisma.event.findFirst({
@@ -66,6 +66,11 @@ export default async function EventManagePage({ params, searchParams }: { params
   const org = await prisma.organization.findUnique({ where: { id: event.organizationId } });
   const publicUrl = `/o/${org?.slug ?? "_"}/events/${event.slug}`;
   const isPublished = event.status === "PUBLISHED";
+  // Drives the unpublish escape-hatch (allowed only with zero registrations) and
+  // is why dates lock + reschedule exists once a live event has ticketholders.
+  const confirmedRegs = await prisma.registration.count({
+    where: { eventId: event.id, status: "CONFIRMED" },
+  });
 
   // Uniform action-grid box styles: same fixed height/width so the row of
   // event actions reads as a tidy grid instead of squished pills.
@@ -185,10 +190,14 @@ export default async function EventManagePage({ params, searchParams }: { params
           {/* Uniform action grid — equal-size boxes, two rows on wide screens. */}
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {isPublished ? (
-              <form action={unpublishAction} className="contents">
-                <input type="hidden" name="eventId" value={event.id} />
-                <button type="submit" className={actionBox}>Unpublish</button>
-              </form>
+              confirmedRegs === 0 ? (
+                <form action={unpublishAction} className="contents">
+                  <input type="hidden" name="eventId" value={event.id} />
+                  <button type="submit" className={actionBox}>Unpublish</button>
+                </form>
+              ) : (
+                <span className={actionBoxDisabled} title="This event has registrations — reschedule or cancel it instead of taking it offline.">Unpublish</span>
+              )
             ) : (
               <form action={publishAction} className="contents">
                 <input type="hidden" name="eventId" value={event.id} />
@@ -221,10 +230,45 @@ export default async function EventManagePage({ params, searchParams }: { params
           </div>
         </section>
 
+        {/* Reschedule — the only way to change dates on a live event. */}
+        {isPublished && event.status !== "CANCELLED" && (
+          <section className="card border-amber-200 ring-amber-100">
+            <h2 className="text-lg font-semibold text-amber-800">Reschedule event</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Weather, venue changes — pick a new date/time. Every attendee is emailed the new
+              date with an updated ticket, and anyone who can&rsquo;t make it can request a full
+              refund. This is the only way to move the date once an event is live.
+            </p>
+            <form action={rescheduleEventAction} className="mt-4 grid gap-4 sm:grid-cols-2">
+              <input type="hidden" name="eventId" value={event.id} />
+              <div>
+                <label className="label">New start</label>
+                <input name="startAt" type="datetime-local" required defaultValue={formatInTimeZone(event.startAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className="input" />
+              </div>
+              <div>
+                <label className="label">New end</label>
+                <input name="endAt" type="datetime-local" required defaultValue={formatInTimeZone(event.endAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className="input" />
+              </div>
+              <div className="sm:col-span-2">
+                <ConfirmButton
+                  label="Reschedule & notify attendees"
+                  confirmText={`Reschedule "${event.name}" to the new date? Every attendee will be emailed the new date and given the option to request a full refund.`}
+                  className="btn-secondary text-amber-800 hover:bg-amber-50"
+                />
+              </div>
+            </form>
+          </section>
+        )}
+
         {/* Saved toast (shown after updateBasicsAction redirects back with ?saved=1) */}
         {searchParams?.saved && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Changes saved. Your public event page reflects them immediately.
+          </div>
+        )}
+        {searchParams?.rescheduled && (
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+            ✓ Rescheduled. Attendees are being emailed the new date with updated tickets and a refund option.
           </div>
         )}
         <ErrorBanner code={searchParams?.error} />
@@ -248,11 +292,14 @@ export default async function EventManagePage({ params, searchParams }: { params
             </div>
             <div>
               <label className="label">Start</label>
-              <input name="startAt" type="datetime-local" required defaultValue={formatInTimeZone(event.startAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className="input" />
+              <input name="startAt" type="datetime-local" required readOnly={isPublished} defaultValue={formatInTimeZone(event.startAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className={`input ${isPublished ? "bg-slate-50 text-slate-500" : ""}`} />
+              {isPublished && (
+                <p className="mt-1 text-xs text-slate-500">Locked once live — use <span className="font-medium">Reschedule event</span> below to change the date.</p>
+              )}
             </div>
             <div>
               <label className="label">End</label>
-              <input name="endAt" type="datetime-local" required defaultValue={formatInTimeZone(event.endAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className="input" />
+              <input name="endAt" type="datetime-local" required readOnly={isPublished} defaultValue={formatInTimeZone(event.endAt, event.timezone, "yyyy-MM-dd'T'HH:mm")} className={`input ${isPublished ? "bg-slate-50 text-slate-500" : ""}`} />
             </div>
             <div className="sm:col-span-2">
               <label className="label">Timezone</label>

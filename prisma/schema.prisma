@@ -342,6 +342,10 @@ model Event {
   /// and the worker auto-refunds every paid attendee/vendor and emails them.
   cancelledAt        DateTime?
   cancelReason       String?     @db.Text
+  /// Set by rescheduleEventAction each time the date moves on a LIVE event. The
+  /// worker then reissues tickets + emails every attendee the new date; dedup is
+  /// per-registration via Registration.rescheduleNotifiedAt.
+  rescheduledAt      DateTime?
   maxPerOrder        Int?        @default(10)
   refundPolicy       String?     @db.Text
   cancellationPolicy String?     @db.Text
@@ -546,6 +550,10 @@ model Registration {
   confirmedAt       DateTime?
   cancelledAt       DateTime?
   cancelReason      String?
+  /// Last time this attendee was emailed about a reschedule. The worker re-notifies
+  /// when this is null or older than the event's rescheduledAt (so a second
+  /// reschedule re-emails everyone).
+  rescheduleNotifiedAt DateTime?
 
   stripeSessionId   String?
   stripePaymentIntentId String?

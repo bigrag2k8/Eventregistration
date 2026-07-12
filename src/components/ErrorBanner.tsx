@@ -41,6 +41,10 @@ const MESSAGES: Record<string, string> = {
   last_organizer: "You can't demote the last organizer. Promote someone else first.",
   email_in_use: "That email is already in use by another account.",
   not_found: "That record could not be found.",
+  unpublish_has_registrations: "This event has registrations, so it can't go back to draft. Reschedule it, or Cancel it (which refunds attendees), instead.",
+  cannot_reschedule_cancelled: "A cancelled event can't be rescheduled.",
+  reschedule_dates_required: "Pick a new start and end date/time to reschedule.",
+  already_cancelled: "This event is already cancelled.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {
