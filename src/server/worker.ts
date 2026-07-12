@@ -165,19 +165,29 @@ async function releaseEventPayouts() {
       continue;
     }
 
-    // Only release once the connected account's USD balance has fully settled to
-    // cover the net (card funds settle ~2 business days after each charge). If it
-    // hasn't, leave payoutReleasedAt null and retry next tick — never partial-pay.
+    // Normally release only once the connected account's USD balance fully covers
+    // the net (card funds settle ~2 business days after each charge) — never
+    // partial-pay early. BUT an org demoted from fast→held mid-event already
+    // banked part of its net via the old daily payouts, so its balance can never
+    // reach the full net. After a 5-day grace past event end, release whatever is
+    // available (up to net) and mark the event settled so it doesn't retry forever.
     const bal = await stripe.balance.retrieve({}, { stripeAccount: acct });
     const available = bal.available.find((b) => b.currency === "usd")?.amount ?? 0;
-    if (available < net) continue;
+    const graceOver = Date.now() - e.endAt.getTime() > 5 * ONE_DAY;
+    let amount = net;
+    if (available < net) {
+      if (!graceOver) continue; // still settling — retry next tick
+      amount = Math.min(net, available); // pre-hold funds were already banked
+    }
 
-    await stripe.payouts.create({ amount: net, currency: "usd" }, { stripeAccount: acct });
+    if (amount > 0) {
+      await stripe.payouts.create({ amount, currency: "usd" }, { stripeAccount: acct });
+    }
     await prisma.event.update({ where: { id: e.id }, data: { payoutReleasedAt: new Date() } });
     await audit({
       organizationId: e.organization.id, eventId: e.id,
       action: "payout.released", targetType: "Event", targetId: e.id,
-      metadata: { amountCents: net, stripeAccountId: acct },
+      metadata: { amountCents: amount, netCents: net, partial: amount < net, stripeAccountId: acct },
     });
 
     await maybeGraduateOrg(e.organization.id, acct);

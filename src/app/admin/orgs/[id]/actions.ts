@@ -403,3 +403,59 @@ export async function setOrgFastPayoutsAction(formData: FormData) {
 
   redirect(`/admin/orgs/${org.id}?saved=1`);
 }
+
+/**
+ * SUPERADMIN-only: the reverse of setOrgFastPayoutsAction — put an org back on
+ * HELD payouts. Flips fastPayoutsEnabled off and switches their Stripe payout
+ * schedule to "manual", so from this moment ticket funds accumulate in their
+ * Stripe balance and the worker releases them per-event after each event ends.
+ *
+ * Notes:
+ *  - Money already paid out to their bank (e.g. while they were on daily) cannot
+ *    be clawed back; the hold protects sales from now on.
+ *  - Events that already ended are stamped payoutReleasedAt so the worker doesn't
+ *    chase pre-hold history it can never reconcile.
+ */
+export async function setOrgHoldPayoutsAction(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.role !== "SUPERADMIN") throw new Error("Forbidden");
+
+  const orgId = String(formData.get("orgId") ?? "");
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org || org.deletedAt) redirect("/admin?error=org_not_found");
+  if (!org.fastPayoutsEnabled) redirect(`/admin/orgs/${org.id}?saved=1`); // already held
+
+  if (org.stripeAccountId) {
+    try {
+      await stripe.accounts.update(org.stripeAccountId, {
+        settings: { payouts: { schedule: { interval: "manual" } } },
+      });
+    } catch (e: any) {
+      console.error("[admin] hold-payouts stripe update failed:", e?.message);
+      redirect(`/admin/orgs/${org.id}?error=stripe_update_failed`);
+    }
+  }
+
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: { fastPayoutsEnabled: false },
+  });
+
+  // Housekeeping: pre-hold events that already ended were paid via the old daily
+  // schedule — mark them released so the worker only manages events from here on.
+  const stamped = await prisma.event.updateMany({
+    where: { organizationId: org.id, endAt: { lt: new Date() }, payoutReleasedAt: null },
+    data: { payoutReleasedAt: new Date() },
+  });
+
+  await audit({
+    organizationId: org.id,
+    userId: session.sub,
+    action: "payout.hold_enabled",
+    targetType: "Organization",
+    targetId: org.id,
+    metadata: { by: session.email, priorEventsStamped: stamped.count },
+  });
+
+  redirect(`/admin/orgs/${org.id}?saved=1`);
+}

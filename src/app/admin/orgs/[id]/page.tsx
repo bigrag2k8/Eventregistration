@@ -12,7 +12,7 @@ import {
   parseOverrides,
   effectivePlan,
 } from "@/lib/plans";
-import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction, setOrgPassProcessingFeeAction, setOrgFastPayoutsAction } from "./actions";
+import { editOrgSubscriptionAction, resetConnectAction, resyncSubscriptionAction, deleteOrgAction, setOrgPassProcessingFeeAction, setOrgFastPayoutsAction, setOrgHoldPayoutsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -277,14 +277,13 @@ export default async function AdminOrgPage({
         </form>
 
         {/* Payout speed — held until after each event (new orgs), or fast/daily? */}
-        <form action={setOrgFastPayoutsAction} className="card">
-          <input type="hidden" name="orgId" value={org.id} />
+        <div className="card">
           <h2 className="text-lg font-semibold">Payout speed</h2>
           <p className="mt-1 text-sm text-slate-500">
             New organizers are <strong>held</strong>: ticket funds stay in Stripe and are released
             1 day after each event ends — so the platform can refund attendees if an event is
             cancelled. Orgs auto-graduate to fast (daily) payouts after 5 clean events, or you can
-            enable it here manually for a trusted org.
+            switch them manually here.
           </p>
           <p className="mt-3 text-sm">
             Current:{" "}
@@ -294,12 +293,22 @@ export default async function AdminOrgPage({
               <span className="font-semibold text-amber-700">Held — released after each event</span>
             )}
           </p>
-          {!org.fastPayoutsEnabled && (
-            <div className="mt-4">
+          {org.fastPayoutsEnabled ? (
+            <form action={setOrgHoldPayoutsAction} className="mt-4">
+              <input type="hidden" name="orgId" value={org.id} />
+              <ConfirmButton
+                label="Hold payouts"
+                confirmText={`Put ${org.name} back on HELD payouts? Their Stripe payout schedule switches to manual: ticket money from now on stays in Stripe and is released 1 day after each event ends. Funds already paid to their bank are not affected. Events that already ended are marked settled.`}
+                className="btn-secondary"
+              />
+            </form>
+          ) : (
+            <form action={setOrgFastPayoutsAction} className="mt-4">
+              <input type="hidden" name="orgId" value={org.id} />
               <button type="submit" className="btn-primary">Enable fast payouts</button>
-            </div>
+            </form>
           )}
-        </form>
+        </div>
 
         <DeleteOrgCard
           orgId={org.id}
