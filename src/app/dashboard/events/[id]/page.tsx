@@ -480,13 +480,13 @@ export default async function EventManagePage({ params, searchParams }: { params
           {/* Cancel — refunds everyone, keeps the page visible as "cancelled". */}
           {event.status === "CANCELLED" ? (
             <div className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800 ring-1 ring-rose-200">
-              This event is cancelled. Paid attendees are being refunded in full automatically.
+              This event is cancelled. Paid attendees and vendors are being refunded in full automatically.
             </div>
           ) : (
             <form action={cancelEventAction} className="mt-3 border-b border-red-100 pb-4">
               <p className="text-sm text-slate-600">
-                <strong>Cancel event.</strong> Every paid attendee is automatically refunded in
-                full (ticket price + fees) and emailed. The event page stays visible, marked
+                <strong>Cancel event.</strong> Every paid attendee and vendor is automatically
+                refunded in full (price + fees) and emailed. The event page stays visible, marked
                 &ldquo;cancelled.&rdquo; This can&rsquo;t be undone.
               </p>
               <input type="hidden" name="eventId" value={event.id} />
@@ -500,7 +500,7 @@ export default async function EventManagePage({ params, searchParams }: { params
               <div className="mt-2">
                 <ConfirmButton
                   label="Cancel event & refund attendees"
-                  confirmText={`Cancel "${event.name}"? Every paid attendee will be refunded in full and emailed. This can't be undone.`}
+                  confirmText={`Cancel "${event.name}"? Every paid attendee and vendor will be refunded in full and emailed. This can't be undone.`}
                   className="btn-secondary text-red-700 hover:bg-red-50"
                 />
               </div>

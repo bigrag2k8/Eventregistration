@@ -242,6 +242,60 @@ async function refundCancelledEvents() {
     take: 20,
   });
   for (const e of events) {
+    // Vendors first: a paid booth application's charge lives on its linked
+    // Registration, so refund that and flip BOTH the application and its
+    // registration to REFUNDED — which also removes it from the attendee loop
+    // below (no double refund). Same full-refund + idempotency approach.
+    const vendorApps = await prisma.vendorApplication.findMany({
+      where: { eventId: e.id, status: "PAID", registrationId: { not: null } },
+      take: 50,
+    });
+    for (const app of vendorApps) {
+      try {
+        const pay = await prisma.payment.findFirst({
+          where: { registrationId: app.registrationId!, status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] } },
+          orderBy: { createdAt: "desc" },
+        });
+        if (pay?.stripePaymentIntentId) {
+          try {
+            await stripe.refunds.create(
+              {
+                payment_intent: pay.stripePaymentIntentId,
+                reverse_transfer: true,
+                refund_application_fee: true,
+                metadata: { reason: "event_cancelled", vendorApplicationId: app.id, eventId: e.id },
+              },
+              { idempotencyKey: `evtcancel-vendor:${app.id}` },
+            );
+          } catch (err: any) {
+            if (err?.code !== "charge_already_refunded") {
+              console.error(`[worker] cancel vendor-refund failed for app ${app.id}:`, err?.message);
+              Sentry.captureException(err, { tags: { job: "refundCancelledEvents" }, extra: { vendorAppId: app.id } });
+              continue;
+            }
+          }
+        }
+        await prisma.vendorApplication.update({ where: { id: app.id }, data: { status: "REFUNDED" } });
+        await prisma.registration.update({
+          where: { id: app.registrationId! },
+          data: { status: "REFUNDED", cancelReason: "event_cancelled" },
+        }).catch(() => {});
+        try {
+          await sendEventCancelledEmail(app.registrationId!, !!pay);
+        } catch (e2: any) {
+          console.error(`[worker] cancel vendor email failed for app ${app.id}:`, e2?.message);
+        }
+        await audit({
+          organizationId: e.organizationId, eventId: e.id,
+          action: "event_cancel.vendor_refund", targetType: "VendorApplication", targetId: app.id,
+          metadata: { company: app.companyName, email: app.email, refunded: !!pay },
+        });
+      } catch (err) {
+        console.error(`[worker] refundCancelledEvents vendor ${app.id} error`, err);
+        Sentry.captureException(err, { tags: { job: "refundCancelledEvents" } });
+      }
+    }
+
     const regs = await prisma.registration.findMany({
       where: { eventId: e.id, status: "CONFIRMED" },
       include: { payments: { where: { status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] } }, take: 1 } },
