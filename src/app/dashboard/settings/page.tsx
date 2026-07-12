@@ -8,6 +8,7 @@ import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
 import { updateOrgSettingsAction } from "./actions";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { MfaSetup } from "@/components/MfaSetup";
+import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { AddressFields } from "@/components/AddressFields";
 
 export const dynamic = "force-dynamic";
@@ -72,26 +73,26 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
             Make your public pages and emails look like your organization, not ours.
           </p>
           <div className="mt-4 grid gap-4">
-            <div>
-              <label className="label">Logo URL</label>
-              <input name="logoUrl" type="url" defaultValue={org.logoUrl ?? ""} className="input"
-                     placeholder="https://yourorg.com/logo.png" />
-              <p className="mt-1 text-xs text-slate-500">
-                Square or wide logo on a transparent or white background works best. Host it anywhere with a public URL (your website, Imgur, Cloudinary, etc.).
-              </p>
-              {org.logoUrl && (
-                <div className="mt-2 inline-block rounded-lg bg-slate-50 p-2 ring-1 ring-slate-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={org.logoUrl} alt="Current logo" className="h-12 max-w-[200px] object-contain" />
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="label">Banner image URL (optional)</label>
-              <input name="bannerUrl" type="url" defaultValue={org.bannerUrl ?? ""} className="input"
-                     placeholder="https://yourorg.com/hero.jpg" />
-              <p className="mt-1 text-xs text-slate-500">Wide banner shown at the top of your public page. ~1600×400 looks best.</p>
-            </div>
+            <ImageUploadInput
+              name="logoUrl"
+              defaultUrl={org.logoUrl}
+              label="Logo"
+              aspect="3 / 1"
+              previewFit="contain"
+              folder="eventflow/logos"
+              placeholder="https://yourorg.com/logo.png"
+              hint="Square or wide logo on a transparent or white background works best. Upload a file, or paste a public URL."
+            />
+            <ImageUploadInput
+              name="bannerUrl"
+              defaultUrl={org.bannerUrl}
+              label="Banner image (optional)"
+              aspect="16 / 6"
+              previewFit="cover"
+              folder="eventflow/org-banners"
+              placeholder="https://yourorg.com/hero.jpg"
+              hint="Wide banner shown at the top of your public page. ~1600×400 looks best."
+            />
             <div>
               <label className="label">Primary brand color (hex)</label>
               <div className="flex items-center gap-3">
