@@ -7,12 +7,21 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyReviewToken } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
-import { recomputeOrgRating, reviewAuthorName } from "@/server/reviews";
+import { recomputeOrgRating, recomputeEventRating, reviewAuthorName } from "@/server/reviews";
+
+// Optional sub-rating: empty string (skipped) → undefined; otherwise 1..5.
+const subRating = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : v),
+  z.coerce.number().int().min(1).max(5).optional(),
+);
 
 const schema = z.object({
   token: z.string().min(10),
   rating: z.coerce.number().int().min(1).max(5),
   comment: z.string().max(2000).optional(),
+  ratingVenue: subRating,
+  ratingValue: subRating,
+  ratingOrganization: subRating,
 });
 
 /**
@@ -25,7 +34,7 @@ const schema = z.object({
 export async function submitReviewAction(formData: FormData) {
   const parsed = schema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) redirect(`/review/${formData.get("token") ?? ""}?error=invalid`);
-  const { token, rating, comment } = parsed.data;
+  const { token, rating, comment, ratingVenue, ratingValue, ratingOrganization } = parsed.data;
 
   const claim = await verifyReviewToken(token);
   if (!claim) redirect(`/review/${token}?error=expired`);
@@ -51,12 +60,17 @@ export async function submitReviewAction(formData: FormData) {
   const authorName = reviewAuthorName(reg.firstName, reg.lastName);
   const cleanComment = comment?.trim() ? comment.trim() : null;
 
+  const subs = {
+    ratingVenue: ratingVenue ?? null,
+    ratingValue: ratingValue ?? null,
+    ratingOrganization: ratingOrganization ?? null,
+  };
   await prisma.review.upsert({
     where: { registrationId: reg.id },
     // Editing keeps the original createdAt; a re-submit re-publishes (a prior
     // hide is intentionally NOT auto-restored — only status stays as set by
     // moderation on create, PUBLISHED).
-    update: { rating, comment: cleanComment, attended },
+    update: { rating, comment: cleanComment, attended, ...subs },
     create: {
       registrationId: reg.id,
       eventId: reg.event.id,
@@ -65,10 +79,12 @@ export async function submitReviewAction(formData: FormData) {
       comment: cleanComment,
       authorName,
       attended,
+      ...subs,
     },
   });
 
   await recomputeOrgRating(reg.event.organizationId);
+  await recomputeEventRating(reg.event.id);
 
   const org = await prisma.organization.findUnique({
     where: { id: reg.event.organizationId },

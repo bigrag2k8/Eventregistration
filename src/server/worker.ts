@@ -12,6 +12,7 @@ import { redis } from "@/lib/rate-limit";
 import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail, sendEventRescheduledEmail, sendReviewRequestEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
 import { issueTickets, releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
+import { recomputeOrgReputation } from "@/server/reviews";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -426,6 +427,56 @@ async function inviteEventReviews() {
   }
 }
 
+// One follow-up nudge for attendees who were invited but never reviewed —
+// sent REVIEW_REMINDER_DELAY after the invite, exactly once (reviewRemindedAt,
+// claim-first like the invite). Skips anyone who already has a review.
+const REVIEW_REMINDER_DELAY_MS = 3 * ONE_DAY;
+
+async function remindEventReviews() {
+  const cutoff = new Date(Date.now() - REVIEW_REMINDER_DELAY_MS);
+  const regs = await prisma.registration.findMany({
+    where: {
+      status: "CONFIRMED",
+      reviewInvitedAt: { lt: cutoff },
+      reviewRemindedAt: null,
+      review: null,
+      event: { status: "PUBLISHED", deletedAt: null },
+    },
+    select: { id: true },
+    take: 200,
+  });
+  for (const r of regs) {
+    await prisma.registration.update({ where: { id: r.id }, data: { reviewRemindedAt: new Date() } });
+    try {
+      await sendReviewRequestEmail(r.id, { reminder: true });
+    } catch (e: any) {
+      console.error(`[worker] review reminder failed for reg ${r.id}:`, e?.message);
+      Sentry.captureException(e, { tags: { job: "remindEventReviews" }, extra: { regId: r.id } });
+    }
+  }
+}
+
+// Keep reputation scores fresh: reviews recompute inline on submit, but the
+// operational inputs (cancellations, disputes, payout graduation) move outside
+// the review flow. Sweep the stalest orgs each tick — at 50/tick every org
+// refreshes at least hourly up to ~600 orgs, far beyond current scale.
+async function recomputeReputationScores() {
+  const orgs = await prisma.organization.findMany({
+    where: { deletedAt: null, events: { some: { status: { in: ["PUBLISHED", "CANCELLED"] } } } },
+    select: { id: true },
+    orderBy: { updatedAt: "asc" },
+    take: 50,
+  });
+  for (const o of orgs) {
+    try {
+      await recomputeOrgReputation(o.id);
+    } catch (e: any) {
+      console.error(`[worker] reputation recompute failed for org ${o.id}:`, e?.message);
+      Sentry.captureException(e, { tags: { job: "recomputeReputationScores" }, extra: { orgId: o.id } });
+    }
+  }
+}
+
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
 const LOCK_KEY = "worker:tick:lock";
 const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
@@ -459,6 +510,8 @@ async function tick() {
   try { await refundCancelledEvents(); } catch (e) { console.error("[worker] refundCancelledEvents error", e); Sentry.captureException(e, { tags: { job: "refundCancelledEvents" } }); }
   try { await processRescheduledEvents(); } catch (e) { console.error("[worker] processRescheduledEvents error", e); Sentry.captureException(e, { tags: { job: "processRescheduledEvents" } }); }
   try { await inviteEventReviews(); } catch (e) { console.error("[worker] inviteEventReviews error", e); Sentry.captureException(e, { tags: { job: "inviteEventReviews" } }); }
+  try { await remindEventReviews(); } catch (e) { console.error("[worker] remindEventReviews error", e); Sentry.captureException(e, { tags: { job: "remindEventReviews" } }); }
+  try { await recomputeReputationScores(); } catch (e) { console.error("[worker] recomputeReputationScores error", e); Sentry.captureException(e, { tags: { job: "recomputeReputationScores" } }); }
 }
 
 console.log("Your Events App worker started");

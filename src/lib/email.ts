@@ -702,8 +702,12 @@ export async function sendRefundRequestDecisionEmail(
  *
  * Dedup is handled by the caller (reviewInvitedAt is stamped claim-first before
  * this runs), so a send failure here won't loop.
+ *
+ * opts.reminder = true sends the single follow-up variant (softer subject/copy);
+ * the worker sends at most one reminder per registration (reviewRemindedAt).
  */
-export async function sendReviewRequestEmail(registrationId: string) {
+export async function sendReviewRequestEmail(registrationId: string, opts?: { reminder?: boolean }) {
+  const reminder = opts?.reminder ?? false;
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: { event: { include: { organization: true } } },
@@ -729,14 +733,17 @@ export async function sendReviewRequestEmail(registrationId: string) {
     .map((n) => `<a href="${link(n)}" style="text-decoration:none;color:#EF9F27;font-size:34px;line-height:1;padding:0 3px" aria-label="${n} star${n > 1 ? "s" : ""}">&#9733;</a>`)
     .join("");
 
-  const subject = `How was ${e.name}?`;
+  const subject = reminder ? `Quick favor — how was ${e.name}?` : `How was ${e.name}?`;
+  const intro = reminder
+    ? `Hi ${esc(reg.firstName)}, just one gentle nudge — if you have two seconds, tap a star to rate <strong>${esc(e.name)}</strong>. This is the only reminder we&rsquo;ll send.`
+    : `Hi ${esc(reg.firstName)}, thanks for coming out on ${when}. Tap a star to rate it — it takes two seconds and helps other attendees find great organizers.`;
   const html = `
 <!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
   <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
     <tr><td>
       ${logo}
       <h1 style="margin:0 0 8px;color:${brand}">How was ${esc(e.name)}?</h1>
-      <p style="color:#475569">Hi ${esc(reg.firstName)}, thanks for coming out on ${when}. Tap a star to rate it — it takes two seconds and helps other attendees find great organizers.</p>
+      <p style="color:#475569">${intro}</p>
       <div style="text-align:center;margin:20px 0 8px">${stars}</div>
       <p style="text-align:center;margin:0 0 8px">
         <a href="${link(0)}" style="color:${brand};font-weight:bold;text-decoration:none">Write a review</a>

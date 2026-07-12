@@ -162,6 +162,11 @@ export default async function ReviewPage({
         token={params.token}
         initialRating={initialRating}
         initialComment={reg.review?.comment ?? ""}
+        initialSub={{
+          venue: reg.review?.ratingVenue ?? 0,
+          value: reg.review?.ratingValue ?? 0,
+          organization: reg.review?.ratingOrganization ?? 0,
+        }}
         editing={!!reg.review}
         brand={brand}
       />

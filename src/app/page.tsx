@@ -13,7 +13,13 @@ const EVENT_SELECT = {
   timezone: true, bannerUrl: true,
   location: { select: { venueName: true, city: true, state: true } },
   ticketTypes: { select: { priceCents: true } },
-  organization: { select: { name: true, slug: true } },
+  organization: {
+    select: {
+      name: true, slug: true,
+      // Host reputation, shown as a rating chip and used to bias Featured.
+      ratingAvg: true, reviewCount: true, reputationScore: true, fastPayoutsEnabled: true,
+    },
+  },
 } as const;
 
 export default async function HomePage({ searchParams }: { searchParams: { q?: string } }) {
@@ -56,13 +62,18 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
       },
       select: EVENT_SELECT,
     });
-    // Fisher–Yates shuffle, take first 3
-    const shuffled = [...candidates];
-    for (let i = shuffled.length - 1; i > 0; i--) {
+    // Reputation-biased featured selection: rank candidates by the host's
+    // reputation score (highest first), keep the top 12 as the pool — good
+    // organizers earn the homepage — then shuffle WITHIN that pool so the
+    // section still rotates on reload instead of pinning the same three.
+    const pool = [...candidates]
+      .sort((a, b) => Number(b.organization.reputationScore ?? 0) - Number(a.organization.reputationScore ?? 0))
+      .slice(0, 12);
+    for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    featured = shuffled.slice(0, 3);
+    featured = pool.slice(0, 3);
   }
 
   return (
@@ -183,7 +194,14 @@ function EventCard({ e }: { e: any }) {
         {formatDateRange(e.startAt, e.endAt, e.timezone)}
       </p>
       {place && <p className="mt-1 text-sm text-slate-500">{place}</p>}
-      <div className="mt-2 text-xs text-slate-400">by {e.organization.name}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+        <span>by {e.organization.name}</span>
+        {e.organization.reviewCount > 0 && e.organization.ratingAvg != null && (
+          <span className="text-slate-500">
+            <span style={{ color: "#EF9F27" }}>★</span> {Number(e.organization.ratingAvg).toFixed(1)}
+          </span>
+        )}
+      </div>
       <div className="mt-3 text-sm font-medium">
         {minPrice === 0 ? "Free" : `From $${(minPrice / 100).toFixed(2)}`}
       </div>

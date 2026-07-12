@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { recomputeOrgRating } from "@/server/reviews";
+import { recomputeOrgRating, recomputeEventRating } from "@/server/reviews";
 
 async function revalidateOrg(organizationId: string) {
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { slug: true } });
@@ -60,7 +60,7 @@ export async function setReviewStatusAction(formData: FormData) {
   if (!parsed.success) redirect("/dashboard/reviews?error=invalid");
   const { reviewId, op } = parsed.data;
 
-  const review = await prisma.review.findUnique({ where: { id: reviewId }, select: { organizationId: true } });
+  const review = await prisma.review.findUnique({ where: { id: reviewId }, select: { organizationId: true, eventId: true } });
   if (!review) redirect("/dashboard/reviews?error=notfound");
 
   await prisma.review.update({
@@ -68,6 +68,7 @@ export async function setReviewStatusAction(formData: FormData) {
     data: { status: op === "hide" ? "HIDDEN" : "PUBLISHED" },
   });
   await recomputeOrgRating(review.organizationId);
+  await recomputeEventRating(review.eventId);
   await audit({
     organizationId: review.organizationId, userId: session.sub,
     action: `review.${op}`, targetType: "Review", targetId: reviewId,

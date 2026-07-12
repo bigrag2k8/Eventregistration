@@ -182,6 +182,11 @@ model Organization {
   // heavy aggregate on every hit. reviewCount counts PUBLISHED reviews only.
   reviewCount       Int      @default(0)
   ratingAvg         Decimal? @db.Decimal(3, 2)
+  /// Fused 0–100 reputation score (see computeReputation in src/server/reviews.ts):
+  /// Bayesian-smoothed, recency-weighted attendee stars (70 pts) + operational
+  /// trust (30 pts: event completion rate, lost disputes, payout graduation).
+  /// Recomputed on review changes and by the worker. Null = not yet scored.
+  reputationScore   Decimal? @db.Decimal(5, 2)
   // Mailing address — captured during signup (required for new orgs); legacy
   // rows may be null until the owner completes it on /dashboard/settings.
   addressLine1 String?
@@ -396,6 +401,10 @@ model Event {
   vendorApplicationNotes    String? @db.Text // appears on the vendor form, e.g. "Booths are 10x10. Includes table + chairs."
   defaultVendorPriceCents   Int     @default(0) // default booth price; organizer can override per-vendor at approval time
   isPrivate                 Boolean @default(false)  // true = hidden from yourevents.app homepage & org public page; direct link still works
+  /// Cached per-event review aggregate (PUBLISHED reviews of this event only),
+  /// recomputed alongside the org aggregate — shown as stars on past-event cards.
+  reviewCount        Int         @default(0)
+  ratingAvg          Decimal?    @db.Decimal(3, 2)
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   publishedAt        DateTime?
@@ -581,6 +590,9 @@ model Registration {
   /// invites once per registration for ended events (claim-first: stamped before
   /// send so a crash/overlap can't double-invite).
   reviewInvitedAt   DateTime?
+  /// One follow-up nudge ~3 days after the invite for non-responders. Stamped
+  /// claim-first like the invite; exactly one reminder ever.
+  reviewRemindedAt  DateTime?
 
   stripeSessionId   String?
   stripePaymentIntentId String?
@@ -654,6 +666,12 @@ model Review {
   registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   rating         Int          // 1..5
+  /// Optional sub-ratings (1..5, null = not answered) collected on the review
+  /// form. Shown to the organizer as averages on /dashboard/reviews; the public
+  /// page surfaces only the overall rating.
+  ratingVenue        Int?
+  ratingValue        Int?
+  ratingOrganization Int?
   comment        String?      @db.Text
   /// Display name snapshot at submit time, e.g. "Denise R." (first name + last
   /// initial) — so we never expose the attendee's full name publicly.

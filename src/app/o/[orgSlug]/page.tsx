@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
+import { computeTrustTier, TIER_LABEL } from "@/server/reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -55,9 +56,10 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
   // Cached rating aggregate (recomputed on each review). null count → new org.
   const ratingAvg = org.ratingAvg != null ? Number(org.ratingAvg) : null;
   const reviewCount = org.reviewCount;
-  // "Verified organizer" reuses the payout-trust milestone: an org graduates to
-  // fast payouts only after 5 clean released events with no lost disputes.
-  const isVerified = org.fastPayoutsEnabled;
+  // Trust tier ladder (NEW/VERIFIED/TRUSTED/TOP_RATED) — derived from the cached
+  // reputation score + payout graduation. NEW renders no badge.
+  const tier = computeTrustTier(org);
+  const tierLabel = TIER_LABEL[tier];
 
   return (
     <main>
@@ -108,7 +110,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                 {org.name}
               </h1>
               {org.tagline && <p className="mt-1 text-white/90 drop-shadow">{org.tagline}</p>}
-              {(reviewCount > 0 || isVerified) && (
+              {(reviewCount > 0 || tierLabel) && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-white/95 drop-shadow">
                   {reviewCount > 0 && ratingAvg != null && (
                     <span className="inline-flex items-center gap-1.5 text-sm">
@@ -117,9 +119,9 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                       <span className="text-white/75">({reviewCount} review{reviewCount === 1 ? "" : "s"})</span>
                     </span>
                   )}
-                  {isVerified && (
+                  {tierLabel && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs ring-1 ring-white/25">
-                      ✓ Verified organizer
+                      {tier === "TOP_RATED" ? "🏆" : "✓"} {tierLabel}
                     </span>
                   )}
                 </div>
@@ -343,6 +345,13 @@ function EventCard({ e, orgSlug, ended = false }: { e: any; orgSlug: string; end
       <h3 className="mt-1 text-lg font-semibold">{e.name}</h3>
       <p className="mt-1 text-sm text-slate-600">{formatDateRange(e.startAt, e.endAt, e.timezone)}</p>
       {e.location && <p className="mt-1 text-sm text-slate-500">{e.location.venueName ?? e.location.city}</p>}
+      {e.reviewCount > 0 && e.ratingAvg != null && (
+        <p className="mt-1 text-sm">
+          <span style={{ color: "#EF9F27" }}>★</span>{" "}
+          <span className="font-medium">{Number(e.ratingAvg).toFixed(1)}</span>{" "}
+          <span className="text-slate-400">({e.reviewCount})</span>
+        </p>
+      )}
       {!ended && (
         <div className="mt-3 text-sm font-medium">{minPrice === 0 ? "Free" : `From $${(minPrice / 100).toFixed(2)}`}</div>
       )}
