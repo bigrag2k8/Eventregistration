@@ -134,6 +134,13 @@ async function purgeAbandonedCarts() {
 // 1 day after the event ends, and graduates an org to fast (daily) payouts once
 // it has 5 clean released events with no lost disputes. See docs/Payout-Hold-Phase0.md.
 const RELEASE_HOLD_DAYS = 1;
+// Fix #1 — absolute floor: a charge is never released sooner than this many days
+// after the customer actually paid, INDEPENDENT of endAt (which the organizer sets
+// and can edit). endAt alone is gameable — set a fake-early end date, sell tickets,
+// get paid a day later without running the event. Gating on the real charge date
+// (the actual chargeback clock) closes that hole. Charges only age, so this never
+// blocks a release forever.
+const MIN_CHARGE_HOLD_DAYS = 7;
 const CLEAN_EVENTS_TO_GRADUATE = 5;
 
 async function releaseEventPayouts() {
@@ -155,7 +162,7 @@ async function releaseEventPayouts() {
     // Net owed to the organizer for THIS event: paid ticket money − our fee − refunds.
     const pays = await prisma.payment.findMany({
       where: { status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] }, registration: { eventId: e.id } },
-      select: { amountCents: true, platformFeeCents: true, refundedAmountCents: true },
+      select: { amountCents: true, platformFeeCents: true, refundedAmountCents: true, createdAt: true },
     });
     const net = pays.reduce((n, p) => n + (p.amountCents - p.platformFeeCents - p.refundedAmountCents), 0);
 
@@ -164,6 +171,12 @@ async function releaseEventPayouts() {
       await prisma.event.update({ where: { id: e.id }, data: { payoutReleasedAt: new Date() } });
       continue;
     }
+
+    // Fix #1: hold every charge at least MIN_CHARGE_HOLD_DAYS from when it was paid,
+    // regardless of endAt. Gate on the NEWEST charge so an organizer can't shorten
+    // the hold with an early/edited end date. (pays is non-empty here since net > 0.)
+    const newestChargeMs = Math.max(...pays.map((p) => p.createdAt.getTime()));
+    if (Date.now() - newestChargeMs < MIN_CHARGE_HOLD_DAYS * ONE_DAY) continue;
 
     // Normally release only once the connected account's USD balance fully covers
     // the net (card funds settle ~2 business days after each charge) — never

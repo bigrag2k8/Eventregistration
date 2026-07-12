@@ -43,6 +43,12 @@ export default async function EventLandingPage({ params }: Props) {
   const eventSoldOut = allTicketsSoldOut || capacitySoldOut;
   const showWaitlist = eventSoldOut && event.waitlistEnabled;
 
+  // Registration closes once the event has ended (endAt in the past) or was
+  // cancelled — before this a past event still rendered a live "Register Now".
+  const hasEnded = event.endAt < new Date();
+  const isCancelled = event.status === "CANCELLED";
+  const registrationClosed = hasEnded || isCancelled;
+
   // Presale (early-bird) banner — only while the window is open and a paid
   // ticket exists for the discount to apply to. Date shown in the event's timezone.
   const presalePct = event.presalePercent != null ? Number(event.presalePercent) : 0;
@@ -286,7 +292,17 @@ export default async function EventLandingPage({ params }: Props) {
               </p>
             )}
 
-            {showWaitlist ? (
+            {isCancelled ? (
+              <div className="mt-4 rounded-lg bg-rose-50 p-4 text-center ring-1 ring-rose-200">
+                <div className="text-sm font-semibold text-rose-800">Event cancelled</div>
+                <p className="mt-1 text-xs text-rose-700">This event has been cancelled — registration is closed.</p>
+              </div>
+            ) : hasEnded ? (
+              <div className="mt-4 rounded-lg bg-slate-100 p-4 text-center ring-1 ring-slate-200">
+                <div className="text-sm font-semibold text-slate-700">Event completed</div>
+                <p className="mt-1 text-xs text-slate-500">This event has ended — registration is closed.</p>
+              </div>
+            ) : showWaitlist ? (
               <>
                 <div className="mt-4 rounded-lg bg-amber-50 p-3 text-center text-sm text-amber-800 ring-1 ring-amber-200">
                   This event is sold out
@@ -307,7 +323,7 @@ export default async function EventLandingPage({ params }: Props) {
               {totalSold} registered{event.capacity ? ` · capacity ${event.capacity}` : ""}
             </div>
 
-            {event.vendorRegistrationEnabled && (
+            {event.vendorRegistrationEnabled && !registrationClosed && (
               <Link href={`/o/${event.organization.slug}/events/${event.slug}/vendors`} className="btn-secondary mt-3 w-full">
                 🏪 Become a Vendor
               </Link>

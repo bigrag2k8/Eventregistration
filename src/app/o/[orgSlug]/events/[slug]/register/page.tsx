@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
@@ -25,6 +25,13 @@ export default async function RegisterPage({ params, searchParams }: Props) {
     },
   });
   if (!event) return notFound();
+
+  // Registration closes once the event has ended or was cancelled. Bounce back to
+  // the event page (which shows the completed/cancelled state) so a stale direct
+  // link can't start a registration for a past event.
+  if (event.status === "CANCELLED" || event.endAt < new Date()) {
+    redirect(`/o/${params.orgSlug}/events/${params.slug}`);
+  }
 
   let waitlistEntry: { firstName: string; lastName: string; email: string } | null = null;
   if (searchParams.waitlist) {

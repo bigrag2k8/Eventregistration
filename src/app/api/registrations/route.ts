@@ -89,6 +89,12 @@ export async function POST(req: Request) {
   if (!event || event.status !== "PUBLISHED" || event.deletedAt || event.organization?.deletedAt) {
     return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
   }
+  // Data-layer backstop for the completed/cancelled UI: never accept a registration
+  // for an event that has already ended, even via a stale direct POST. Also keeps
+  // the payout hold honest — no new charges can land after an event's end date.
+  if (event.endAt < new Date()) {
+    return NextResponse.json({ error: "Registration for this event has closed." }, { status: 409 });
+  }
 
   // Ownership: if a signed-in attendee is registering their OWN email, stamp the
   // registration with their userId so it appears in their account immediately.
