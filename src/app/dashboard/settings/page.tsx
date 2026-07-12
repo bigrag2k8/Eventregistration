@@ -129,6 +129,47 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
         </section>
 
         <section className="card">
+          <h2 className="text-lg font-semibold">Public page visibility</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Control what visitors see on your public page (<code className="font-mono">/o/{org.slug}</code>).
+          </p>
+          <div className="mt-4 space-y-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                name="showTeamPhones"
+                defaultChecked={org.showTeamPhones}
+                className="mt-1 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-slate-800">Show team phone numbers</span>
+                <span className="mt-0.5 block text-slate-500">
+                  List each organizer&rsquo;s phone number in the Organizers section. Off by default —
+                  emails are always shown, phones are opt-in. Your organization&rsquo;s main contact
+                  phone (above) is separate.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                name="showPrivateEvents"
+                defaultChecked={org.showPrivateEvents}
+                className="mt-1 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-slate-800">List private events on my page</span>
+                <span className="mt-0.5 block text-slate-500">
+                  Private events never appear in the app-wide directory. When this is on, they still
+                  show on <em>your</em> page here. Turn it off to hide them from your page too —
+                  attendees can then only reach a private event through the direct link you share.
+                </span>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section className="card">
           <h2 className="text-lg font-semibold">Mailing address</h2>
           <p className="mt-1 text-sm text-slate-500">
             Where your organization is based. Used for billing receipts, tax documents, and account verification.

@@ -31,9 +31,14 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
   if (!org) return notFound();
 
   const now = new Date();
-  // All published events show on the organizer's own page (private included).
-  const upcoming = org.events.filter((e) => e.endAt >= now);
-  const past = org.events
+  // Private events show on the org's OWN page by default (never on app-wide
+  // discovery). The org can opt out via settings (showPrivateEvents=false), in
+  // which case a private event is reachable only through its direct link.
+  const visibleEvents = org.showPrivateEvents
+    ? org.events
+    : org.events.filter((e) => !e.isPrivate);
+  const upcoming = visibleEvents.filter((e) => e.endAt >= now);
+  const past = visibleEvents
     .filter((e) => e.endAt < now)
     .sort((a, b) => b.startAt.getTime() - a.startAt.getTime())
     .slice(0, 6);
@@ -149,7 +154,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                   <a href={`mailto:${m.email}`} className="mt-1 block truncate text-sm text-slate-600 hover:text-slate-900">
                     ✉ {m.email}
                   </a>
-                  {m.phone && (
+                  {m.phone && org.showTeamPhones && (
                     <a href={`tel:${m.phone}`} className="block text-sm text-slate-600 hover:text-slate-900">📞 {m.phone}</a>
                   )}
                 </div>

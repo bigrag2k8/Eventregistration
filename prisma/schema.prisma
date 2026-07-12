@@ -161,6 +161,16 @@ model Organization {
   website      String?
   contactEmail String?
   contactPhone String?
+  // Public-page privacy controls (organizer-set on /dashboard/settings):
+  //   showTeamPhones   — when false (default), the Organizers section on the
+  //                      public /o/[slug] page hides each member's phone number.
+  //                      Emails still show; phones are opt-in only.
+  //   showPrivateEvents — when true (default), PRIVATE events appear on the org's
+  //                      OWN public page (never on the app-wide home/discovery).
+  //                      Set false to keep private events off the public page too,
+  //                      reachable only by their direct event link.
+  showTeamPhones    Boolean @default(false)
+  showPrivateEvents Boolean @default(true)
   // Mailing address — captured during signup (required for new orgs); legacy
   // rows may be null until the owner completes it on /dashboard/settings.
   addressLine1 String?

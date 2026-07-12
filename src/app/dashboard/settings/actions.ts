@@ -17,6 +17,9 @@ const schema = z.object({
   website: z.string().url().optional().or(z.literal("")),
   contactEmail: z.string().email().optional().or(z.literal("")),
   contactPhone: z.string().min(7, "Phone number is required").max(40),
+  // Checkboxes: present in FormData ("on") only when checked, absent otherwise.
+  showTeamPhones: z.string().optional(),
+  showPrivateEvents: z.string().optional(),
   addressLine1: z.string().min(1, "Street address is required").max(200),
   addressLine2: z.string().max(200).optional(),
   city: z.string().min(1, "City is required").max(100),
@@ -61,6 +64,9 @@ export async function updateOrgSettingsAction(formData: FormData) {
       website: data.website || null,
       contactEmail: data.contactEmail || null,
       contactPhone: data.contactPhone,
+      // Unchecked checkboxes are absent from FormData → treat as false/true default.
+      showTeamPhones: data.showTeamPhones === "on",
+      showPrivateEvents: data.showPrivateEvents === "on",
       addressLine1: data.addressLine1,
       addressLine2: data.addressLine2 || null,
       city: data.city,
