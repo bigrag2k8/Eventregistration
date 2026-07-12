@@ -97,13 +97,15 @@ export default async function EventLandingPage({ params }: Props) {
           </Link>
           <div className="flex items-center gap-2">
             <PublicAccountNav compact />
-            <Link
-              href={`/o/${event.organization.slug}/events/${event.slug}/register`}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white transition"
-              style={{ backgroundColor: "var(--org-brand)" }}
-            >
-              Register Now
-            </Link>
+            {!registrationClosed && (
+              <Link
+                href={`/o/${event.organization.slug}/events/${event.slug}/register`}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-white transition"
+                style={{ backgroundColor: "var(--org-brand)" }}
+              >
+                Register Now
+              </Link>
+            )}
           </div>
         </div>
       </header>
