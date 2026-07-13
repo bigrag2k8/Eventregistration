@@ -113,3 +113,57 @@ export async function createSeriesAction(formData: FormData) {
   revalidatePath(`/o/${org.slug}`);
   redirect(`/o/${org.slug}/series/${slug}`);
 }
+
+/**
+ * Delete a recurring series. Guard: if any FUTURE occurrence has confirmed
+ * registrations, block — those attendees hold tickets, so the organizer must
+ * Cancel those sessions first (which refunds + notifies). Otherwise:
+ *   - soft-delete every future zero-registration occurrence (auto-generated
+ *     inventory nobody bought into), same deletedAt+CANCELLED shape as the
+ *     event deleteAction — the refund worker ignores these (no cancelledAt);
+ *   - soft-delete the series itself so generation stops and the public
+ *     card/page disappear. PAST occurrences are kept untouched as history.
+ */
+export async function deleteSeriesAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const seriesId = String(formData.get("seriesId"));
+  const series = await prisma.eventSeries.findFirst({
+    where: {
+      id: seriesId,
+      deletedAt: null,
+      ...(session.role === "SUPERADMIN" ? {} : { organizationId: session.orgId ?? "__none__" }),
+    },
+    select: { id: true, name: true, organizationId: true, slug: true },
+  });
+  if (!series) redirect("/dashboard?error=not_found");
+
+  const now = new Date();
+  const futureWithRegs = await prisma.event.count({
+    where: {
+      seriesId: series.id,
+      deletedAt: null,
+      endAt: { gte: now },
+      registrations: { some: { status: "CONFIRMED" } },
+    },
+  });
+  if (futureWithRegs > 0) redirect("/dashboard?error=series_has_registrations");
+
+  await prisma.event.updateMany({
+    where: { seriesId: series.id, deletedAt: null, endAt: { gte: now } },
+    data: { deletedAt: now, status: "CANCELLED" },
+  });
+  await prisma.eventSeries.update({
+    where: { id: series.id },
+    data: { deletedAt: now, status: "ENDED" },
+  });
+  await audit({
+    organizationId: series.organizationId, userId: session.sub,
+    action: "series.delete", targetType: "EventSeries", targetId: series.id,
+    metadata: { name: series.name, slug: series.slug },
+  });
+
+  const org = await prisma.organization.findUnique({ where: { id: series.organizationId }, select: { slug: true } });
+  if (org) revalidatePath(`/o/${org.slug}`);
+  revalidatePath("/dashboard");
+  redirect("/dashboard?saved=1");
+}

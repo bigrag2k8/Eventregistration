@@ -5,12 +5,16 @@ import { getSession, orgScope } from "@/lib/auth";
 import { KycBanner } from "@/components/KycBanner";
 import { money } from "@/lib/format";
 import { requirePlanSelected } from "@/lib/plan-gate";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { describeRecurrence } from "@/server/series-rule";
+import { deleteSeriesAction } from "./series/actions";
 
 export const dynamic = "force-dynamic";
 
 const STAFF_ROLES = ["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"];
 
-export default async function DashboardHome() {
+export default async function DashboardHome({ searchParams }: { searchParams?: { error?: string } }) {
   const session = await getSession();
   if (!session) redirect("/signin");
   // Gate on staff ROLE, not org-presence: an attendee with a stray
@@ -34,7 +38,7 @@ export default async function DashboardHome() {
     : null;
   const eventScope = orgScope(session); // {} for SUPERADMIN, {organizationId} otherwise
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [events, totalRevenue, totalRegs, checkInRate] = await Promise.all([
+  const [events, seriesList, totalRevenue, totalRegs, checkInRate] = await Promise.all([
     prisma.event.findMany({
       where: { ...eventScope, deletedAt: null },
       orderBy: { startAt: "desc" },
@@ -43,6 +47,17 @@ export default async function DashboardHome() {
         _count: { select: { registrations: true } },
         ticketTypes: true,
         organization: { select: { name: true, slug: true } },
+      },
+    }),
+    prisma.eventSeries.findMany({
+      where: { ...eventScope, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      include: {
+        organization: { select: { slug: true } },
+        events: {
+          where: { deletedAt: null, status: "PUBLISHED", endAt: { gte: new Date() } },
+          select: { id: true },
+        },
       },
     }),
     prisma.payment.aggregate({
@@ -73,6 +88,11 @@ export default async function DashboardHome() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
+      {searchParams?.error && (
+        <div className="mb-4">
+          <ErrorBanner code={searchParams.error} />
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -114,6 +134,57 @@ export default async function DashboardHome() {
         <Stat label="Check-in rate" value={`${checkInRate}%`} />
         <Stat label="Events" value={String(events.length)} />
       </div>
+
+      {seriesList.length > 0 && (
+        <>
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold">Your recurring series</h2>
+          </div>
+          <div className="mt-3 overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                  <th className="px-4 py-3">Series</th>
+                  <th className="px-4 py-3">Schedule</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Upcoming sessions</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {seriesList.map((s) => (
+                  <tr key={s.id}>
+                    <td className="px-4 py-3 font-medium">{s.name}</td>
+                    <td className="px-4 py-3 text-slate-600">{describeRecurrence(s)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${s.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">{s.events.length}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <Link href={`/o/${s.organization.slug}/series/${s.slug}`} target="_blank" className="text-xs text-brand-700 hover:underline">
+                          View ↗
+                        </Link>
+                        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
+                          <form action={deleteSeriesAction}>
+                            <input type="hidden" name="seriesId" value={s.id} />
+                            <ConfirmButton
+                              label="Delete"
+                              confirmText={`Delete "${s.name}"? Upcoming sessions with no registrations are removed and no new sessions will be generated. Sessions that already have ticket holders block this — cancel those sessions first.`}
+                            />
+                          </form>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your events</h2>
