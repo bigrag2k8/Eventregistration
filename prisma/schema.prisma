@@ -606,6 +606,12 @@ model Registration {
   promoCode         PromoCode?         @relation(fields: [promoCodeId], references: [id])
   referralLinkId    String?
   referralLink      ReferralLink?      @relation(fields: [referralLinkId], references: [id])
+  /// Set when this registration is one session's share of a full-series bundle
+  /// purchase. Its Payment row carries only this session's share of the money,
+  /// and refunds for it must be amount-limited (same Stripe PaymentIntent is
+  /// shared by all the bundle's registrations).
+  bundlePurchaseId  String?
+  bundlePurchase    SeriesBundlePurchase? @relation(fields: [bundlePurchaseId], references: [id], onDelete: SetNull)
 
   status            RegistrationStatus @default(PENDING)
   confirmedAt       DateTime?
@@ -651,6 +657,7 @@ model Registration {
   @@index([eventId, status])
   @@index([email])
   @@index([stripeSessionId])
+  @@index([bundlePurchaseId])
   @@unique([eventId, email]) // duplicate-email prevention per event
   @@map("registrations")
 }
@@ -767,10 +774,16 @@ model EventSeries {
   priceCents     Int          @default(0)
   /// Per-occurrence capacity; null = unlimited.
   capacity       Int?
+  /// Optional full-series bundle price: one purchase = a seat in EVERY
+  /// remaining session, at a discount vs drop-in. Only offered on BOUNDED
+  /// series (seriesEnd or occurrenceCap set) — an open-ended series has no
+  /// defined "all sessions" to sell. Null = drop-in only.
+  bundlePriceCents Int?
 
   status         SeriesStatus @default(DRAFT)
 
   events         Event[]
+  bundlePurchases SeriesBundlePurchase[]
 
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -779,6 +792,43 @@ model EventSeries {
   @@unique([organizationId, slug])
   @@index([status])
   @@map("event_series")
+}
+
+/// One "buy the whole series" checkout. Creates a PENDING Registration on
+/// every remaining session (each carrying its per-session share of the price
+/// as its own Payment row once paid), so per-session refunds, payout release,
+/// tickets, and check-in all reuse the per-event machinery. Confirmed by the
+/// Stripe webhook (metadata.bundlePurchaseId).
+model SeriesBundlePurchase {
+  id             String      @id @default(cuid())
+  seriesId       String
+  series         EventSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  organizationId String
+
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+
+  /// Total charged for the bundle (what the buyer paid, before Stripe fees).
+  totalCents     Int
+  currency       String      @default("USD")
+  /// Number of sessions covered at purchase time (denominator for shares).
+  sessionCount   Int
+
+  status         RegistrationStatus @default(PENDING)
+  confirmedAt    DateTime?
+  stripeSessionId       String?
+  stripePaymentIntentId String?
+
+  registrations  Registration[]
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([seriesId, status])
+  @@index([email])
+  @@map("series_bundle_purchases")
 }
 
 model Ticket {

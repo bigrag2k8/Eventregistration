@@ -3,12 +3,19 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
+import { BundleCheckoutForm } from "@/components/BundleCheckoutForm";
 import { describeRecurrence } from "@/server/series-rule";
-import { CalendarClock, ArrowRight } from "lucide-react";
+import { CalendarClock, ArrowRight, PartyPopper, Ticket } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function SeriesPublicPage({ params }: { params: { orgSlug: string; slug: string } }) {
+export default async function SeriesPublicPage({
+  params,
+  searchParams,
+}: {
+  params: { orgSlug: string; slug: string };
+  searchParams?: { purchased?: string };
+}) {
   const org = await prisma.organization.findFirst({
     where: { slug: params.orgSlug, deletedAt: null },
     select: { id: true, name: true, slug: true, logoUrl: true, brandColor: true },
@@ -74,9 +81,54 @@ export default async function SeriesPublicPage({ params }: { params: { orgSlug: 
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-8">
+        {searchParams?.purchased && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg bg-emerald-50 p-4 ring-1 ring-emerald-200">
+            <PartyPopper className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden />
+            <div>
+              <p className="font-medium text-emerald-800">You're in — the whole series!</p>
+              <p className="mt-0.5 text-sm text-emerald-700">
+                Your confirmation email is on its way with a QR ticket for every session.
+              </p>
+            </div>
+          </div>
+        )}
+
         {series.description && series.description !== series.name && (
           <p className="max-w-3xl whitespace-pre-line leading-relaxed text-slate-700">{series.description}</p>
         )}
+
+        {/* Full-series pass — only on bounded, active series with 2+ sessions left */}
+        {series.status === "ACTIVE" &&
+          series.bundlePriceCents != null &&
+          series.bundlePriceCents > 0 &&
+          (series.seriesEnd || series.occurrenceCap != null) &&
+          upcoming.length >= 2 && (() => {
+            const dropInTotal = upcoming.reduce((a, e) => a + minPriceOf(e), 0);
+            const savings = dropInTotal - series.bundlePriceCents!;
+            return (
+              <section className="mt-8 rounded-2xl bg-white p-5" style={{ boxShadow: "0 0 0 2px var(--org-brand)" }}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+                    <Ticket className="h-5 w-5" aria-hidden style={{ color: "var(--org-brand)" }} />
+                    Full-series pass
+                  </h2>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold">${(series.bundlePriceCents / 100).toFixed(2)}</span>
+                    <span className="ml-2 text-sm text-slate-500">for all {upcoming.length} remaining sessions</span>
+                  </div>
+                </div>
+                <p className="mt-1 text-sm text-slate-600">
+                  One checkout, a seat in every session — each with its own ticket.
+                  {savings > 0 && (
+                    <span className="ml-1 font-medium text-emerald-700">
+                      Save ${(savings / 100).toFixed(2)} vs registering per session.
+                    </span>
+                  )}
+                </p>
+                <BundleCheckoutForm seriesId={series.id} />
+              </section>
+            );
+          })()}
 
         <div className="mt-8 flex items-center gap-3">
           <h2 className="text-xl font-semibold">Upcoming sessions</h2>

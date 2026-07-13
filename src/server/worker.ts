@@ -128,6 +128,14 @@ async function purgeAbandonedCarts() {
       },
     });
   }
+
+  // Bundle purchases whose Stripe session lapsed: their per-session PENDING
+  // registrations were just purged above (each carries the same session id),
+  // so close out the parent purchase row too.
+  await prisma.seriesBundlePurchase.updateMany({
+    where: { status: "PENDING", createdAt: { lt: cutoff } },
+    data: { status: "CANCELLED" },
+  });
 }
 
 // ── Phase 0 payout holds ────────────────────────────────────────────────────
@@ -313,6 +321,12 @@ async function refundCancelledEvents() {
                 payment_intent: pay.stripePaymentIntentId,
                 reverse_transfer: true,
                 refund_application_fee: true, // full refund incl. platform fee
+                // Bundle shares: N Payment rows share ONE PaymentIntent, so an
+                // amount-less refund would return EVERY session's money for
+                // this one cancelled session. Cap at this row's remaining share.
+                ...(reg.bundlePurchaseId
+                  ? { amount: Math.max(pay.amountCents - pay.refundedAmountCents, 1) }
+                  : {}),
                 metadata: { reason: "event_cancelled", registrationId: reg.id, eventId: e.id },
               },
               { idempotencyKey: `evtcancel:${reg.id}` },

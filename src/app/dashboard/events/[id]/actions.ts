@@ -587,6 +587,10 @@ export async function refundRegistrationAction(formData: FormData) {
   const fee = payment.platformFeeCents ?? 0;
   const withholdFee = mode !== "full" && fee > 0;
   const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
+  // Bundle shares: N Payment rows share ONE PaymentIntent, so an amount-less
+  // "full" refund would return EVERY session's money. Always cap bundle
+  // refunds at this payment row's amount.
+  const capAmount = withholdFee || !!reg.bundlePurchaseId;
 
   let refundFailed = false;
   try {
@@ -594,7 +598,7 @@ export async function refundRegistrationAction(formData: FormData) {
       payment_intent: payment.stripePaymentIntentId,
       reverse_transfer: true,
       refund_application_fee: !withholdFee,
-      ...(withholdFee ? { amount: refundAmountCents } : {}),
+      ...(capAmount ? { amount: refundAmountCents } : {}),
       metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub, refundMode: withholdFee ? "net" : "full" },
     });
   } catch (e: any) {
@@ -658,13 +662,15 @@ export async function bulkRefundAction(formData: FormData) {
     const fee = payment.platformFeeCents ?? 0;
     const withholdFee = mode !== "full" && fee > 0;
     const refundAmountCents = withholdFee ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
+    // Bundle shares share one PaymentIntent — always cap at this row's amount.
+    const capAmount = withholdFee || !!reg.bundlePurchaseId;
 
     try {
       await stripe.refunds.create({
         payment_intent: payment.stripePaymentIntentId,
         reverse_transfer: true,
         refund_application_fee: !withholdFee,
-        ...(withholdFee ? { amount: refundAmountCents } : {}),
+        ...(capAmount ? { amount: refundAmountCents } : {}),
         metadata: { registrationId: reg.id, eventId: event.id, refundedBy: session.sub, refundMode: withholdFee ? "net" : "full", bulk: "true" },
       });
       await audit({

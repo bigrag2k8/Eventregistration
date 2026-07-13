@@ -28,6 +28,7 @@ const schema = z.object({
   ticketName: z.string().min(1).max(80),
   priceDollars: z.coerce.number().min(0).max(100000),
   capacity: z.coerce.number().int().min(1).max(1000000).optional().or(z.literal("")),
+  bundlePriceDollars: z.coerce.number().min(0.5).max(1000000).optional().or(z.literal("")),
 });
 
 function slugify(s: string): string {
@@ -95,6 +96,12 @@ export async function createSeriesAction(formData: FormData) {
       ticketName: d.ticketName,
       priceCents: Math.round(d.priceDollars * 100),
       capacity: d.capacity ? Number(d.capacity) : null,
+      // Full-series pass only makes sense on a BOUNDED series ("all sessions"
+      // must be finite) — silently drop it for open-ended ones.
+      bundlePriceCents:
+        d.bundlePriceDollars && (seriesEnd || d.occurrenceCap)
+          ? Math.round(Number(d.bundlePriceDollars) * 100)
+          : null,
       status: "ACTIVE", // active immediately → worker + the call below generate occurrences
     },
   });

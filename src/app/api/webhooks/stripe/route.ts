@@ -118,6 +118,19 @@ export async function POST(req: Request) {
         break;
       }
 
+      // Full-series bundle: one payment covers N per-session registrations.
+      const bundleId = session.metadata?.bundlePurchaseId;
+      if (bundleId) {
+        const { finalizeBundlePurchase } = await import("@/server/series-bundle");
+        await finalizeBundlePurchase(bundleId, {
+          paymentIntentId: (session.payment_intent as string | null) ?? null,
+          amountCents: session.amount_total ?? null,
+          currency: session.currency ?? null,
+          platformFeeCents: Number(session.metadata?.platformFeeCents ?? 0) || 0,
+        });
+        break;
+      }
+
       const regId = session.metadata?.registrationId;
       if (!regId) break;
 
@@ -175,6 +188,17 @@ export async function POST(req: Request) {
     case "charge.refunded": {
       const charge = event.data.object as any;
       const intentId = charge.payment_intent;
+      // Full-series bundles: N Payment rows share ONE PaymentIntent, and each
+      // refund is amount-limited to one session's share. The single-payment
+      // reconciliation below would misattribute the charge-level
+      // amount_refunded to an arbitrary row, so bundles reconcile per-refund
+      // (each refund carries metadata.registrationId).
+      const piPaymentCount = await prisma.payment.count({ where: { stripePaymentIntentId: intentId } });
+      if (piPaymentCount > 1) {
+        const { reconcileBundleRefunds } = await import("@/server/series-bundle");
+        await reconcileBundleRefunds(charge);
+        break;
+      }
       const payment = await prisma.payment.findFirst({ where: { stripePaymentIntentId: intentId } });
       if (payment) {
         const refunded = charge.amount_refunded as number;

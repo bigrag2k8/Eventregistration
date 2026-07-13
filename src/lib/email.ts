@@ -293,6 +293,100 @@ function renderConfirmation(reg: any) {
 }
 
 /**
+ * One confirmation for a full-series bundle purchase: lists every session with
+ * its own QR ticket inline (cid-referenced, same print-safe pattern as the
+ * single confirmation email). Sent once by the webhook after payment.
+ */
+export async function sendBundleConfirmationEmail(bundlePurchaseId: string) {
+  const purchase = await prisma.seriesBundlePurchase.findUnique({
+    where: { id: bundlePurchaseId },
+    include: {
+      series: { include: { organization: true } },
+      registrations: {
+        where: { status: "CONFIRMED" },
+        orderBy: { createdAt: "asc" },
+        include: { event: { include: { location: true } }, tickets: true },
+      },
+    },
+  });
+  if (!purchase || purchase.registrations.length === 0) return;
+
+  const org: any = purchase.series.organization ?? {};
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor)) ? org.brandColor : "#1F3A8A";
+  const orgName = esc(org.name ?? "");
+  const logo = org.logoUrl
+    ? `<img src="${esc(org.logoUrl)}" alt="${orgName}" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:12px"/>`
+    : "";
+
+  // One QR per session, ordered by date; cid ids keyed by index.
+  const regsByDate = [...purchase.registrations].sort(
+    (a, b) => a.event.startAt.getTime() - b.event.startAt.getTime(),
+  );
+  const attachments: Array<{ filename: string; content: string; content_id: string }> = [];
+  const sessionBlocks: string[] = [];
+  for (let i = 0; i < regsByDate.length; i++) {
+    const reg = regsByDate[i];
+    const t = reg.tickets[0];
+    const when = formatInTimeZone(reg.event.startAt, reg.event.timezone, "EEEE, MMMM d 'at' h:mm a zzz");
+    let qrImg = "";
+    if (t) {
+      attachments.push({
+        filename: `session-${i + 1}.png`,
+        content: (await renderQrPngDataUrl(t.qrToken)).split(",")[1],
+        content_id: `session-${i + 1}`,
+      });
+      qrImg = `<img src="cid:session-${i + 1}" alt="Session ${i + 1} QR" width="140" height="140" style="display:block;border:0;width:140px;height:140px"/>`;
+    }
+    sessionBlocks.push(`
+      <tr><td style="padding:12px;border-top:1px solid #e2e8f0">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td valign="top">
+            <strong>Session ${i + 1} of ${regsByDate.length}</strong><br>
+            <span style="color:#475569">📅 ${when}</span>
+          </td>
+          <td align="right" width="150">${qrImg}</td>
+        </tr></table>
+      </td></tr>`);
+  }
+
+  const subject = `You're in: ${purchase.series.name} — all ${regsByDate.length} sessions`;
+  const html = `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      ${logo}
+      <h1 style="margin:0 0 8px;color:${brand}">You're in — the whole series 🎉</h1>
+      <p style="color:#475569">Hi ${esc(purchase.firstName)}, your full-series pass for <strong>${esc(purchase.series.name)}</strong>${orgName ? ` with ${orgName}` : ""} is confirmed. Total paid: <strong>$${(purchase.totalCents / 100).toFixed(2)}</strong> for ${regsByDate.length} sessions.</p>
+      <p style="color:#475569">Each session has its own QR ticket below — show the matching QR at the door.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">${sessionBlocks.join("")}</table>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Can't make a session? Reply to this email to reach the organizer.</p>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const result = await resend().emails.send({
+    from: buildFrom(org),
+    to: purchase.email,
+    subject,
+    html,
+    attachments,
+  });
+
+  await prisma.emailLog.create({
+    data: {
+      registrationId: regsByDate[0].id,
+      toEmail: purchase.email,
+      kind: "CONFIRMATION",
+      subject,
+      status: result.data?.id ? "SENT" : "FAILED",
+      providerId: result.data?.id ?? null,
+      errorMessage: result.error?.message ?? null,
+      sentAt: new Date(),
+    },
+  });
+}
+
+/**
  * Passwordless sign-in link. Uses the platform default sender (no org context —
  * attendee accounts are global). The URL contains the single-use raw token.
  */

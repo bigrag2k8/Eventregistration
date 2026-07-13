@@ -149,6 +149,14 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
             <input id="s-capacity" name="capacity" type="number" min={1} className="input" placeholder="unlimited" />
           </div>
         </div>
+        <div className="mt-4 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-100">
+          <label className="label" htmlFor="s-bundle">Full-series pass price (USD, optional)</label>
+          <input id="s-bundle" name="bundlePriceDollars" type="number" min={0.5} step="0.01" className="input max-w-xs" placeholder="e.g. 100.00" />
+          <p className="mt-1 text-xs text-slate-500">
+            One checkout buys a seat in every remaining session — price it below the drop-in total so the discount shows.
+            Only available when the series has an end date or a session cap.
+          </p>
+        </div>
       </section>
 
       <div className="flex items-center justify-end gap-3">
