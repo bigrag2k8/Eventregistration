@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
-import { LogoFull } from "@/components/Logo";
+import { Logo } from "@/components/Logo";
 
 // Re-runs on every request — guarantees fresh random selection each time
 export const dynamic = "force-dynamic";
@@ -81,7 +81,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" aria-label="YourEvents home">
-            <LogoFull height={145} />
+            <Logo height={40} />
           </Link>
           <nav>
             <PublicAccountNav />
@@ -147,7 +147,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
           <>
             <div className="flex items-baseline justify-between">
               <h2 className="text-2xl font-bold tracking-tight">Featured upcoming events</h2>
-              <span className="text-xs uppercase tracking-wider text-slate-400">refreshes on reload</span>
+              <span className="text-xs uppercase tracking-wider text-slate-500">refreshes on reload</span>
             </div>
             {featured.length === 0 ? (
               <div className="mt-6 rounded-xl bg-slate-50 p-8 text-center text-slate-500 ring-1 ring-slate-200">
@@ -187,17 +187,17 @@ function EventCard({ e }: { e: any }) {
         </div>
       )}
       {e.category && (
-        <div className="text-xs uppercase tracking-wider text-brand-700">{e.category}</div>
+        <div className="text-xs uppercase tracking-wider text-brand-800">{e.category}</div>
       )}
       <h3 className="mt-1 text-lg font-semibold">{e.name}</h3>
       <p className="mt-1 text-sm text-slate-600">
         {formatDateRange(e.startAt, e.endAt, e.timezone)}
       </p>
       {place && <p className="mt-1 text-sm text-slate-500">{place}</p>}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
         <span>by {e.organization.name}</span>
         {e.organization.reviewCount > 0 && e.organization.ratingAvg != null && (
-          <span className="text-slate-500">
+          <span className="text-slate-600">
             <span style={{ color: "#EF9F27" }}>★</span> {Number(e.organization.ratingAvg).toFixed(1)}
           </span>
         )}

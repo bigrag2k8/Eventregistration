@@ -11,6 +11,7 @@ import { MfaSetup } from "@/components/MfaSetup";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { BrandColorInput } from "@/components/BrandColorInput";
 import { AddressFields } from "@/components/AddressFields";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -221,7 +222,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
 
         <div className="flex items-center justify-end gap-3">
           <Link href="/dashboard" className="btn-secondary">Cancel</Link>
-          <button type="submit" className="btn-primary">Save settings</button>
+          <SubmitButton className="btn-primary" pendingText="Saving…">Save settings</SubmitButton>
         </div>
       </form>
 

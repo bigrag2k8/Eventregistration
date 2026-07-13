@@ -337,7 +337,7 @@ function EventCard({ e, orgSlug, ended = false }: { e: any; orgSlug: string; end
           <span className="text-xs uppercase tracking-wider" style={{ color: "var(--org-brand)" }}>{e.category}</span>
         )}
         {ended && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wider text-slate-600">
             Ended
           </span>
         )}
