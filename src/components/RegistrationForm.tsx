@@ -215,8 +215,8 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
           })}
         </div>
         <div className="mt-3">
-          <label className="label">Quantity</label>
-          <input type="number" min={1} max={10} value={quantity}
+          <label className="label" htmlFor="reg-quantity">Quantity</label>
+          <input id="reg-quantity" type="number" min={1} max={10} value={quantity}
                  onChange={(e) => setQuantity(parseInt(e.target.value || "1"))}
                  className="input w-24" />
         </div>
@@ -226,28 +226,28 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         <h2 className="text-lg font-semibold">2. Your info</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Company</label>
-            <input className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
+            <label className="label" htmlFor="reg-company">Company</label>
+            <input id="reg-company" autoComplete="organization" className={inputClass("company")} value={form.company} onChange={(e) => setField("company", e.target.value)} />
             {fieldErr("company")}
           </div>
           <div>
-            <label className="label">First name *</label>
-            <input required className={inputClass("firstName")} value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} />
+            <label className="label" htmlFor="reg-firstName">First name *</label>
+            <input id="reg-firstName" autoComplete="given-name" required className={inputClass("firstName")} value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} />
             {fieldErr("firstName")}
           </div>
           <div>
-            <label className="label">Last name *</label>
-            <input required className={inputClass("lastName")} value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} />
+            <label className="label" htmlFor="reg-lastName">Last name *</label>
+            <input id="reg-lastName" autoComplete="family-name" required className={inputClass("lastName")} value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} />
             {fieldErr("lastName")}
           </div>
           <div>
-            <label className="label">Email *</label>
-            <input required type="email" className={inputClass("email")} value={form.email} onChange={(e) => setField("email", e.target.value)} />
+            <label className="label" htmlFor="reg-email">Email *</label>
+            <input id="reg-email" autoComplete="email" required type="email" className={inputClass("email")} value={form.email} onChange={(e) => setField("email", e.target.value)} />
             {fieldErr("email")}
           </div>
           <div>
-            <label className="label">Phone *</label>
-            <input required className={inputClass("phone")} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+            <label className="label" htmlFor="reg-phone">Phone *</label>
+            <input id="reg-phone" autoComplete="tel" type="tel" required className={inputClass("phone")} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
             {fieldErr("phone")}
           </div>
         </div>
@@ -255,32 +255,33 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         <h3 className="mt-4 text-sm font-medium text-slate-700">Address (optional)</h3>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Street address</label>
+            <label className="label" htmlFor="reg-addressLine1">Street address</label>
             <AddressAutocompleteInput
+              id="reg-addressLine1"
               value={form.addressLine1}
               onChange={(v) => setField("addressLine1", v)}
               onPlaceSelected={(parsed) => setForm((f) => ({ ...f, ...parsed }))}
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Address line 2</label>
-            <input className="input" placeholder="Apt, suite, unit, etc." value={form.addressLine2} onChange={(e) => setField("addressLine2", e.target.value)} />
+            <label className="label" htmlFor="reg-addressLine2">Address line 2</label>
+            <input id="reg-addressLine2" autoComplete="address-line2" className="input" placeholder="Apt, suite, unit, etc." value={form.addressLine2} onChange={(e) => setField("addressLine2", e.target.value)} />
           </div>
           <div>
-            <label className="label">City</label>
-            <input className="input" value={form.city} onChange={(e) => setField("city", e.target.value)} />
+            <label className="label" htmlFor="reg-city">City</label>
+            <input id="reg-city" autoComplete="address-level2" className="input" value={form.city} onChange={(e) => setField("city", e.target.value)} />
           </div>
           <div>
-            <label className="label">State / Province</label>
-            <input className="input" value={form.state} onChange={(e) => setField("state", e.target.value)} />
+            <label className="label" htmlFor="reg-state">State / Province</label>
+            <input id="reg-state" autoComplete="address-level1" className="input" value={form.state} onChange={(e) => setField("state", e.target.value)} />
           </div>
           <div>
-            <label className="label">ZIP / Postal code</label>
-            <input className="input" value={form.zipCode} onChange={(e) => setField("zipCode", e.target.value)} />
+            <label className="label" htmlFor="reg-zipCode">ZIP / Postal code</label>
+            <input id="reg-zipCode" autoComplete="postal-code" className="input" value={form.zipCode} onChange={(e) => setField("zipCode", e.target.value)} />
           </div>
           <div>
-            <label className="label">Country</label>
-            <input className="input" value={form.country} onChange={(e) => setField("country", e.target.value)} />
+            <label className="label" htmlFor="reg-country">Country</label>
+            <input id="reg-country" autoComplete="country-name" className="input" value={form.country} onChange={(e) => setField("country", e.target.value)} />
           </div>
         </div>
       </section>
@@ -291,15 +292,15 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
           <div className="mt-3 space-y-3">
             {event.customQuestions.map((q) => (
               <div key={q.id}>
-                <label className="label">{q.label}{q.required && " *"}</label>
+                <label className="label" htmlFor={`q-${q.id}`}>{q.label}{q.required && " *"}</label>
                 {(q.type === "DROPDOWN" || q.type === "RADIO") && Array.isArray(q.options) ? (
-                  <select required={q.required} className="input"
+                  <select id={`q-${q.id}`} required={q.required} className="input"
                           onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}>
                     <option value="">Select…</option>
                     {(q.options as string[]).map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 ) : (
-                  <input required={q.required} className="input"
+                  <input id={`q-${q.id}`} required={q.required} className="input"
                          onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} />
                 )}
               </div>
@@ -309,8 +310,11 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       )}
 
       <section className="card">
-        <h2 className="text-lg font-semibold">4. Promo code</h2>
+        <h2 className="text-lg font-semibold" id="promo-heading">4. Promo code</h2>
         <input
+          id="reg-promoCode"
+          aria-labelledby="promo-heading"
+          autoComplete="off"
           className={`${inputClass("promoCode")} mt-3 max-w-xs`}
           placeholder="Enter code"
           value={form.promoCode}
