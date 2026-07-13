@@ -32,6 +32,23 @@ export function platformFeeCents(feeBaseCents: number): number {
 }
 
 /**
+ * Series drop-in fee cap: on RECURRING-SERIES occurrences the $1.25 minimum is
+ * capped at this percent of the ticket, so cheap class tickets (< $12.50) never
+ * pay an effective rate above 10%. A $5 class pays $0.50, not $1.25 — keeps the
+ * pricing story honest in the segment series target, and nudges organizers
+ * toward the full-series bundle (a single 5% transaction). One-off events keep
+ * the plain minimum.
+ */
+export const SERIES_FEE_CAP_PERCENT = 10;
+
+/** Application fee for a series-occurrence drop-in: 5%, min $1.25, capped at 10%. */
+export function seriesDropInFeeCents(feeBaseCents: number): number {
+  if (feeBaseCents <= 0) return 0;
+  const cap = Math.max(1, Math.round(feeBaseCents * (SERIES_FEE_CAP_PERCENT / 100)));
+  return Math.min(platformFeeCents(feeBaseCents), cap);
+}
+
+/**
  * Returns the payment_intent_data slice that routes funds to the
  * connected account and reserves our platform fee — or null if the
  * org isn't ready to accept payments yet (no account, or not verified).
@@ -50,6 +67,8 @@ export interface ConnectReadyOrg {
 export function connectChargeParams(
   org: ConnectReadyOrg,
   feeBaseCents: number,
+  /** Exact fee override (e.g. the series drop-in cap). Default = platformFeeCents. */
+  feeCentsOverride?: number,
 ): {
   application_fee_amount: number;
   transfer_data: { destination: string };
@@ -59,7 +78,7 @@ export function connectChargeParams(
   return {
     // Fee is on the sale value, NOT the charged total — the caller passes the
     // sale value (subtotal - discount), never the tax/fee-inclusive total.
-    application_fee_amount: platformFeeCents(feeBaseCents),
+    application_fee_amount: feeCentsOverride ?? platformFeeCents(feeBaseCents),
     transfer_data: { destination: org.stripeAccountId },
     on_behalf_of: org.stripeAccountId,
   };

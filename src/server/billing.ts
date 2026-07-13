@@ -31,6 +31,20 @@ export async function handleBillingCheckoutCompleted(
     }).catch(() => {});
   }
 
+  if (kind === "series_credit" || planKey === "SERIES_CREDIT") {
+    // One-time series credit — increments the counter; spent by
+    // createSeriesAction to make a series premium (bundle + unlimited regs +
+    // branding). Recorded as platform revenue like the single-event credit.
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { seriesCredits: { increment: 1 }, planSelected: true },
+    });
+    await recordCreditPurchase(organizationId, session, "SERIES_CREDIT").catch((e) =>
+      console.error("[billing] failed to record series-credit purchase revenue", e),
+    );
+    return;
+  }
+
   if (kind === "single_event_credit" || planKey === "SINGLE_EVENT") {
     // One-time purchase — increment credit counter AND activate the account
     await prisma.organization.update({
@@ -71,6 +85,15 @@ export async function handleBillingCheckoutCompleted(
  * never double-count. Idempotent via the unique stripeInvoiceId.
  */
 export async function recordSingleEventPurchase(organizationId: string | null, session: any) {
+  return recordCreditPurchase(organizationId, session, "SINGLE_EVENT");
+}
+
+/** Shared invoice-recording for one-time credit purchases (single event / series). */
+export async function recordCreditPurchase(
+  organizationId: string | null,
+  session: any,
+  planKey: "SINGLE_EVENT" | "SERIES_CREDIT",
+) {
   const piId =
     typeof session.payment_intent === "string"
       ? session.payment_intent
@@ -86,7 +109,7 @@ export async function recordSingleEventPurchase(organizationId: string | null, s
       stripeInvoiceId: key,
       organizationId,
       stripeCustomerId: session.customer ? String(session.customer) : null,
-      planKey: "SINGLE_EVENT",
+      planKey,
       amountPaidCents: amount,
       currency: (session.currency ?? "usd").toUpperCase(),
       status: "paid",

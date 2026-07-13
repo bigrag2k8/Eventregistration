@@ -17,7 +17,10 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const planKey = String(form.get("planKey") ?? "");
   const plan = PLANS[planKey as keyof typeof PLANS];
-  if (!plan || !plan.stripePriceId) {
+  // One-time credits may sell without a pre-created Stripe price (an inline
+  // price_data line item is built below); subscriptions always need one.
+  const canInlinePrice = plan?.cadence === "one_time" && plan.priceCents > 0;
+  if (!plan || (!plan.stripePriceId && !canInlinePrice)) {
     return back("/dashboard/billing?canceled=invalid_plan");
   }
 
@@ -95,10 +98,22 @@ export async function POST(req: Request) {
     ? `${appUrl}${safeReturnTo}${safeReturnTo.includes("?") ? "&" : "?"}canceled=1`
     : `${appUrl}/dashboard/billing?canceled=1`;
 
+  const creditKind = plan.key === "SERIES_CREDIT" ? "series_credit" : "single_event_credit";
   const buildParams = (cid: string) => ({
     customer: cid,
     mode: (plan.cadence === "one_time" ? "payment" : "subscription") as "payment" | "subscription",
-    line_items: [{ price: plan.stripePriceId!, quantity: 1 }],
+    line_items: [
+      plan.stripePriceId
+        ? { price: plan.stripePriceId, quantity: 1 }
+        : {
+            quantity: 1,
+            price_data: {
+              currency: "usd",
+              unit_amount: plan.priceCents,
+              product_data: { name: `${plan.name} credit`, description: plan.blurb },
+            },
+          },
+    ],
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: { organizationId: org.id, planKey: plan.key },
@@ -107,7 +122,7 @@ export async function POST(req: Request) {
     }),
     ...(plan.cadence === "one_time" && {
       payment_intent_data: {
-        metadata: { organizationId: org.id, planKey: plan.key, kind: "single_event_credit" },
+        metadata: { organizationId: org.id, planKey: plan.key, kind: creditKind },
       },
     }),
   });

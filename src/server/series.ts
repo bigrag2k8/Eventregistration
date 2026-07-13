@@ -36,6 +36,10 @@ export async function materializeOccurrences(seriesId: string, throughInstant: D
         description: s.description,
         category: s.category,
         bannerUrl: s.bannerUrl,
+        // Premium series → premium occurrences: the existing per-event
+        // entitlements (unlimited regs vs 50, branding, blast count) key off
+        // Event.isPremium, so the whole free/premium split enforces itself.
+        isPremium: s.isPremium,
         status: "PUBLISHED",
         publishedAt: new Date(),
         startAt: o.start,

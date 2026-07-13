@@ -243,6 +243,10 @@ model Organization {
   subscriptionCancelAtPeriodEnd Boolean @default(false)
   /// Number of "single event" credits remaining (incremented per one-time purchase, decremented when an event is published)
   singleEventCredits          Int      @default(0)
+  /// Number of "series" credits remaining ($34.99 one-time each). Spending one
+  /// makes a recurring series PREMIUM: full-series bundle enabled, unlimited
+  /// registrations per session, custom branding, 5 blasts/session.
+  seriesCredits               Int      @default(0)
   /// false = org just signed up and hasn't picked a plan yet. While false, the dashboard locks them to /dashboard/billing.
   planSelected                Boolean  @default(true)
   /// Per-org plan limit overrides set by a SUPERADMIN (see effectivePlan / applyOverrides in src/lib/plans.ts).
@@ -777,8 +781,13 @@ model EventSeries {
   /// Optional full-series bundle price: one purchase = a seat in EVERY
   /// remaining session, at a discount vs drop-in. Only offered on BOUNDED
   /// series (seriesEnd or occurrenceCap set) — an open-ended series has no
-  /// defined "all sessions" to sell. Null = drop-in only.
+  /// defined "all sessions" to sell. Null = drop-in only. PREMIUM-only.
   bundlePriceCents Int?
+  /// True once a series credit ($34.99) was spent on this series. Occurrences
+  /// inherit it as Event.isPremium, which drives the existing per-event
+  /// entitlements (unlimited regs, branding, 5 blasts). Free series = 1 active
+  /// at a time, 50 regs/session, drop-in only.
+  isPremium      Boolean      @default(false)
 
   status         SeriesStatus @default(DRAFT)
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { connectChargeParams, canAcceptPayments, PLATFORM_FEE_PERCENT } from "@/lib/connect";
+import { connectChargeParams, canAcceptPayments, seriesDropInFeeCents, PLATFORM_FEE_PERCENT } from "@/lib/connect";
 
 const schema = z.object({ registrationId: z.string() });
 
@@ -80,8 +80,10 @@ export async function POST(req: Request) {
   // Connect routing: take PLATFORM_FEE_PERCENT% of the sale value (feeBaseCents
   // above — NOT tax or the processing fee, which are pass-throughs), route the
   // remainder to the organizer. on_behalf_of makes the customer's statement
-  // read as the organizer.
-  const connect = connectChargeParams(org, feeBaseCents);
+  // read as the organizer. Recurring-series occurrences get the capped drop-in
+  // fee (min $1.25 never exceeds 10% of the ticket).
+  const feeOverride = reg.event.seriesId ? seriesDropInFeeCents(feeBaseCents) : undefined;
+  const connect = connectChargeParams(org, feeBaseCents, feeOverride);
 
   try {
     const session = await stripe.checkout.sessions.create({

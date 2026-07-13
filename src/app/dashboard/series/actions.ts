@@ -71,40 +71,73 @@ export async function createSeriesAction(formData: FormData) {
   const seriesStart = fromZonedTime(`${d.startDate} 12:00:00`, d.timezone);
   const seriesEnd = d.endDate ? fromZonedTime(`${d.endDate} 12:00:00`, d.timezone) : null;
 
-  const org = await prisma.organization.findUnique({ where: { id: session.orgId }, select: { slug: true } });
+  const org = await prisma.organization.findUnique({
+    where: { id: session.orgId },
+    select: { slug: true, seriesCredits: true },
+  });
   if (!org) throw new Error("Organization not found");
   const slug = await uniqueSeriesSlug(session.orgId, slugify(d.name));
 
-  const series = await prisma.eventSeries.create({
-    data: {
-      organizationId: session.orgId,
-      name: d.name,
-      slug,
-      description: d.description || d.name,
-      category: d.category || null,
-      timezone: d.timezone,
-      isPrivate: d.isPrivate === "on",
-      frequency: d.frequency,
-      interval: d.interval,
-      byWeekday,
-      monthlyMode: d.frequency === "MONTHLY" ? (d.monthlyMode ?? "DAY_OF_MONTH") : null,
-      startTimeMinutes,
-      durationMinutes: d.durationMinutes,
-      seriesStart,
-      seriesEnd,
-      occurrenceCap: d.occurrenceCap ? Number(d.occurrenceCap) : null,
-      ticketName: d.ticketName,
-      priceCents: Math.round(d.priceDollars * 100),
-      capacity: d.capacity ? Number(d.capacity) : null,
-      // Full-series pass only makes sense on a BOUNDED series ("all sessions"
-      // must be finite) — silently drop it for open-ended ones.
-      bundlePriceCents:
-        d.bundlePriceDollars && (seriesEnd || d.occurrenceCap)
-          ? Math.round(Number(d.bundlePriceDollars) * 100)
-          : null,
-      status: "ACTIVE", // active immediately → worker + the call below generate occurrences
-    },
+  // ── Free vs premium gate ────────────────────────────────────────────────
+  // Free tier: ONE active free series at a time (occurrences get the free-event
+  // entitlements: 50 regs/session, no branding, drop-in only). Anything beyond
+  // that — a second concurrent series, or wanting the full-series bundle —
+  // requires spending a $34.99 series credit, which makes the series PREMIUM.
+  const wantsBundle = !!d.bundlePriceDollars;
+  const activeFreeSeries = await prisma.eventSeries.count({
+    where: { organizationId: session.orgId, status: "ACTIVE", isPremium: false, deletedAt: null },
   });
+  const needsCredit = wantsBundle || activeFreeSeries >= 1;
+  const isPremium = needsCredit;
+
+  // Credit spend + series create in ONE transaction, so a failed create can
+  // never consume a credit (and a race on the last credit can't double-spend).
+  let series;
+  try {
+    series = await prisma.$transaction(async (tx) => {
+      if (needsCredit) {
+        const spent = await tx.organization.updateMany({
+          where: { id: session.orgId!, seriesCredits: { gt: 0 } },
+          data: { seriesCredits: { decrement: 1 } },
+        });
+        if (spent.count === 0) throw new Error("NO_CREDIT");
+      }
+      return tx.eventSeries.create({
+        data: {
+          organizationId: session.orgId!,
+          name: d.name,
+          slug,
+          description: d.description || d.name,
+          category: d.category || null,
+          timezone: d.timezone,
+          isPrivate: d.isPrivate === "on",
+          frequency: d.frequency,
+          interval: d.interval,
+          byWeekday,
+          monthlyMode: d.frequency === "MONTHLY" ? (d.monthlyMode ?? "DAY_OF_MONTH") : null,
+          startTimeMinutes,
+          durationMinutes: d.durationMinutes,
+          seriesStart,
+          seriesEnd,
+          occurrenceCap: d.occurrenceCap ? Number(d.occurrenceCap) : null,
+          ticketName: d.ticketName,
+          priceCents: Math.round(d.priceDollars * 100),
+          capacity: d.capacity ? Number(d.capacity) : null,
+          // Full-series pass: PREMIUM-only, and only on a BOUNDED series ("all
+          // sessions" must be finite) — silently dropped otherwise.
+          bundlePriceCents:
+            isPremium && d.bundlePriceDollars && (seriesEnd || d.occurrenceCap)
+              ? Math.round(Number(d.bundlePriceDollars) * 100)
+              : null,
+          isPremium,
+          status: "ACTIVE", // active immediately → worker + the call below generate occurrences
+        },
+      });
+    });
+  } catch (e: any) {
+    if (e?.message === "NO_CREDIT") redirect("/dashboard/series/new?error=series_credit_required");
+    throw e;
+  }
 
   // Generate the first horizon now so the organizer sees occurrences right away
   // (the worker keeps rolling it forward every tick).
