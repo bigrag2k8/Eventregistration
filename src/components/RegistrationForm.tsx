@@ -49,6 +49,10 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  // Client-side inline validation: fires on blur so a bad email or empty
+  // required field is flagged before the user reaches the Pay button (rather
+  // than after a full server round-trip). Cleared as they fix the field.
+  const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
 
   // All money math lives on the server (same computeTotals the registration
   // uses) — the client previously recomputed it with drifting formulas and
@@ -99,6 +103,25 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
 
   function setField<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
+    // Clear a field's inline error the moment the user edits it — the message
+    // reappears on blur if it's still invalid.
+    if (clientErrors[k]) setClientErrors((e) => { const n = { ...e }; delete n[k]; return n; });
+  }
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const REQUIRED_LABELS: Partial<Record<keyof typeof form, string>> = {
+    firstName: "First name", lastName: "Last name", email: "Email", phone: "Phone",
+  };
+  function validateField(k: keyof typeof form) {
+    const v = (form[k] ?? "").trim();
+    let msg = "";
+    if (REQUIRED_LABELS[k] && !v) msg = `${REQUIRED_LABELS[k]} is required.`;
+    else if (k === "email" && v && !EMAIL_RE.test(v)) msg = "Enter a valid email address.";
+    setClientErrors((e) => {
+      const n = { ...e };
+      if (msg) n[k] = msg; else delete n[k];
+      return n;
+    });
   }
 
   async function submit(e: React.FormEvent) {
@@ -149,11 +172,12 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
   }
 
   function fieldErr(name: string) {
-    const e = fieldErrors[name];
-    return e?.[0] ? <p className="mt-1 text-xs text-red-600">{e[0]}</p> : null;
+    const msg = clientErrors[name] ?? fieldErrors[name]?.[0];
+    return msg ? <p className="mt-1 text-xs text-red-600">{msg}</p> : null;
   }
   function inputClass(name: string) {
-    return `input${fieldErrors[name] ? " border-red-400 ring-1 ring-red-100" : ""}`;
+    const bad = clientErrors[name] || fieldErrors[name];
+    return `input${bad ? " border-red-400 ring-1 ring-red-100" : ""}`;
   }
 
   const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -233,22 +257,22 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
           </div>
           <div>
             <label className="label" htmlFor="reg-firstName">First name *</label>
-            <input id="reg-firstName" autoComplete="given-name" required className={inputClass("firstName")} value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} />
+            <input id="reg-firstName" autoComplete="given-name" required aria-invalid={!!clientErrors.firstName} className={inputClass("firstName")} value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} onBlur={() => validateField("firstName")} />
             {fieldErr("firstName")}
           </div>
           <div>
             <label className="label" htmlFor="reg-lastName">Last name *</label>
-            <input id="reg-lastName" autoComplete="family-name" required className={inputClass("lastName")} value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} />
+            <input id="reg-lastName" autoComplete="family-name" required aria-invalid={!!clientErrors.lastName} className={inputClass("lastName")} value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} onBlur={() => validateField("lastName")} />
             {fieldErr("lastName")}
           </div>
           <div>
             <label className="label" htmlFor="reg-email">Email *</label>
-            <input id="reg-email" autoComplete="email" required type="email" className={inputClass("email")} value={form.email} onChange={(e) => setField("email", e.target.value)} />
+            <input id="reg-email" autoComplete="email" required type="email" aria-invalid={!!clientErrors.email} className={inputClass("email")} value={form.email} onChange={(e) => setField("email", e.target.value)} onBlur={() => validateField("email")} />
             {fieldErr("email")}
           </div>
           <div>
             <label className="label" htmlFor="reg-phone">Phone *</label>
-            <input id="reg-phone" autoComplete="tel" type="tel" required className={inputClass("phone")} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+            <input id="reg-phone" autoComplete="tel" type="tel" required aria-invalid={!!clientErrors.phone} className={inputClass("phone")} value={form.phone} onChange={(e) => setField("phone", e.target.value)} onBlur={() => validateField("phone")} />
             {fieldErr("phone")}
           </div>
         </div>
