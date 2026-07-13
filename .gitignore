@@ -11,3 +11,11 @@ coverage/
 .idea/
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Standalone Remotion promo-video project — accidentally swept into the repo
+# (216MB of mp4/png/wav assets). Not part of the app; lives on disk only.
+/promo/
+
+# Binary doc exports — keep the .md sources, ignore the generated .docx/.pdf.
+/docs/*.docx
+/docs/*.pdf
