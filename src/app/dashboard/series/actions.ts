@@ -1,0 +1,115 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { fromZonedTime } from "date-fns-tz";
+import { prisma } from "@/lib/db";
+import { getSession, requireRole } from "@/lib/auth";
+import { audit } from "@/lib/audit";
+import { materializeOccurrences } from "@/server/series";
+
+const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+const schema = z.object({
+  name: z.string().min(2).max(120),
+  description: z.string().max(4000).optional(),
+  category: z.string().max(60).optional(),
+  timezone: z.string().min(1).max(64),
+  isPrivate: z.string().optional(),
+  frequency: z.enum(["DAILY", "WEEKLY", "MONTHLY"]),
+  interval: z.coerce.number().int().min(1).max(52),
+  monthlyMode: z.enum(["DAY_OF_MONTH", "NTH_WEEKDAY"]).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(HHMM),
+  durationMinutes: z.coerce.number().int().min(5).max(1440),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  occurrenceCap: z.coerce.number().int().min(1).max(400).optional().or(z.literal("")),
+  ticketName: z.string().min(1).max(80),
+  priceDollars: z.coerce.number().min(0).max(100000),
+  capacity: z.coerce.number().int().min(1).max(1000000).optional().or(z.literal("")),
+});
+
+function slugify(s: string): string {
+  return (
+    s.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) ||
+    "series"
+  );
+}
+async function uniqueSeriesSlug(organizationId: string, base: string): Promise<string> {
+  let slug = base;
+  let n = 1;
+  // Bounded loop — a handful of collisions at most in practice.
+  while (await prisma.eventSeries.findFirst({ where: { organizationId, slug }, select: { id: true } })) {
+    slug = `${base}-${++n}`;
+    if (n > 50) { slug = `${base}-${Date.now()}`; break; }
+  }
+  return slug;
+}
+
+export async function createSeriesAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  if (!session.orgId) throw new Error("No organization linked");
+
+  const raw = Object.fromEntries(formData.entries());
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) redirect("/dashboard/series/new?error=validation");
+  const d = parsed.data;
+
+  const byWeekday =
+    d.frequency === "WEEKLY"
+      ? formData.getAll("byWeekday").map((v) => Number(v)).filter((n) => n >= 0 && n <= 6)
+      : [];
+  if (d.frequency === "WEEKLY" && byWeekday.length === 0) redirect("/dashboard/series/new?error=weekday_required");
+
+  const [hh, mm] = d.startTime.split(":").map(Number);
+  const startTimeMinutes = hh * 60 + mm;
+  // Store the series start/end at local NOON of the chosen day — the rule engine
+  // only reads the calendar date from these (time-of-day lives in
+  // startTimeMinutes), and noon is unambiguous across every DST transition.
+  const seriesStart = fromZonedTime(`${d.startDate} 12:00:00`, d.timezone);
+  const seriesEnd = d.endDate ? fromZonedTime(`${d.endDate} 12:00:00`, d.timezone) : null;
+
+  const org = await prisma.organization.findUnique({ where: { id: session.orgId }, select: { slug: true } });
+  if (!org) throw new Error("Organization not found");
+  const slug = await uniqueSeriesSlug(session.orgId, slugify(d.name));
+
+  const series = await prisma.eventSeries.create({
+    data: {
+      organizationId: session.orgId,
+      name: d.name,
+      slug,
+      description: d.description || d.name,
+      category: d.category || null,
+      timezone: d.timezone,
+      isPrivate: d.isPrivate === "on",
+      frequency: d.frequency,
+      interval: d.interval,
+      byWeekday,
+      monthlyMode: d.frequency === "MONTHLY" ? (d.monthlyMode ?? "DAY_OF_MONTH") : null,
+      startTimeMinutes,
+      durationMinutes: d.durationMinutes,
+      seriesStart,
+      seriesEnd,
+      occurrenceCap: d.occurrenceCap ? Number(d.occurrenceCap) : null,
+      ticketName: d.ticketName,
+      priceCents: Math.round(d.priceDollars * 100),
+      capacity: d.capacity ? Number(d.capacity) : null,
+      status: "ACTIVE", // active immediately → worker + the call below generate occurrences
+    },
+  });
+
+  // Generate the first horizon now so the organizer sees occurrences right away
+  // (the worker keeps rolling it forward every tick).
+  const horizon = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+  const created = await materializeOccurrences(series.id, horizon).catch(() => 0);
+
+  await audit({
+    organizationId: session.orgId, userId: session.sub,
+    action: "series.create", targetType: "EventSeries", targetId: series.id,
+    metadata: { name: d.name, frequency: d.frequency, firstBatch: created },
+  });
+
+  revalidatePath(`/o/${org.slug}`);
+  redirect(`/o/${org.slug}/series/${slug}`);
+}

@@ -102,6 +102,25 @@ enum ReviewStatus {
   HIDDEN
 }
 
+enum SeriesFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/// For MONTHLY series: repeat on the same day-of-month (e.g. the 15th) or the
+/// same nth weekday (e.g. the 2nd Tuesday), derived from seriesStart.
+enum MonthlyMode {
+  DAY_OF_MONTH
+  NTH_WEEKDAY
+}
+
+enum SeriesStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+}
+
 enum RefundRequestStatus {
   OPEN
   APPROVED
@@ -243,6 +262,7 @@ model Organization {
   billingInvoices BillingInvoice[]
   disputes        Dispute[]
   reviews         Review[]
+  eventSeries     EventSeries[]
 
   @@map("organizations")
 }
@@ -430,9 +450,18 @@ model Event {
   pendingInvites     PendingInvite[]
   reviews            Review[]
 
+  /// When set, this event is one generated occurrence of a recurring series.
+  /// It's a normal, fully-independent Event (own tickets, registrations,
+  /// check-in, payouts) — the series only owns the template + recurrence rule.
+  seriesId           String?
+  series             EventSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  /// 1-based position within the series (by date); used for display + dedup.
+  occurrenceIndex    Int?
+
   @@unique([organizationId, slug])
   @@index([organizationId, startAt])
   @@index([status, startAt])
+  @@index([seriesId])
   @@map("events")
 }
 
@@ -692,6 +721,64 @@ model Review {
   @@index([organizationId, status])
   @@index([eventId, status])
   @@map("reviews")
+}
+
+/// A recurring event series (Phase 1). Owns the shared template + recurrence
+/// rule; each occurrence is materialized as a full independent Event (see
+/// Event.seriesId). The worker rolls a generation horizon forward so a weekly
+/// class always has the next few months of occurrences without pre-creating
+/// hundreds of rows. Drop-in only in Phase 1 — attendees buy a ticket per
+/// occurrence via the normal registration flow.
+model EventSeries {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name           String
+  slug           String       // unique per org → /o/[slug]/series/[series-slug]
+  description    String       @db.Text
+  category       String?
+  bannerUrl      String?
+  timezone       String       @default("UTC")
+  isPrivate      Boolean      @default(false)
+
+  // ── Recurrence rule ──────────────────────────────────────────────────────
+  frequency      SeriesFrequency
+  /// Every N days/weeks/months (1 = every period).
+  interval       Int          @default(1)
+  /// WEEKLY only: ISO-ish weekday numbers 0=Sun..6=Sat to repeat on.
+  byWeekday      Int[]
+  /// MONTHLY only: same day-of-month vs same nth-weekday (from seriesStart).
+  monthlyMode    MonthlyMode?
+  /// Local start time as minutes from midnight (e.g. 18:00 → 1080). Combined
+  /// with each occurrence date in `timezone` → a DST-correct UTC instant.
+  startTimeMinutes Int
+  /// Occurrence length in minutes (→ each Event's endAt).
+  durationMinutes  Int
+  /// First occurrence date (local midnight of the day the series starts).
+  seriesStart    DateTime
+  /// Optional last date; occurrences never generate past it. Null = open-ended.
+  seriesEnd      DateTime?
+  /// Optional hard cap on total occurrences (in addition to seriesEnd).
+  occurrenceCap  Int?
+
+  // ── Ticket template (copied onto each occurrence — one drop-in tier) ──────
+  ticketName     String       @default("General admission")
+  priceCents     Int          @default(0)
+  /// Per-occurrence capacity; null = unlimited.
+  capacity       Int?
+
+  status         SeriesStatus @default(DRAFT)
+
+  events         Event[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([organizationId, slug])
+  @@index([status])
+  @@map("event_series")
 }
 
 model Ticket {

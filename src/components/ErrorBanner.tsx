@@ -46,6 +46,7 @@ const MESSAGES: Record<string, string> = {
   reschedule_dates_required: "Pick a new start and end date/time to reschedule.",
   already_cancelled: "This event is already cancelled.",
   delete_has_registrations: "This event has registrations and can't be deleted. Cancel it (which refunds attendees) or Reschedule it instead.",
+  weekday_required: "Pick at least one day of the week for a weekly series.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

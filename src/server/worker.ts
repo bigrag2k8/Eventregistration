@@ -13,6 +13,7 @@ import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail,
 import { audit } from "@/lib/audit";
 import { issueTickets, releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 import { recomputeOrgReputation } from "@/server/reviews";
+import { materializeOccurrences, computeOccurrences, ruleForSeries } from "@/server/series";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -477,6 +478,40 @@ async function recomputeReputationScores() {
   }
 }
 
+// ── Recurring series: rolling occurrence generation ─────────────────────────
+// Each ACTIVE series keeps ~SERIES_HORIZON_DAYS of future occurrences
+// materialized as real Event rows (so a weekly class always shows its next few
+// months without pre-creating hundreds of rows). Generation is idempotent, so
+// each tick just fills the newly-in-window dates. A bounded series (end date or
+// occurrence cap) flips to ENDED once its final occurrence is in the past.
+const SERIES_HORIZON_DAYS = 90;
+
+async function extendSeriesHorizon() {
+  const seriesList = await prisma.eventSeries.findMany({
+    where: { status: "ACTIVE", deletedAt: null },
+    orderBy: { updatedAt: "asc" },
+    take: 50,
+  });
+  const horizon = new Date(Date.now() + SERIES_HORIZON_DAYS * ONE_DAY);
+  for (const s of seriesList) {
+    try {
+      await materializeOccurrences(s.id, horizon);
+      // Only bounded series can end; open-ended ones roll forever.
+      if (s.seriesEnd || s.occurrenceCap != null) {
+        const far = new Date(Date.now() + 5 * 365 * ONE_DAY);
+        const all = computeOccurrences(ruleForSeries(s), far);
+        const last = all[all.length - 1];
+        if (!last || last.start.getTime() < Date.now()) {
+          await prisma.eventSeries.update({ where: { id: s.id }, data: { status: "ENDED" } });
+        }
+      }
+    } catch (e: any) {
+      console.error(`[worker] extendSeriesHorizon failed for series ${s.id}:`, e?.message);
+      Sentry.captureException(e, { tags: { job: "extendSeriesHorizon" }, extra: { seriesId: s.id } });
+    }
+  }
+}
+
 const INTERVAL = 5 * 60 * 1000; // 5 minutes
 const LOCK_KEY = "worker:tick:lock";
 const LOCK_TTL_MS = INTERVAL - 60 * 1000; // expires before the next tick — no deadlock if we crash mid-tick
@@ -512,6 +547,7 @@ async function tick() {
   try { await inviteEventReviews(); } catch (e) { console.error("[worker] inviteEventReviews error", e); Sentry.captureException(e, { tags: { job: "inviteEventReviews" } }); }
   try { await remindEventReviews(); } catch (e) { console.error("[worker] remindEventReviews error", e); Sentry.captureException(e, { tags: { job: "remindEventReviews" } }); }
   try { await recomputeReputationScores(); } catch (e) { console.error("[worker] recomputeReputationScores error", e); Sentry.captureException(e, { tags: { job: "recomputeReputationScores" } }); }
+  try { await extendSeriesHorizon(); } catch (e) { console.error("[worker] extendSeriesHorizon error", e); Sentry.captureException(e, { tags: { job: "extendSeriesHorizon" } }); }
 }
 
 // Apply pending migrations BEFORE the first tick. Railway starts web and worker

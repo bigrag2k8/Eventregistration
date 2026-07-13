@@ -118,7 +118,10 @@ export default async function DashboardHome() {
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your events</h2>
         {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-          <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
+          <div className="flex gap-2">
+            <Link href="/dashboard/series/new" className="btn-secondary">+ Recurring series</Link>
+            <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
+          </div>
         )}
       </div>
 

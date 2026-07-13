@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { computeTrustTier, TIER_LABEL } from "@/server/reviews";
-import { Globe, Mail, Phone, Ticket, Trophy } from "lucide-react";
+import { describeRecurrence } from "@/server/series-rule";
+import { CalendarClock, Globe, Mail, Phone, Ticket, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,21 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
         take: 8,
         include: { event: { select: { name: true, isPrivate: true } } },
       },
+      // Recurring series shown as ONE card each (their occurrences are filtered
+      // out of the individual event lists below). Includes the next upcoming
+      // session so the card can show "next: <date>".
+      eventSeries: {
+        where: { status: { in: ["ACTIVE", "ENDED"] }, deletedAt: null },
+        orderBy: { createdAt: "asc" },
+        include: {
+          events: {
+            where: { status: "PUBLISHED", deletedAt: null, endAt: { gte: new Date() } },
+            orderBy: { startAt: "asc" },
+            take: 1,
+            select: { startAt: true, endAt: true, timezone: true },
+          },
+        },
+      },
     },
   });
   if (!org) return notFound();
@@ -45,9 +61,11 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
   // Private events show on the org's OWN page by default (never on app-wide
   // discovery). The org can opt out via settings (showPrivateEvents=false), in
   // which case a private event is reachable only through its direct link.
-  const visibleEvents = org.showPrivateEvents
-    ? org.events
-    : org.events.filter((e) => !e.isPrivate);
+  // Occurrences of a recurring series (seriesId set) are collapsed into their
+  // series card below, so they're excluded from the individual event lists.
+  const visibleEvents = (org.showPrivateEvents ? org.events : org.events.filter((e) => !e.isPrivate))
+    .filter((e) => !e.seriesId);
+  const series = org.showPrivateEvents ? org.eventSeries : org.eventSeries.filter((s) => !s.isPrivate);
   const upcoming = visibleEvents.filter((e) => e.endAt >= now);
   const past = visibleEvents
     .filter((e) => e.endAt < now)
@@ -195,6 +213,41 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Classes & series — each recurring series collapses to one card */}
+      {series.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-2 pt-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">Classes &amp; series</h2>
+            <div className="h-px flex-1" style={{ background: "linear-gradient(to right, var(--org-brand), transparent)" }} />
+          </div>
+          <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {series.map((s) => {
+              const next = s.events[0];
+              return (
+                <Link key={s.id} href={`/o/${org.slug}/series/${s.slug}`} className="card transition hover:-translate-y-0.5 hover:shadow-md">
+                  {s.bannerUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.bannerUrl} alt={s.name} className="mb-3 aspect-video w-full rounded-lg object-cover" />
+                  ) : (
+                    <div className="mb-3 flex aspect-video w-full items-center justify-center rounded-lg text-white" style={{ background: "linear-gradient(135deg, var(--org-brand), #0f172a)" }}>
+                      <CalendarClock className="h-8 w-8 opacity-90" aria-hidden />
+                    </div>
+                  )}
+                  <div className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wider" style={{ color: "var(--org-brand)" }}>
+                    <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Series
+                  </div>
+                  <h3 className="mt-1 text-lg font-semibold">{s.name}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{describeRecurrence(s)}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {next ? `Next: ${formatDateRange(next.startAt, next.endAt, next.timezone)}` : "No upcoming sessions"}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}
