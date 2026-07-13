@@ -79,7 +79,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
-        {inMaintenance ? <MaintenancePage /> : children}
+        {/* Keyboard users can jump straight past the header to the content
+            (WCAG 2.4.1). Hidden until focused, then appears top-left. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-brand-700 focus:shadow-lg focus:ring-2 focus:ring-brand-500"
+        >
+          Skip to content
+        </a>
+        <div id="main-content" tabIndex={-1} className="outline-none">
+          {inMaintenance ? <MaintenancePage /> : children}
+        </div>
         <Suspense fallback={null}>
           <SavedToast />
         </Suspense>
