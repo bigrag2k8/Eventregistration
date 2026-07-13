@@ -140,11 +140,13 @@ export function OrgNameSlugFields({
   return (
     <>
       <div>
-        <label className="label">Organization name *</label>
+        <label className="label" htmlFor={nameField}>Organization name *</label>
         <input
+          id={nameField}
           name={nameField}
           required
           maxLength={120}
+          autoComplete="organization"
           className="input"
           placeholder={namePlaceholder}
           value={name}
@@ -153,7 +155,7 @@ export function OrgNameSlugFields({
       </div>
       <div>
         <div className="flex items-center justify-between">
-          <label className="label">Your URL *</label>
+          <label className="label" htmlFor={slugField}>Your URL *</label>
           {statusPill}
         </div>
         <div className={`flex items-stretch rounded-lg ring-1 ${inputRing}`}>
@@ -161,10 +163,12 @@ export function OrgNameSlugFields({
             yourevents.app/o/
           </span>
           <input
+            id={slugField}
             name={slugField}
             required
             pattern="[a-z0-9-]+"
             maxLength={60}
+            autoComplete="off"
             className="w-full rounded-r-lg border-0 bg-white px-3 py-2 text-sm outline-none"
             placeholder={slugPlaceholder}
             value={slug}

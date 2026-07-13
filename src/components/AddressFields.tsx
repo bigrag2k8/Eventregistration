@@ -78,9 +78,10 @@ export function AddressFields({ defaults, required }: Props) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
-        <label className="label">Street address{star}</label>
+        <label className="label" htmlFor="addr-line1">Street address{star}</label>
         <input
           ref={line1}
+          id="addr-line1"
           name="addressLine1"
           required={required}
           maxLength={200}
@@ -107,9 +108,11 @@ export function AddressFields({ defaults, required }: Props) {
         )}
       </div>
       <div className="sm:col-span-2">
-        <label className="label">Address line 2</label>
+        <label className="label" htmlFor="addr-line2">Address line 2</label>
         <input
+          id="addr-line2"
           name="addressLine2"
+          autoComplete="address-line2"
           maxLength={200}
           defaultValue={defaults?.addressLine2 ?? ""}
           placeholder="Suite, unit, etc. (optional)"
@@ -117,10 +120,12 @@ export function AddressFields({ defaults, required }: Props) {
         />
       </div>
       <div>
-        <label className="label">City{star}</label>
+        <label className="label" htmlFor="addr-city">City{star}</label>
         <input
           ref={cityRef}
+          id="addr-city"
           name="city"
+          autoComplete="address-level2"
           required={required}
           maxLength={100}
           defaultValue={defaults?.city ?? ""}
@@ -128,10 +133,12 @@ export function AddressFields({ defaults, required }: Props) {
         />
       </div>
       <div>
-        <label className="label">State / Province{star}</label>
+        <label className="label" htmlFor="addr-state">State / Province{star}</label>
         <input
           ref={stateRef}
+          id="addr-state"
           name="state"
+          autoComplete="address-level1"
           required={required}
           maxLength={100}
           defaultValue={defaults?.state ?? ""}
@@ -139,10 +146,12 @@ export function AddressFields({ defaults, required }: Props) {
         />
       </div>
       <div>
-        <label className="label">ZIP / Postal code{star}</label>
+        <label className="label" htmlFor="addr-zip">ZIP / Postal code{star}</label>
         <input
           ref={zipRef}
+          id="addr-zip"
           name="zipCode"
+          autoComplete="postal-code"
           required={required}
           maxLength={20}
           defaultValue={defaults?.zipCode ?? ""}
@@ -150,10 +159,12 @@ export function AddressFields({ defaults, required }: Props) {
         />
       </div>
       <div>
-        <label className="label">Country{star}</label>
+        <label className="label" htmlFor="addr-country">Country{star}</label>
         <input
           ref={countryRef}
+          id="addr-country"
           name="country"
+          autoComplete="country-name"
           required={required}
           maxLength={100}
           defaultValue={defaults?.country ?? "United States"}

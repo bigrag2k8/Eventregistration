@@ -52,17 +52,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
           </p>
           <div className="mt-4 grid gap-4">
             <div>
-              <label className="label">Organization name *</label>
-              <input name="name" required maxLength={120} defaultValue={org.name} className="input" />
+              <label className="label" htmlFor="org-name">Organization name *</label>
+              <input id="org-name" name="name" autoComplete="organization" required maxLength={120} defaultValue={org.name} className="input" />
             </div>
             <div>
-              <label className="label">Tagline (one short line shown under your name)</label>
-              <input name="tagline" maxLength={160} defaultValue={org.tagline ?? ""} className="input"
+              <label className="label" htmlFor="org-tagline">Tagline (one short line shown under your name)</label>
+              <input id="org-tagline" name="tagline" maxLength={160} defaultValue={org.tagline ?? ""} className="input"
                      placeholder="Hosting unforgettable community events" />
             </div>
             <div>
-              <label className="label">About (longer description shown on your public page)</label>
-              <textarea name="aboutBlurb" rows={4} maxLength={4000} defaultValue={org.aboutBlurb ?? ""} className="input"
+              <label className="label" htmlFor="org-about">About (longer description shown on your public page)</label>
+              <textarea id="org-about" name="aboutBlurb" rows={4} maxLength={4000} defaultValue={org.aboutBlurb ?? ""} className="input"
                         placeholder="Tell visitors about your organization, mission, the kind of events you host, etc." />
             </div>
           </div>
@@ -111,18 +111,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
           )}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label">Public contact email</label>
-              <input name="contactEmail" type="email" defaultValue={org.contactEmail ?? ""} className="input"
+              <label className="label" htmlFor="org-contactEmail">Public contact email</label>
+              <input id="org-contactEmail" name="contactEmail" type="email" autoComplete="email" defaultValue={org.contactEmail ?? ""} className="input"
                      placeholder="hello@yourorg.com" />
             </div>
             <div>
-              <label className="label">Phone *</label>
-              <input name="contactPhone" required maxLength={40} defaultValue={org.contactPhone ?? ""} className="input"
+              <label className="label" htmlFor="org-contactPhone">Phone *</label>
+              <input id="org-contactPhone" name="contactPhone" type="tel" autoComplete="tel" required maxLength={40} defaultValue={org.contactPhone ?? ""} className="input"
                      placeholder="(555) 123-4567" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Website (optional)</label>
-              <input name="website" type="url" defaultValue={org.website ?? ""} className="input"
+              <label className="label" htmlFor="org-website">Website (optional)</label>
+              <input id="org-website" name="website" type="url" autoComplete="url" defaultValue={org.website ?? ""} className="input"
                      placeholder="https://yourorg.com" />
             </div>
           </div>

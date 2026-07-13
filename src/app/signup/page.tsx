@@ -67,24 +67,24 @@ export default function SignUpPage() {
           <h2 className="text-base font-semibold">About you</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="label">First name *</label>
-              <input name="firstName" required maxLength={80} className="input" />
+              <label className="label" htmlFor="su-firstName">First name *</label>
+              <input id="su-firstName" name="firstName" autoComplete="given-name" required maxLength={80} className="input" />
             </div>
             <div>
-              <label className="label">Last name *</label>
-              <input name="lastName" required maxLength={80} className="input" />
+              <label className="label" htmlFor="su-lastName">Last name *</label>
+              <input id="su-lastName" name="lastName" autoComplete="family-name" required maxLength={80} className="input" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Email *</label>
-              <input name="email" required type="email" className="input" />
+              <label className="label" htmlFor="su-email">Email *</label>
+              <input id="su-email" name="email" autoComplete="email" required type="email" className="input" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Phone *</label>
-              <input name="contactPhone" required maxLength={40} className="input" placeholder="(555) 123-4567" />
+              <label className="label" htmlFor="su-phone">Phone *</label>
+              <input id="su-phone" name="contactPhone" autoComplete="tel" type="tel" required maxLength={40} className="input" placeholder="(555) 123-4567" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Password *</label>
-              <input name="password" required type="password" minLength={8} className="input" />
+              <label className="label" htmlFor="su-password">Password *</label>
+              <input id="su-password" name="password" autoComplete="new-password" required type="password" minLength={8} className="input" />
               <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
             </div>
           </div>
