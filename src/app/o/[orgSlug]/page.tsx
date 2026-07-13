@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { computeTrustTier, TIER_LABEL } from "@/server/reviews";
+import { Globe, Mail, Phone, Ticket, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -121,7 +122,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                   )}
                   {tierLabel && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs ring-1 ring-white/25">
-                      {tier === "TOP_RATED" ? "🏆" : "✓"} {tierLabel}
+                      {tier === "TOP_RATED" ? <Trophy className="h-3.5 w-3.5" aria-hidden /> : <span aria-hidden>✓</span>} {tierLabel}
                     </span>
                   )}
                 </div>
@@ -146,7 +147,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
                 >
-                  🌐 {org.website.replace(/^https?:\/\//, "")}
+                  <Globe className="h-4 w-4 shrink-0" aria-hidden /> {org.website.replace(/^https?:\/\//, "")}
                 </a>
               )}
               {org.contactEmail && (
@@ -154,12 +155,12 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                   href={`mailto:${org.contactEmail}`}
                   className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
                 >
-                  ✉ {org.contactEmail}
+                  <Mail className="h-4 w-4 shrink-0" aria-hidden /> {org.contactEmail}
                 </a>
               )}
               {org.contactPhone && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-700 ring-1 ring-slate-200">
-                  📞 {org.contactPhone}
+                  <Phone className="h-4 w-4 shrink-0" aria-hidden /> {org.contactPhone}
                 </span>
               )}
             </div>
@@ -185,11 +186,11 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                 </div>
                 <div className="min-w-0">
                   <div className="font-medium">{[m.firstName, m.lastName].filter(Boolean).join(" ") || m.email}</div>
-                  <a href={`mailto:${m.email}`} className="mt-1 block truncate text-sm text-slate-600 hover:text-slate-900">
-                    ✉ {m.email}
+                  <a href={`mailto:${m.email}`} className="mt-1 flex items-center gap-1.5 truncate text-sm text-slate-600 hover:text-slate-900">
+                    <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden /> {m.email}
                   </a>
                   {m.phone && org.showTeamPhones && (
-                    <a href={`tel:${m.phone}`} className="block text-sm text-slate-600 hover:text-slate-900">📞 {m.phone}</a>
+                    <a href={`tel:${m.phone}`} className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"><Phone className="h-3.5 w-3.5 shrink-0" aria-hidden /> {m.phone}</a>
                   )}
                 </div>
               </div>
@@ -212,7 +213,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-            <div className="text-4xl">🎟️</div>
+            <Ticket className="mx-auto h-9 w-9 text-slate-400" aria-hidden />
             <p className="mt-3 font-medium text-slate-700">No upcoming events right now</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
               Check back soon{org.contactEmail ? " — or reach out to hear about the next one." : "."}
@@ -326,10 +327,10 @@ function EventCard({ e, orgSlug, ended = false }: { e: any; orgSlug: string; end
         </div>
       ) : (
         <div
-          className="mb-3 flex aspect-video w-full items-center justify-center rounded-lg text-3xl text-white"
+          className="mb-3 flex aspect-video w-full items-center justify-center rounded-lg text-white"
           style={{ background: "linear-gradient(135deg, var(--org-brand), #0f172a)" }}
         >
-          🎟
+          <Ticket className="h-8 w-8 opacity-90" aria-hidden />
         </div>
       )}
       <div className="flex items-center gap-2">

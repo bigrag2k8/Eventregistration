@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { verifyReviewToken } from "@/lib/auth";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { ReviewForm } from "@/components/ReviewForm";
+import { PartyPopper, Ticket } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export default async function ReviewPage({
       <Shell>
         <OrgBrandStyle color={org?.brandColor ?? null} />
         <div className="text-center">
-          <div className="text-4xl">🎉</div>
+          <PartyPopper className="mx-auto h-9 w-9 text-brand-600" aria-hidden />
           <h1 className="mt-2 text-xl font-semibold">Thanks for the review!</h1>
           <div className="mt-3">{stars(reg.review.rating)}</div>
           {reg.review.comment && (
@@ -137,9 +138,9 @@ export default async function ReviewPage({
       <div className="mb-4 flex items-center gap-3">
         <div
           className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-white"
-          style={{ backgroundColor: brand, fontSize: "22px" }}
+          style={{ backgroundColor: brand }}
         >
-          🎟
+          <Ticket className="h-5 w-5" aria-hidden />
         </div>
         <div className="min-w-0">
           <div className="truncate text-base font-semibold">{reg.event.name}</div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, PartyPopper } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 
 interface TicketType {
@@ -162,7 +163,7 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       {error && (
         <div role="alert" className="rounded-lg bg-red-50 p-4 ring-1 ring-red-200">
           <div className="flex items-start gap-2">
-            <span className="text-red-600">⚠</span>
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden />
             <div>
               <p className="text-sm font-medium text-red-800">We couldn't complete your registration</p>
               <p className="mt-1 text-sm text-red-700">{error}</p>
@@ -172,7 +173,7 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       )}
       {presaleNote && (
         <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-4 ring-1 ring-emerald-200">
-          <span aria-hidden>🎉</span>
+          <PartyPopper className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden />
           <p className="text-sm font-bold text-emerald-800">{presaleNote}</p>
         </div>
       )}

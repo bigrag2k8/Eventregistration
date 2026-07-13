@@ -4,6 +4,7 @@ import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Logo } from "@/components/Logo";
+import { Ticket } from "lucide-react";
 
 // Re-runs on every request — guarantees fresh random selection each time
 export const dynamic = "force-dynamic";
@@ -182,8 +183,8 @@ function EventCard({ e }: { e: any }) {
           <img src={e.bannerUrl} alt={e.name} className="h-full w-full object-cover" />
         </div>
       ) : (
-        <div className="mb-3 flex aspect-video w-full items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-3xl text-white">
-          🎟
+        <div className="mb-3 flex aspect-video w-full items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white">
+          <Ticket className="h-8 w-8 opacity-90" aria-hidden />
         </div>
       )}
       {e.category && (

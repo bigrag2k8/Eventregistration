@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { renderQrPngDataUrl } from "@/server/tickets";
 import { money } from "@/lib/format";
+import { PartyPopper } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export default async function SuccessPage({
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <div className="card text-center">
-        <div className="text-3xl">🎉</div>
+        <PartyPopper className="mx-auto h-8 w-8 text-brand-600" aria-hidden />
         <h1 className="mt-2 text-2xl font-bold">You're registered!</h1>
         <p className="mt-1 text-slate-600">Confirmation sent to <strong>{reg.email}</strong></p>
 

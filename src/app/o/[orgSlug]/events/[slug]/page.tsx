@@ -7,6 +7,7 @@ import { ShareBar } from "@/components/ShareBar";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { WaitlistForm } from "@/components/WaitlistForm";
+import { Calendar, MapPin, PartyPopper } from "lucide-react";
 
 interface Props { params: { orgSlug: string; slug: string } }
 
@@ -165,10 +166,10 @@ export default async function EventLandingPage({ params }: Props) {
               {event.name}
             </h1>
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-white/90 sm:text-base">
-              <span>📅 {formatDateRange(event.startAt, event.endAt, event.timezone)}</span>
+              <span className="inline-flex items-center gap-1.5"><Calendar className="h-4 w-4 shrink-0" aria-hidden /> {formatDateRange(event.startAt, event.endAt, event.timezone)}</span>
               {event.location && (
-                <span>
-                  📍 {event.location.venueName ?? ""}
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4 shrink-0" aria-hidden /> {event.location.venueName ?? ""}
                   {event.location.venueName ? " · " : ""}
                   {event.location.city}{event.location.state ? `, ${event.location.state}` : ""}
                 </span>
@@ -214,7 +215,7 @@ export default async function EventLandingPage({ params }: Props) {
                 </div>
               ) : (
                 <div className="mt-3 rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
-                  <div className="text-2xl">📍</div>
+                  <MapPin className="h-6 w-6 text-slate-500" aria-hidden />
                   {event.location.venueName && <div className="mt-2 font-semibold">{event.location.venueName}</div>}
                   <div className="text-slate-700">
                     {event.location.addressLine1}{event.location.addressLine2 ? `, ${event.location.addressLine2}` : ""}
@@ -243,7 +244,7 @@ export default async function EventLandingPage({ params }: Props) {
         <aside className="lg:sticky lg:top-24 lg:self-start">
           {presaleActive && (
             <div className="mb-3 flex items-center gap-2 rounded-lg bg-emerald-50 p-4 ring-1 ring-emerald-200">
-              <span aria-hidden>🎉</span>
+              <PartyPopper className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden />
               <p className="text-sm font-bold text-emerald-800">
                 All tickets shown include a {presalePct}% early-bird discount until{" "}
                 {formatInTimeZone(event.presaleEndsAt!, event.timezone, "MMM d, h:mm a zzz")} — prices return to regular after that.

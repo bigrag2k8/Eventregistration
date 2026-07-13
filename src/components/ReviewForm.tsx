@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Lock } from "lucide-react";
 import { submitReviewAction } from "@/app/review/[token]/actions";
 
 /**
@@ -116,8 +117,8 @@ export function ReviewForm({
         >
           {editing ? "Update review" : "Post review"}
         </button>
-        <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
-          🔒 No account or password needed
+        <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+          <Lock className="h-3.5 w-3.5" aria-hidden /> No account or password needed
         </span>
       </div>
     </form>
