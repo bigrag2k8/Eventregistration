@@ -4,6 +4,7 @@ import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { getHomepageHero } from "@/lib/homepage";
+import { LogoFull } from "@/components/Logo";
 import {
   Ticket, ChevronDown, Search, Music, UtensilsCrossed, Dumbbell, Users, Store, GraduationCap,
   Palette, Briefcase, Moon, PartyPopper, HeartHandshake, CalendarDays,
@@ -111,8 +112,8 @@ export default async function HomePage({
     <main>
       <header className="sticky top-0 z-20 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" aria-label="Your Events home" className="text-2xl font-bold tracking-tight text-brand-700">
-            Your Events
+          <Link href="/" aria-label="Your Events home">
+            <LogoFull height={64} />
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/signup" className="hidden text-slate-600 hover:text-slate-900 sm:inline">Host an event</Link>

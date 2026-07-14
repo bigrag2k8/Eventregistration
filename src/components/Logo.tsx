@@ -20,8 +20,8 @@ export function Logo({ height = 32, className = "", alt = "YourEvents" }: LogoPr
       // a real /logo-mark.png in /public and switch this back for a small nav.
       src="/logo.png"
       alt={alt}
-      width={480}
-      height={96}
+      width={1124}
+      height={327}
       priority
       style={{ height: `${height}px`, width: "auto" }}
       className={className}
@@ -51,8 +51,8 @@ export function LogoFull({
     <Image
       src="/logo.png"
       alt={alt}
-      width={600}
-      height={400}
+      width={1124}
+      height={327}
       priority
       style={{ height: `${height}px`, width: "auto" }}
       className={className}
