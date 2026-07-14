@@ -892,7 +892,10 @@ model Payment {
   platformFeeCents      Int           @default(0)
   currency              String        @default("USD")
   status                PaymentStatus @default(PENDING)
-  stripePaymentIntentId String?       @unique
+  /// NOT unique: a full-series bundle purchase creates one Payment row PER
+  /// covered session, all sharing the bundle's single PaymentIntent (each row
+  /// carries that session's share). Lookups use findFirst/findMany.
+  stripePaymentIntentId String?
   stripeChargeId        String?
   stripeRefundId        String?
   refundedAmountCents   Int           @default(0)
@@ -904,6 +907,7 @@ model Payment {
   disputes              Dispute[]
 
   @@index([registrationId])
+  @@index([stripePaymentIntentId])
   @@map("payments")
 }
 
