@@ -3,11 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRoleApi, orgScope } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
+import { checkinWindow, checkinWindowState } from "@/lib/checkin-window";
 
 const schema = z.object({
   ticketId: z.string().min(1),
   eventId: z.string().min(1),
+  override: z.boolean().optional(),
 });
+
+const CAN_OVERRIDE_WINDOW = new Set(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
 
 /**
  * Manual check-in by ticket ID — for cases where the attendee doesn't have
@@ -60,12 +65,47 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
 
+  // Same time-window gate as QR scan (see /api/checkin). event already carries
+  // startAt/endAt + the window fields.
+  const win = checkinWindow(event);
+  const state = checkinWindowState(win, new Date());
+  if (state !== "OPEN") {
+    const canOverride = CAN_OVERRIDE_WINDOW.has(session.role);
+    if (!canOverride) {
+      return NextResponse.json({
+        status: state === "TOO_EARLY" ? "NOT_OPEN" : "CLOSED",
+        attendee: ticket.attendeeName,
+        opensAt: win.opensAt.toISOString(),
+        closesAt: win.closesAt.toISOString(),
+      }, { status: 409 });
+    }
+    if (parsed.data.override !== true) {
+      return NextResponse.json({
+        status: "OUTSIDE_WINDOW",
+        state,
+        attendee: ticket.attendeeName,
+        opensAt: win.opensAt.toISOString(),
+        closesAt: win.closesAt.toISOString(),
+      }, { status: 409 });
+    }
+    await audit({
+      organizationId: event.organizationId,
+      eventId: event.id,
+      userId: session.sub,
+      action: "checkin.window_override",
+      targetType: "Ticket",
+      targetId: ticket.id,
+      metadata: { state, attendee: ticket.attendeeName, method: "manual", scannedAt: new Date().toISOString() },
+    });
+  }
+
   await prisma.checkIn.create({
     data: {
       ticketId: ticket.id,
       eventId: event.id,
       scannedBy: session.sub,
       method: "manual",
+      outsideWindow: state !== "OPEN",
     },
   });
 

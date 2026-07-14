@@ -4,8 +4,17 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { requireRoleApi, orgScope, verifyTicketToken } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
+import { checkinWindow, checkinWindowState } from "@/lib/checkin-window";
 
-const schema = z.object({ token: z.string().min(10), eventId: z.string() });
+const schema = z.object({
+  token: z.string().min(10),
+  eventId: z.string(),
+  // Set by the client after an ORGANIZER confirms an outside-the-window scan.
+  override: z.boolean().optional(),
+});
+
+const CAN_OVERRIDE_WINDOW = new Set(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
 
 export async function POST(req: Request) {
   const session = await requireRoleApi(["ORGANIZER", "STAFF", "VOLUNTEER", "ADMIN", "SUPERADMIN"]);
@@ -40,7 +49,10 @@ export async function POST(req: Request) {
   // this, staff of ANY org could consume tickets on another org's event.
   const scopedEvent = await prisma.event.findFirst({
     where: { id: parsed.data.eventId, ...orgScope(session), deletedAt: null },
-    select: { id: true },
+    select: {
+      id: true, organizationId: true, startAt: true, endAt: true,
+      checkinOpensMinutesBefore: true, checkinClosesMinutesAfter: true,
+    },
   });
   if (!scopedEvent) {
     return NextResponse.json({ status: "INVALID", reason: "event_not_found" }, { status: 404 });
@@ -77,6 +89,41 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
 
+  // Time-window gate: block scans outside [opensAt, closesAt]. STAFF/VOLUNTEER
+  // are hard-blocked; ORGANIZER/ADMIN can override by re-submitting with
+  // override:true (the client shows a confirm first). Overrides are audited.
+  const win = checkinWindow(scopedEvent);
+  const state = checkinWindowState(win, new Date());
+  if (state !== "OPEN") {
+    const canOverride = CAN_OVERRIDE_WINDOW.has(session.role);
+    if (!canOverride) {
+      return NextResponse.json({
+        status: state === "TOO_EARLY" ? "NOT_OPEN" : "CLOSED",
+        attendee: ticket.attendeeName,
+        opensAt: win.opensAt.toISOString(),
+        closesAt: win.closesAt.toISOString(),
+      }, { status: 409 });
+    }
+    if (parsed.data.override !== true) {
+      return NextResponse.json({
+        status: "OUTSIDE_WINDOW",
+        state,
+        attendee: ticket.attendeeName,
+        opensAt: win.opensAt.toISOString(),
+        closesAt: win.closesAt.toISOString(),
+      }, { status: 409 });
+    }
+    await audit({
+      organizationId: scopedEvent.organizationId,
+      eventId: scopedEvent.id,
+      userId: session.sub,
+      action: "checkin.window_override",
+      targetType: "Ticket",
+      targetId: ticket.id,
+      metadata: { state, attendee: ticket.attendeeName, method: "qr", scannedAt: new Date().toISOString() },
+    });
+  }
+
   try {
     await prisma.checkIn.create({
       data: {
@@ -84,6 +131,7 @@ export async function POST(req: Request) {
         eventId: ticket.registration.eventId,
         scannedBy: session.sub,
         method: "qr",
+        outsideWindow: state !== "OPEN",
       },
     });
   } catch (e: any) {

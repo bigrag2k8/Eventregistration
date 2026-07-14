@@ -219,6 +219,15 @@ export async function deleteAction(formData: FormData) {
   redirect("/dashboard");
 }
 
+/** Parse a check-in-window minutes field: blank/garbage keeps the current
+ *  value; otherwise clamp to 0…10080 (one week) so the window stays sane. */
+function clampMinutes(raw: string | undefined, current: number): number {
+  if (raw === undefined || raw.trim() === "") return current;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) return current;
+  return Math.max(0, Math.min(10080, n));
+}
+
 const basicsSchema = z.object({
   name: z.string().min(2).max(200),
   shortDescription: z.string().max(160).optional(),
@@ -238,6 +247,8 @@ const basicsSchema = z.object({
   bannerZoom: z.string().optional(),
   bannerFitToFrame: z.string().optional(),
   isPrivate: z.string().optional(),
+  checkinOpensMinutesBefore: z.string().optional(),
+  checkinClosesMinutesAfter: z.string().optional(),
 });
 
 export async function updateBasicsAction(formData: FormData) {
@@ -285,6 +296,9 @@ export async function updateBasicsAction(formData: FormData) {
       bannerPositionY: data.bannerPositionY !== undefined ? parseFloat(data.bannerPositionY) : event.bannerPositionY,
       bannerZoom: data.bannerZoom !== undefined ? parseFloat(data.bannerZoom) : event.bannerZoom,
       bannerFitToFrame: data.bannerFitToFrame !== undefined ? data.bannerFitToFrame === "1" : event.bannerFitToFrame,
+      // Check-in window (minutes). Clamp to sane bounds; ignore blank/garbage.
+      checkinOpensMinutesBefore: clampMinutes(data.checkinOpensMinutesBefore, event.checkinOpensMinutesBefore),
+      checkinClosesMinutesAfter: clampMinutes(data.checkinClosesMinutesAfter, event.checkinClosesMinutesAfter),
     },
   });
   revalidatePath(`/dashboard/events/${event.id}`);

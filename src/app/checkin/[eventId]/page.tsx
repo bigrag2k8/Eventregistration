@@ -21,5 +21,5 @@ export default async function CheckInPage({ params }: { params: { eventId: strin
     prisma.checkIn.count({ where: { eventId: event.id } }),
   ]);
 
-  return <CheckinScanner eventId={event.id} eventName={event.name} initialTotal={total} initialChecked={checked} />;
+  return <CheckinScanner eventId={event.id} eventName={event.name} eventTimezone={event.timezone} initialTotal={total} initialChecked={checked} />;
 }

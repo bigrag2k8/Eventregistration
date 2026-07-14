@@ -336,6 +336,26 @@ export default async function EventManagePage({ params, searchParams }: { params
               <textarea name="refundPolicy" rows={2} defaultValue={event.refundPolicy ?? ""} className="input" />
             </div>
             <div className="sm:col-span-2 border-t pt-4">
+              <div className="text-sm font-semibold">Check-in window</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Tickets can only be scanned inside this window — this blocks early/late scan abuse.
+                Staff are hard-blocked outside it; you (organizer/admin) can override at the door.
+              </p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="ev-checkin-opens">Opens (minutes before start)</label>
+                  <input id="ev-checkin-opens" name="checkinOpensMinutesBefore" type="number" min="0" max="10080"
+                         defaultValue={event.checkinOpensMinutesBefore} className="input" />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ev-checkin-closes">Closes (minutes after end)</label>
+                  <input id="ev-checkin-closes" name="checkinClosesMinutesAfter" type="number" min="0" max="10080"
+                         defaultValue={event.checkinClosesMinutesAfter} className="input" />
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">Default 120 / 120 (opens 2h before, closes 2h after). Set opens to a huge number for all-day walk-in events.</p>
+            </div>
+            <div className="sm:col-span-2 border-t pt-4">
               <BannerImageInput
                 defaultUrl={event.bannerUrl}
                 defaultPositionX={event.bannerPositionX}

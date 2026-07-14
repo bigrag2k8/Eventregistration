@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 interface Props {
   eventId: string;
   eventName: string;
+  eventTimezone: string;
   initialTotal: number;
   initialChecked: number;
 }
@@ -13,7 +14,16 @@ type Result =
   | { status: "CHECKED_IN"; attendee: string; email?: string }
   | { status: "ALREADY_USED"; attendee: string; checkedInAt: string }
   | { status: "INVALID"; reason?: string }
+  // Time-window responses (409). NOT_OPEN/CLOSED = hard block (staff);
+  // OUTSIDE_WINDOW = organizer may override.
+  | { status: "NOT_OPEN" | "CLOSED"; attendee?: string; opensAt?: string; closesAt?: string }
+  | { status: "OUTSIDE_WINDOW"; state: "TOO_EARLY" | "TOO_LATE"; attendee: string; opensAt: string; closesAt: string }
   | null;
+
+// The pending scan awaiting an organizer's override confirmation.
+type PendingOverride =
+  | { kind: "qr"; token: string }
+  | { kind: "manual"; ticketId: string; name: string };
 
 interface Attendee {
   ticketId: string;
@@ -25,9 +35,10 @@ interface Attendee {
   checkedInAt: string | null;
 }
 
-export function CheckinScanner({ eventId, eventName, initialTotal, initialChecked }: Props) {
+export function CheckinScanner({ eventId, eventName, eventTimezone, initialTotal, initialChecked }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [result, setResult] = useState<Result>(null);
+  const [pending, setPending] = useState<PendingOverride | null>(null);
   const [manualToken, setManualToken] = useState("");
   const [checked, setChecked] = useState(initialChecked);
   const [scanning, setScanning] = useState(true);
@@ -94,7 +105,7 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
     return () => { stopped = true; stop(); };
   }, [scanning]);
 
-  async function submitToken(token: string) {
+  async function submitToken(token: string, override = false) {
     const cleaned = token.trim();
     if (!cleaned) return;
     // Never let a network error or a non-JSON 500 throw an unhandled rejection
@@ -102,7 +113,7 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
     try {
       const res = await fetch("/api/checkin", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: cleaned, eventId }),
+        body: JSON.stringify({ token: cleaned, eventId, override }),
       });
       if (res.status === 401 || res.status === 403) {
         setResult({ status: "INVALID", reason: "Session expired — sign in again" });
@@ -110,12 +121,40 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
       }
       const data = await res.json().catch(() => ({ status: "INVALID", reason: "server_error" }));
       setResult(data);
+      // Organizer can override an outside-the-window scan — stash the token so
+      // the confirm button can re-submit it. Any other result clears pending.
+      setPending(data.status === "OUTSIDE_WINDOW" ? { kind: "qr", token: cleaned } : null);
       if (data.status === "CHECKED_IN") {
         setChecked((n) => n + 1);
         if (findOpen) loadAttendees();
       }
     } catch {
       setResult({ status: "INVALID", reason: "Network error — check connection and retry" });
+    }
+  }
+
+  // Re-submit the pending scan with override:true after the organizer confirms.
+  async function confirmOverride() {
+    if (!pending) return;
+    const p = pending;
+    setPending(null);
+    if (p.kind === "qr") {
+      cooldownRef.current = Date.now() + 1500; // don't let the loop double-fire
+      await submitToken(p.token, true);
+    } else {
+      await checkInByTicket(p.ticketId, p.name, true);
+    }
+  }
+
+  function formatWindowTime(iso?: string) {
+    if (!iso) return "";
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        weekday: "short", month: "short", day: "numeric",
+        hour: "numeric", minute: "2-digit", timeZone: eventTimezone,
+      }).format(new Date(iso));
+    } catch {
+      return new Date(iso).toLocaleString();
     }
   }
 
@@ -137,17 +176,20 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
     if (!attendees) loadAttendees();
   }
 
-  async function checkInByTicket(ticketId: string, attendeeName: string) {
+  async function checkInByTicket(ticketId: string, attendeeName: string, override = false) {
     setBusyId(ticketId);
     try {
       const res = await fetch("/api/checkin/manual", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketId, eventId }),
+        body: JSON.stringify({ ticketId, eventId, override }),
       });
       const data = await res.json().catch(() => ({ status: "INVALID", reason: "server_error" }));
       setResult(data.status === "CHECKED_IN"
         ? { status: "CHECKED_IN", attendee: attendeeName, email: data.email }
+        : data.status === "OUTSIDE_WINDOW"
+        ? { ...data, attendee: attendeeName }
         : data);
+      setPending(data.status === "OUTSIDE_WINDOW" ? { kind: "manual", ticketId, name: attendeeName } : null);
       if (data.status === "CHECKED_IN") {
         setChecked((n) => n + 1);
         setAttendees((list) => list?.map((a) =>
@@ -175,6 +217,8 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
   const bgColor =
     result?.status === "CHECKED_IN" ? "bg-emerald-600"
     : result?.status === "ALREADY_USED" ? "bg-amber-500"
+    : result?.status === "OUTSIDE_WINDOW" ? "bg-amber-500"
+    : result?.status === "NOT_OPEN" || result?.status === "CLOSED" ? "bg-orange-600"
     : result?.status === "INVALID" ? "bg-red-600"
     : "bg-slate-900";
 
@@ -220,6 +264,43 @@ export function CheckinScanner({ eventId, eventName, initialTotal, initialChecke
                 <div className="text-3xl">❌</div>
                 <div className="mt-1 text-xl font-bold">Invalid ticket</div>
                 {result.reason && <div className="opacity-90">{result.reason}</div>}
+              </>
+            )}
+            {(result.status === "NOT_OPEN" || result.status === "CLOSED") && (
+              <>
+                <div className="text-3xl">⏰</div>
+                <div className="mt-1 text-xl font-bold">
+                  {result.status === "NOT_OPEN" ? "Check-in not open yet" : "Check-in has closed"}
+                </div>
+                {result.attendee && <div className="opacity-90">{result.attendee}</div>}
+                <div className="mt-1 text-sm opacity-90">
+                  {result.status === "NOT_OPEN"
+                    ? <>Opens {formatWindowTime(result.opensAt)}</>
+                    : <>Closed {formatWindowTime(result.closesAt)}</>}
+                </div>
+                <div className="mt-1 text-xs opacity-75">An organizer or admin can override this.</div>
+              </>
+            )}
+            {result.status === "OUTSIDE_WINDOW" && (
+              <>
+                <div className="text-3xl">⏰</div>
+                <div className="mt-1 text-xl font-bold">
+                  {result.state === "TOO_EARLY" ? "Check-in isn’t open yet" : "Check-in has closed"}
+                </div>
+                <div className="opacity-90">{result.attendee}</div>
+                <div className="mt-1 text-sm opacity-90">
+                  {result.state === "TOO_EARLY"
+                    ? <>Opens {formatWindowTime(result.opensAt)}</>
+                    : <>Closed {formatWindowTime(result.closesAt)}</>}
+                </div>
+                <button
+                  type="button"
+                  onClick={confirmOverride}
+                  className="mt-3 w-full rounded-lg bg-white px-4 py-2 font-semibold text-amber-700 hover:bg-amber-50"
+                >
+                  Check in anyway
+                </button>
+                <div className="mt-1 text-xs opacity-75">Logged as an override.</div>
               </>
             )}
           </div>

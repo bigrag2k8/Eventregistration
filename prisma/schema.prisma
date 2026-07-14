@@ -384,6 +384,11 @@ model Event {
   endAt              DateTime
   timezone           String      @default("UTC")
   capacity           Int?        // null = unlimited
+  /// Check-in window: tickets can only be scanned from this many minutes before
+  /// startAt until `checkinClosesMinutesAfter` past endAt. Blocks early/late
+  /// scan abuse; STAFF are hard-blocked outside it, ORGANIZERs can override.
+  checkinOpensMinutesBefore  Int  @default(120)
+  checkinClosesMinutesAfter  Int  @default(120)
   /// Set by the worker once this event's held funds have been paid out to the
   /// organizer (1 day after endAt, for orgs on held/manual payouts). Null = not
   /// yet released, or the org is on fast payouts (Stripe pays them directly).
@@ -1020,6 +1025,9 @@ model CheckIn {
   scannedBy  String?  // user id of staff
   scannedAt  DateTime @default(now())
   method     String   @default("qr") // qr | manual | search
+  /// True when an ORGANIZER/ADMIN overrode the check-in time window (scanned
+  /// before it opened or after it closed). Surfaced in the audit trail.
+  outsideWindow Boolean @default(false)
   deviceInfo String?
 
   @@index([eventId, scannedAt])
