@@ -14,6 +14,11 @@ const schema = z.object({
   heroCtaText: z.string().max(40).optional(),
   // Allow a relative path (#events, /signup) or an absolute URL.
   heroCtaHref: z.string().max(300).optional(),
+  // Banner framing (BannerImageInput submits these fixed field names).
+  bannerPositionX: z.coerce.number().min(0).max(100).optional(),
+  bannerPositionY: z.coerce.number().min(0).max(100).optional(),
+  bannerZoom: z.coerce.number().min(1).max(3).optional(),
+  bannerFitToFrame: z.string().optional(),
 });
 
 /**
@@ -30,23 +35,25 @@ export async function updateHomepageHeroAction(formData: FormData) {
   const d = parsed.data;
   const clean = (v?: string) => (v && v.trim() ? v.trim() : null);
 
+  const framing = {
+    heroPositionX: d.bannerPositionX ?? 50,
+    heroPositionY: d.bannerPositionY ?? 50,
+    heroZoom: d.bannerZoom ?? 1,
+    heroFitToFrame: d.bannerFitToFrame === "1",
+  };
+  const heroData = {
+    heroImageUrl: clean(d.heroImageUrl),
+    heroHeadline: clean(d.heroHeadline),
+    heroSubhead: clean(d.heroSubhead),
+    heroCtaText: clean(d.heroCtaText),
+    heroCtaHref: clean(d.heroCtaHref),
+    ...framing,
+  };
+
   await prisma.platformConfig.upsert({
     where: { id: "singleton" },
-    update: {
-      heroImageUrl: clean(d.heroImageUrl),
-      heroHeadline: clean(d.heroHeadline),
-      heroSubhead: clean(d.heroSubhead),
-      heroCtaText: clean(d.heroCtaText),
-      heroCtaHref: clean(d.heroCtaHref),
-    },
-    create: {
-      id: "singleton",
-      heroImageUrl: clean(d.heroImageUrl),
-      heroHeadline: clean(d.heroHeadline),
-      heroSubhead: clean(d.heroSubhead),
-      heroCtaText: clean(d.heroCtaText),
-      heroCtaHref: clean(d.heroCtaHref),
-    },
+    update: heroData,
+    create: { id: "singleton", ...heroData },
   });
 
   await audit({

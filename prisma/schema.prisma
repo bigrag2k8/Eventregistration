@@ -1142,6 +1142,12 @@ model PlatformConfig {
   heroSubhead            String?
   heroCtaText            String?
   heroCtaHref            String?
+  // Banner framing (same CSS-only model as Event.banner*): object-position
+  // percentages + zoom scale, or fit-to-frame (object-contain).
+  heroPositionX          Float     @default(50)
+  heroPositionY          Float     @default(50)
+  heroZoom               Float     @default(1)
+  heroFitToFrame         Boolean   @default(false)
   updatedAt              DateTime  @updatedAt
 
   @@map("platform_config")

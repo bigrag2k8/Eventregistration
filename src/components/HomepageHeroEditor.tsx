@@ -1,11 +1,12 @@
 import { updateHomepageHeroAction } from "@/app/admin/hero/actions";
-import { ImageUploadInput } from "@/components/ImageUploadInput";
+import { BannerImageInput } from "@/components/BannerImageInput";
 import { SubmitButton } from "@/components/SubmitButton";
 
 /**
  * SUPERADMIN card for editing the public homepage hero banner. Server component
- * wrapping a server-action form; the image field is the shared Cloudinary
- * uploader. Any field left blank falls back to the code default on the homepage.
+ * wrapping a server-action form; the image field is the shared banner uploader
+ * with drag-to-reposition, zoom, fit-to-frame, and reset. Any field left blank
+ * falls back to the code default on the homepage.
  */
 export function HomepageHeroEditor({
   hero,
@@ -13,19 +14,20 @@ export function HomepageHeroEditor({
   hero: {
     heroImageUrl: string | null; heroHeadline: string | null; heroSubhead: string | null;
     heroCtaText: string | null; heroCtaHref: string | null;
+    heroPositionX: number; heroPositionY: number; heroZoom: number; heroFitToFrame: boolean;
   };
 }) {
   return (
     <form action={updateHomepageHeroAction} className="grid gap-4">
-      <ImageUploadInput
+      <BannerImageInput
         name="heroImageUrl"
         defaultUrl={hero.heroImageUrl}
+        defaultPositionX={hero.heroPositionX}
+        defaultPositionY={hero.heroPositionY}
+        defaultZoom={hero.heroZoom}
+        defaultFitToFrame={hero.heroFitToFrame}
         label="Banner image"
-        aspect="16 / 6"
-        previewFit="cover"
-        folder="eventflow/homepage"
-        placeholder="https://…/banner.jpg"
-        hint="Wide banner shown across the top of the public homepage. ~1600×600 looks best. Leave empty for a branded gradient."
+        hint="Wide banner across the top of the homepage (~1600×600). Drag to reposition, zoom to reframe, or tick “fit to frame.” Leave empty for a branded gradient."
       />
       <div>
         <label className="label" htmlFor="hero-headline">Headline</label>

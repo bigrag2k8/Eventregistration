@@ -146,7 +146,20 @@ export default async function HomePage({
         <div className="relative overflow-hidden rounded-2xl">
           {hero.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={hero.imageUrl} alt="" className="h-[260px] w-full object-cover sm:h-[340px]" />
+            <img
+              src={hero.imageUrl}
+              alt=""
+              className={`h-[260px] w-full sm:h-[340px] ${hero.fitToFrame ? "bg-slate-900 object-contain" : "object-cover"}`}
+              style={
+                hero.fitToFrame
+                  ? undefined
+                  : {
+                      objectPosition: `${hero.positionX}% ${hero.positionY}%`,
+                      transform: `scale(${hero.zoom})`,
+                      transformOrigin: `${hero.positionX}% ${hero.positionY}%`,
+                    }
+              }
+            />
           ) : (
             <div className="h-[240px] w-full bg-gradient-to-br from-brand-500 to-brand-800 sm:h-[300px]" />
           )}

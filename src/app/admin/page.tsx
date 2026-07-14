@@ -34,7 +34,10 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
     getMaintenanceState(),
     prisma.platformConfig.findUnique({
       where: { id: "singleton" },
-      select: { heroImageUrl: true, heroHeadline: true, heroSubhead: true, heroCtaText: true, heroCtaHref: true },
+      select: {
+        heroImageUrl: true, heroHeadline: true, heroSubhead: true, heroCtaText: true, heroCtaHref: true,
+        heroPositionX: true, heroPositionY: true, heroZoom: true, heroFitToFrame: true,
+      },
     }),
   ]);
 
@@ -191,7 +194,7 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
           )}
           <div className="mt-4">
             <HomepageHeroEditor
-              hero={heroCfg ?? { heroImageUrl: null, heroHeadline: null, heroSubhead: null, heroCtaText: null, heroCtaHref: null }}
+              hero={heroCfg ?? { heroImageUrl: null, heroHeadline: null, heroSubhead: null, heroCtaText: null, heroCtaHref: null, heroPositionX: 50, heroPositionY: 50, heroZoom: 1, heroFitToFrame: false }}
             />
           </div>
         </section>

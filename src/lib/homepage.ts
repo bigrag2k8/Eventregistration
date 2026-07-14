@@ -16,6 +16,11 @@ export interface HeroConfig {
   ctaText: string;
   /** Where the button goes. "#events" scrolls to the event grid. */
   ctaHref: string;
+  /** Banner framing (CSS-only, same as per-event banners). */
+  positionX: number;
+  positionY: number;
+  zoom: number;
+  fitToFrame: boolean;
 }
 
 /** Code defaults — used for any hero field a SUPERADMIN hasn't set at /admin. */
@@ -25,6 +30,10 @@ export const HERO: HeroConfig = {
   subhead: "Workshops, markets, classes, fundraisers, and more — from local organizers you can trust.",
   ctaText: "Browse events",
   ctaHref: "#events",
+  positionX: 50,
+  positionY: 50,
+  zoom: 1,
+  fitToFrame: false,
 };
 
 /**
@@ -39,11 +48,15 @@ export async function getHomepageHero(): Promise<HeroConfig> {
   let cfg: {
     heroImageUrl: string | null; heroHeadline: string | null; heroSubhead: string | null;
     heroCtaText: string | null; heroCtaHref: string | null;
+    heroPositionX: number; heroPositionY: number; heroZoom: number; heroFitToFrame: boolean;
   } | null = null;
   try {
     cfg = await prisma.platformConfig.findUnique({
       where: { id: "singleton" },
-      select: { heroImageUrl: true, heroHeadline: true, heroSubhead: true, heroCtaText: true, heroCtaHref: true },
+      select: {
+        heroImageUrl: true, heroHeadline: true, heroSubhead: true, heroCtaText: true, heroCtaHref: true,
+        heroPositionX: true, heroPositionY: true, heroZoom: true, heroFitToFrame: true,
+      },
     });
   } catch {
     // DB hiccup — fall back to defaults rather than break the homepage.
@@ -55,5 +68,9 @@ export async function getHomepageHero(): Promise<HeroConfig> {
     subhead: pick(cfg?.heroSubhead, HERO.subhead),
     ctaText: pick(cfg?.heroCtaText, HERO.ctaText),
     ctaHref: pick(cfg?.heroCtaHref, HERO.ctaHref),
+    positionX: cfg?.heroPositionX ?? HERO.positionX,
+    positionY: cfg?.heroPositionY ?? HERO.positionY,
+    zoom: cfg?.heroZoom ?? HERO.zoom,
+    fitToFrame: cfg?.heroFitToFrame ?? HERO.fitToFrame,
   };
 }
