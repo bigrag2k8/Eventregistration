@@ -16,6 +16,35 @@ export async function materializeOccurrences(seriesId: string, throughInstant: D
   const occ = computeOccurrences(ruleForSeries(s), throughInstant);
   if (occ.length === 0) return 0;
 
+  // Location template: copy the series' venue/address (or virtual link) onto
+  // each occurrence as its EventLocation. Only when there's enough to render —
+  // a physical location needs at least street + city (EventLocation requires
+  // them); a virtual one needs the flag. Older series without location data
+  // keep generating location-less events, unchanged.
+  const hasPhysical = !!(s.addressLine1 && s.city);
+  const locationCreate = s.isVirtual
+    ? {
+        isVirtual: true,
+        virtualUrl: s.virtualUrl,
+        venueName: s.venueName,
+        addressLine1: s.addressLine1 ?? "",
+        city: s.city ?? "",
+        state: s.state,
+        postalCode: s.postalCode,
+        country: s.country ?? "US",
+      }
+    : hasPhysical
+      ? {
+          isVirtual: false,
+          venueName: s.venueName,
+          addressLine1: s.addressLine1!,
+          city: s.city!,
+          state: s.state,
+          postalCode: s.postalCode,
+          country: s.country ?? "US",
+        }
+      : null;
+
   const existing = await prisma.event.findMany({
     where: { seriesId, deletedAt: null },
     select: { startAt: true },
@@ -55,6 +84,7 @@ export async function materializeOccurrences(seriesId: string, throughInstant: D
             quantityTotal: s.capacity,
           },
         },
+        ...(locationCreate ? { location: { create: locationCreate } } : {}),
       },
     });
     created += 1;

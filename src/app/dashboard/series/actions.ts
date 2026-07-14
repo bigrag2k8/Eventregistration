@@ -29,6 +29,16 @@ const schema = z.object({
   priceDollars: z.coerce.number().min(0).max(100000),
   capacity: z.coerce.number().int().min(1).max(1000000).optional().or(z.literal("")),
   bundlePriceDollars: z.coerce.number().min(0.5).max(1000000).optional().or(z.literal("")),
+  // Banner + location template (EventLocationFields / ImageUploadInput names).
+  bannerUrl: z.string().url().max(500).optional().or(z.literal("")),
+  isVirtual: z.string().optional(),
+  virtualUrl: z.string().url().max(500).optional().or(z.literal("")),
+  venueName: z.string().max(200).optional(),
+  addressLine1: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  postalCode: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
 });
 
 function slugify(s: string): string {
@@ -111,6 +121,16 @@ export async function createSeriesAction(formData: FormData) {
           category: d.category || null,
           timezone: d.timezone,
           isPrivate: d.isPrivate === "on",
+          bannerUrl: d.bannerUrl || null,
+          // Location template — copied onto every occurrence.
+          isVirtual: d.isVirtual === "1" || d.isVirtual === "on",
+          virtualUrl: d.virtualUrl || null,
+          venueName: d.venueName?.trim() || null,
+          addressLine1: d.addressLine1?.trim() || null,
+          city: d.city?.trim() || null,
+          state: d.state?.trim() || null,
+          postalCode: d.postalCode?.trim() || null,
+          country: d.country?.trim() || null,
           frequency: d.frequency,
           interval: d.interval,
           byWeekday,

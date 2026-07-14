@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createSeriesAction } from "@/app/dashboard/series/actions";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ImageUploadInput } from "@/components/ImageUploadInput";
+import { EventLocationFields } from "@/components/EventLocationFields";
 
 const TIMEZONES = [
   "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
@@ -129,6 +131,36 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
             </div>
           </div>
           <p className="text-xs text-slate-500">Leave both blank for an open-ended series that keeps generating new sessions automatically.</p>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2 className="text-lg font-semibold">Banner (optional)</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Shown on the series page and on every session&rsquo;s page. You can still change an
+          individual session&rsquo;s banner later from that event&rsquo;s page.
+        </p>
+        <div className="mt-4">
+          <ImageUploadInput
+            name="bannerUrl"
+            label="Series banner"
+            aspect="16 / 6"
+            previewFit="cover"
+            folder="eventflow/banners"
+            placeholder="https://yourorg.com/class-banner.jpg"
+            hint="Wide image (~1600×600 looks best). Upload a file or paste a public URL."
+          />
+        </div>
+      </section>
+
+      <section className="card">
+        <h2 className="text-lg font-semibold">Location</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Where every session happens. Copied onto each session — if one date moves venues,
+          edit that session&rsquo;s location on its event page.
+        </p>
+        <div className="mt-4">
+          <EventLocationFields />
         </div>
       </section>
 

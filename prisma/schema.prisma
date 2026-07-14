@@ -773,6 +773,16 @@ model EventSeries {
   /// Optional hard cap on total occurrences (in addition to seriesEnd).
   occurrenceCap  Int?
 
+  // ── Location template (copied onto each occurrence as its EventLocation) ──
+  isVirtual      Boolean      @default(false)
+  virtualUrl     String?
+  venueName      String?
+  addressLine1   String?
+  city           String?
+  state          String?
+  postalCode     String?
+  country        String?
+
   // ── Ticket template (copied onto each occurrence — one drop-in tier) ──────
   ticketName     String       @default("General admission")
   priceCents     Int          @default(0)
