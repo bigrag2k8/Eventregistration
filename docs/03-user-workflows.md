@@ -185,3 +185,37 @@ A pays → CONFIRMED
    ▼
 7. Ticket invalidated; QR fails at check-in
 ```
+
+## Workflow 7: Organizer Creates a Recurring Series
+
+```
+1. Dashboard → "+ Recurring series"
+   │  (first free series is free; a 2nd, or a bundle, needs a $34.99 series credit)
+   │
+   ▼
+2. Set recurrence: daily / weekly (pick days) / monthly (day-of-month or nth-weekday),
+   interval, start date+time, session length, and end date OR session cap.
+   Set drop-in price; optionally a full-series bundle price (bounded series only).
+   │
+   ▼
+3. createSeriesAction: (credit spend + create in one txn) → EventSeries (status ACTIVE)
+   │
+   ▼
+4. materializeOccurrences generates the first ~90 days of sessions NOW; the worker's
+   extendSeriesHorizon rolls the window forward every tick. Each session is a full,
+   independently-registerable Event (own tickets, check-in, payouts).
+   │
+   ▼
+5. Public: /o/[org]/series/[slug] lists sessions + the full-series pass box;
+   org page collapses the series into one "Classes & series" card.
+   │
+   ├─ Attendee buys a DROP-IN → normal registration (fee 5%, min $1.25 capped at 10%).
+   └─ Attendee buys the BUNDLE → /api/series/bundle-checkout → one payment, one PENDING
+      registration per session (each its per-session share) → webhook confirms all,
+      one Payment row each, one email with a QR per session.
+   │
+   ▼
+6. Manage: cancel/reschedule any single session via the normal event actions;
+   delete the whole series from the dashboard (blocked if a future session has
+   confirmed regs — cancel those first, which refunds attendees).
+```

@@ -29,6 +29,7 @@ const FEATURES = [
   { title: "Promo codes & waitlists", body: "Discount codes, sold-out waitlists with auto-promotion, presale early-bird pricing — all standard." },
   { title: "Refund handling", body: "Attendees request, you approve or decline, our 5% fee reverses proportionally. No phone calls to Stripe." },
   { title: "Team roles & check-in", body: "Invite organizers, staff, or volunteers. Day-of, anyone with the link can scan QRs." },
+  { title: "Recurring classes & courses", body: "Weekly classes, multi-week courses, monthly meetups — one page, every session auto-scheduled. Sell drop-ins or a full-series pass that keeps your fee at a flat 5%. Most tools treat a class like ten unrelated events. We don't." },
 ];
 
 const PROBLEMS = [

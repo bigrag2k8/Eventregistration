@@ -23,11 +23,13 @@
 
 ## Phase 2 — Months 3-5: Scale & Polish
 
-- **Stripe Connect** — per-organizer payouts, marketplace fees.
+- ✅ **Stripe Connect** — per-organizer payouts, marketplace fees. *(Shipped — destination charges, 5% app fee, payout-hold trust tiers.)*
 - **Mobile wallets** — Apple Wallet `.pkpass` + Google Wallet objects.
-- **Custom branding** — per-org theme tokens, custom domain (CNAME + SSL).
+- ✅ **Custom branding** — per-org logo/color/banner on public pages. *(Shipped; custom domain still open.)*
 - **Multi-session events** — sessions/tracks, per-session capacity, attendee schedules.
-- **Recurring events** — series with parent/child instances.
+- ✅ **Recurring events** — series with per-occurrence Event instances; daily/weekly/monthly, DST-correct, rolling generation. *(Shipped 2026-07-13.)*
+- ✅ **Series pricing** — drop-in per session (fee capped at 10%) + full-series bundle pass; $34.99 series credit unlocks premium. *(Shipped 2026-07-13.)*
+- ✅ **Verified reviews + organizer reputation** — attendee-only reviews, trust score, tiered badges. *(Shipped 2026-07-12.)*
 - **Team & roles UI** — invite organizers/staff with scoped access.
 - **Email designer** — visual builder + saved templates per org.
 - **Newsletter integrations** — Mailchimp, ConvertKit, Constant Contact.
