@@ -15,7 +15,10 @@ interface LogoProps {
 export function Logo({ height = 32, className = "", alt = "YourEvents" }: LogoProps) {
   return (
     <Image
-      src="/logo-mark.png"
+      // NOTE: a dedicated compact mark (/logo-mark.png — icon + wordmark, no
+      // tagline) doesn't exist yet, so this falls back to the full lockup. Drop
+      // a real /logo-mark.png in /public and switch this back for a small nav.
+      src="/logo.png"
       alt={alt}
       width={480}
       height={96}

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
-import { Logo } from "@/components/Logo";
+import { LogoFull } from "@/components/Logo";
 import { Ticket } from "lucide-react";
 
 // Re-runs on every request — guarantees fresh random selection each time
@@ -82,7 +82,7 @@ export default async function HomePage({ searchParams }: { searchParams: { q?: s
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" aria-label="YourEvents home">
-            <Logo height={40} />
+            <LogoFull height={64} />
           </Link>
           <nav>
             <PublicAccountNav />
