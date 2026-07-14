@@ -31,7 +31,10 @@ export async function updateHomepageHeroAction(formData: FormData) {
   const session = await getSession();
 
   const parsed = schema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) redirect("/admin?error=validation#hero");
+  if (!parsed.success) {
+    console.warn("[hero] save rejected by validation:", parsed.error.flatten().fieldErrors);
+    redirect("/admin?error=validation");
+  }
   const d = parsed.data;
   const clean = (v?: string) => (v && v.trim() ? v.trim() : null);
 
@@ -50,6 +53,10 @@ export async function updateHomepageHeroAction(formData: FormData) {
     ...framing,
   };
 
+  // One concise breadcrumb per save so "did the image URL actually arrive?" is
+  // answerable from logs (the URL itself is not sensitive — it's public).
+  console.log("[hero] saving banner:", { hasImage: !!heroData.heroImageUrl, image: heroData.heroImageUrl?.slice(0, 80) ?? null });
+
   await prisma.platformConfig.upsert({
     where: { id: "singleton" },
     update: heroData,
@@ -65,5 +72,8 @@ export async function updateHomepageHeroAction(formData: FormData) {
   });
 
   revalidatePath("/");
-  redirect("/admin?saved=1#hero");
+  // No #fragment here: server-action redirects get internally re-fetched by
+  // Next to forward the response, and this app's proxy setup has a history of
+  // self-fetch failures — keep the redirect target as plain as possible.
+  redirect("/admin?saved=1");
 }

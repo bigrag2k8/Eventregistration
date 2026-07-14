@@ -91,6 +91,26 @@ export function BannerImageInput({
     setZoom(1);
   }, [url]);
 
+  // Block the surrounding form from submitting while an upload is in flight —
+  // the hidden URL input is still empty then, so a hasty Save would persist a
+  // blank banner. Attaches to the parent form via the hidden input's ref.
+  const hiddenUrlRef = useRef<HTMLInputElement>(null);
+  const uploadingRef = useRef(false);
+  uploadingRef.current = uploading;
+  useEffect(() => {
+    const form = hiddenUrlRef.current?.form;
+    if (!form) return;
+    const onSubmit = (e: Event) => {
+      if (uploadingRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        alert("Image is still uploading — wait for it to finish, then save.");
+      }
+    };
+    form.addEventListener("submit", onSubmit, { capture: true });
+    return () => form.removeEventListener("submit", onSubmit, { capture: true } as any);
+  }, []);
+
   // Drag-to-reposition: track pointer movement inside the preview frame and
   // shift posX/posY proportionally. One pixel of drag corresponds to about
   // one frame-percent — the right amount for the zoom levels we allow.
@@ -178,7 +198,7 @@ export function BannerImageInput({
     <div>
       <label className="label">{label}</label>
       {/* Hidden inputs the surrounding form picks up */}
-      <input type="hidden" name={name} value={url} />
+      <input type="hidden" name={name} value={url} ref={hiddenUrlRef} />
       <input type="hidden" name="bannerPositionX" value={posX.toFixed(2)} />
       <input type="hidden" name="bannerPositionY" value={posY.toFixed(2)} />
       <input type="hidden" name="bannerZoom" value={zoom.toFixed(2)} />
