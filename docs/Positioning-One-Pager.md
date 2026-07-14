@@ -29,7 +29,7 @@ Community & small-to-mid organizers Eventbrite has priced out and bureaucratized
 ---
 
 ## Recurring classes & courses (shipped 2026-07-13 — a wedge expansion)
-Weekly classes, multi-week courses, and monthly meetups are a segment Eventbrite handles badly (a class is treated as N unrelated events). YourEvents runs a **series**: every session auto-scheduled on one page, each independently registerable. Two ways to sell:
+Weekly classes, multi-week courses, and monthly meetups. NOTE: Eventbrite *does* support recurring events (multi-date / timed-entry), so don't claim "they can't do recurring" — that's false and checkable. The real, provable edge is **fee economics on cheap recurring tickets**: Eventbrite removed all per-ticket fee caps in 2026, so a $5 class drop-in still carries their full ~$1.79/ticket fee (usually added to the attendee's price), and they stopped refunding fees on cancelled events. YourEvents runs a **series** (every session auto-scheduled on one page, each independently registerable) with two ways to sell:
 - **Drop-in** per session — and the $1.25 minimum is **capped at 10%** of the ticket, so a $5 class costs the organizer $0.50, not $1.25. Direct answer to the min-fee pain that crushes cheap recurring tickets elsewhere.
 - **Full-series pass** — one checkout buys every session at a flat **5%** (no minimum distortion). Priced below the drop-in total so the saving is visible.
 

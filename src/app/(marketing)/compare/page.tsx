@@ -8,9 +8,13 @@ export const metadata = {
 };
 
 // ── Pricing assumptions ──────────────────────────────────────────────────────
-// Eventbrite "Essentials" plan published rates (US, paid tickets):
+// Eventbrite standard published rates (US, paid tickets), verified 2026-07:
 //   - Service fee:    3.7% + $1.79 per paid ticket
 //   - Processing:     2.9%
+// (Eventbrite's $0/mo "Essentials" package is cheaper per ticket at 2% + $0.79,
+//  but the 3.7% + $1.79 standard rate is what most organizers land on; we use
+//  it as the conservative, widely-published comparison. Eventbrite removed all
+//  per-ticket fee CAPS in 2026, so these fees have no ceiling at any price.)
 // Combined, by default ALL of this is passed to the buyer ("attendee covers fees").
 // Organizers CAN opt to absorb instead; we show both views in the tables below.
 const EB_PCT = 0.037 + 0.029; // 6.6%
@@ -33,6 +37,8 @@ const FEATURES: Array<{ feature: string; ye: boolean | string; eb: boolean | str
   // ── Where YourEvents is stronger or different ──
   { feature: "Flat pricing, no buyer fees", ye: true, eb: false, note: "Eventbrite adds 3.7% + $1.79 service fee + 2.9% processing to the attendee's bill by default." },
   { feature: "Earn fast daily payouts with a clean track record", ye: true, eb: false, note: "Eventbrite holds every organizer's funds until after the event, always — there's no way to earn faster payouts. On YourEvents, established organizers graduate to daily payouts." },
+  { feature: "Recurring class series — drop-in fee cap + full-series pass", ye: true, eb: "Partial", note: "Eventbrite supports recurring events, but removed all per-ticket fee caps in 2026 and has no native full-series pass — so a $5 class drop-in still carries the full ~$1.79/ticket fee. We cap the class drop-in fee at 10% ($0.50 on a $5 ticket) and sell a one-checkout series pass at a flat 5%." },
+  { feature: "Fees refunded if you cancel the event", ye: true, eb: false, note: "In 2026 Eventbrite stopped refunding its service fees on cancelled events. YourEvents guarantees full refunds — including our platform fee — when an event is cancelled." },
   { feature: "Vendor application & booth payment flow", ye: true, eb: false, note: "Built-in vendor sign-up, organizer review, and Stripe payment-link checkout." },
   { feature: "Refund-request flow with platform-fee handling", ye: true, eb: "Limited", note: "Attendee can request, organizer approves/denies, fee reverses proportionally." },
   { feature: "No per-event purchase needed for first events", ye: true, eb: false, note: "Free tier with 50 attendees/event built in." },
@@ -55,7 +61,6 @@ const FEATURES: Array<{ feature: string; ye: boolean | string; eb: boolean | str
 
   // ── Where Eventbrite is currently stronger ──
   { feature: "Native iOS / Android organizer app", ye: false, eb: true, note: "Our scanner runs in any phone's web browser; full native app is on the roadmap." },
-  { feature: "Recurring events / event series", ye: false, eb: true, note: "Coming — for now you duplicate the event manually." },
   { feature: "Reserved seating charts", ye: false, eb: true, note: "Best for theater/concert events; not common for community events." },
   { feature: "Paid promotion / ad platform", ye: false, eb: true, note: "Eventbrite Boost lets you buy ads inside Eventbrite. We don't sell ads." },
   { feature: "Marketplace discovery (homepage of EB)", ye: "Limited", eb: true, note: "We surface public events on yourevents.app but don't yet have category browsing." },
