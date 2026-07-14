@@ -5,17 +5,18 @@ import { getSession } from "@/lib/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { FactoryResetCard } from "@/components/FactoryResetCard";
 import { MaintenanceModeCard } from "@/components/MaintenanceModeCard";
+import { HomepageHeroEditor } from "@/components/HomepageHeroEditor";
 import { isProtectedOwner } from "@/lib/owner";
 import { getMaintenanceState } from "@/lib/maintenance";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminHome({ searchParams }: { searchParams: { org_deleted?: string; error?: string } }) {
+export default async function AdminHome({ searchParams }: { searchParams: { org_deleted?: string; error?: string; saved?: string } }) {
   const session = await getSession();
   if (!session) redirect("/signin");
   if (session.role !== "SUPERADMIN") redirect("/dashboard");
 
-  const [orgCount, eventCount, regCount, pendingInvites, recentOrgs, me, maintenance] = await Promise.all([
+  const [orgCount, eventCount, regCount, pendingInvites, recentOrgs, me, maintenance, heroCfg] = await Promise.all([
     prisma.organization.count({ where: { deletedAt: null } }),
     prisma.event.count({ where: { deletedAt: null } }),
     prisma.registration.count({ where: { status: "CONFIRMED" } }),
@@ -31,6 +32,10 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
       include: { organization: { select: { name: true } } },
     }),
     getMaintenanceState(),
+    prisma.platformConfig.findUnique({
+      where: { id: "singleton" },
+      select: { heroImageUrl: true, heroHeadline: true, heroSubhead: true, heroCtaText: true, heroCtaHref: true },
+    }),
   ]);
 
   return (
@@ -172,6 +177,24 @@ export default async function AdminHome({ searchParams }: { searchParams: { org_
             </Link>
           </div>
         )}
+
+        <section id="hero" className="card mt-6 scroll-mt-20">
+          <h2 className="text-lg font-semibold">Homepage banner</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            The hero at the top of the public homepage (<Link href="/" target="_blank" className="text-brand-700 hover:underline">view ↗</Link>).
+            Changes go live immediately.
+          </p>
+          {searchParams?.saved && (
+            <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
+              Homepage banner saved.
+            </div>
+          )}
+          <div className="mt-4">
+            <HomepageHeroEditor
+              hero={heroCfg ?? { heroImageUrl: null, heroHeadline: null, heroSubhead: null, heroCtaText: null, heroCtaHref: null }}
+            />
+          </div>
+        </section>
 
         <MaintenanceModeCard
           active={maintenance.active}

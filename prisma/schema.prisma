@@ -1135,6 +1135,13 @@ model PlatformConfig {
   maintenanceMessage     String?
   maintenanceStartedById String?
   maintenanceStartedAt   DateTime?
+  // Public homepage hero banner — SUPERADMIN-editable at /admin. Any null field
+  // falls back to the code default in src/lib/homepage.ts (HERO).
+  heroImageUrl           String?
+  heroHeadline           String?
+  heroSubhead            String?
+  heroCtaText            String?
+  heroCtaHref            String?
   updatedAt              DateTime  @updatedAt
 
   @@map("platform_config")

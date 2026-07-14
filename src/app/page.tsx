@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
-import { HERO } from "@/lib/homepage";
+import { getHomepageHero } from "@/lib/homepage";
 import {
-  Ticket, ChevronDown, Music, UtensilsCrossed, Dumbbell, Users, Store, GraduationCap,
+  Ticket, ChevronDown, Search, Music, UtensilsCrossed, Dumbbell, Users, Store, GraduationCap,
   Palette, Briefcase, Moon, PartyPopper, HeartHandshake, CalendarDays,
 } from "lucide-react";
 
@@ -53,11 +53,14 @@ function facetHref(params: { category?: string; city?: string }): string {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { category?: string; city?: string };
+  searchParams: { category?: string; city?: string; q?: string };
 }) {
   const now = new Date();
   const category = (searchParams.category ?? "").trim();
   const city = (searchParams.city ?? "").trim();
+  const q = (searchParams.q ?? "").trim();
+  const isSearching = q.length > 0;
+  const hero = await getHomepageHero();
 
   // Facets (categories + cities) come from ALL upcoming public events, so the
   // category circles and city dropdown always show the full set of options,
@@ -70,19 +73,39 @@ export default async function HomePage({
   const categories = [...new Set(facetEvents.map((e) => e.category).filter(Boolean) as string[])].sort();
   const cities = [...new Set(facetEvents.map((e) => e.location?.city).filter(Boolean) as string[])].sort();
 
-  // The filtered grid.
+  // The grid: a keyword search (q) OR a category/city browse — never both, so a
+  // search never appears filtered by a stale facet.
   const events = await prisma.event.findMany({
     where: {
       status: "PUBLISHED", deletedAt: null, isPrivate: false, endAt: { gte: now },
-      ...(category ? { category: { equals: category, mode: "insensitive" } } : {}),
-      ...(city ? { location: { is: { city: { equals: city, mode: "insensitive" } } } } : {}),
+      ...(isSearching
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { description: { contains: q, mode: "insensitive" } },
+              { category: { contains: q, mode: "insensitive" } },
+              { location: { is: { city: { contains: q, mode: "insensitive" } } } },
+              { location: { is: { venueName: { contains: q, mode: "insensitive" } } } },
+              { organization: { name: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {
+            ...(category ? { category: { equals: category, mode: "insensitive" } } : {}),
+            ...(city ? { location: { is: { city: { equals: city, mode: "insensitive" } } } } : {}),
+          }),
     },
     orderBy: { startAt: "asc" },
     take: 60,
     select: EVENT_SELECT,
   });
 
-  const gridHeading = city ? `Events in ${city}` : "Popular events";
+  const gridHeading = isSearching
+    ? `Results for “${q}”`
+    : category
+      ? `${category} · ${city ? `Events in ${city}` : "Popular events"}`
+      : city
+        ? `Events in ${city}`
+        : "Popular events";
 
   return (
     <main>
@@ -96,29 +119,49 @@ export default async function HomePage({
             <PublicAccountNav />
           </nav>
         </div>
+        {/* Search bar */}
+        <div className="border-t border-slate-100">
+          <form action="/" method="get" className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5">
+            <div className="flex flex-1 items-center gap-2 rounded-full bg-slate-100 px-4 py-2 ring-1 ring-slate-200 focus-within:ring-brand-400">
+              <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+              <input
+                name="q"
+                type="search"
+                defaultValue={q}
+                placeholder="Search events by name, category, city, or host…"
+                aria-label="Search events"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+              />
+            </div>
+            <button type="submit" className="btn-primary rounded-full px-5">Search</button>
+            {isSearching && (
+              <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">Clear</Link>
+            )}
+          </form>
+        </div>
       </header>
 
       {/* Hero banner — static, controlled via src/lib/homepage.ts (HERO) */}
       <section className="mx-auto max-w-6xl px-4 pt-6">
         <div className="relative overflow-hidden rounded-2xl">
-          {HERO.imageUrl ? (
+          {hero.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={HERO.imageUrl} alt="" className="h-[260px] w-full object-cover sm:h-[340px]" />
+            <img src={hero.imageUrl} alt="" className="h-[260px] w-full object-cover sm:h-[340px]" />
           ) : (
             <div className="h-[240px] w-full bg-gradient-to-br from-brand-500 to-brand-800 sm:h-[300px]" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
           <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
             <h1 className="max-w-xl text-3xl font-bold leading-tight text-white drop-shadow-md sm:text-4xl">
-              {HERO.headline}
+              {hero.headline}
             </h1>
-            <p className="mt-2 max-w-lg text-white/90 drop-shadow sm:text-lg">{HERO.subhead}</p>
+            <p className="mt-2 max-w-lg text-white/90 drop-shadow sm:text-lg">{hero.subhead}</p>
             <div>
               <Link
-                href={HERO.ctaHref}
+                href={hero.ctaHref}
                 className="mt-5 inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:bg-slate-100"
               >
-                {HERO.ctaText}
+                {hero.ctaText}
               </Link>
             </div>
           </div>
@@ -176,17 +219,15 @@ export default async function HomePage({
         )}
 
         <div className="mt-4 flex items-baseline justify-between">
-          <h2 className="text-2xl font-bold tracking-tight">
-            {category ? `${category} · ${gridHeading}` : gridHeading}
-          </h2>
-          {(category || city) && (
+          <h2 className="text-2xl font-bold tracking-tight">{gridHeading}</h2>
+          {(category || city || isSearching) && (
             <Link href="/" className="text-sm text-brand-700 hover:underline">Clear filters</Link>
           )}
         </div>
 
         {events.length === 0 ? (
           <div className="mt-6 rounded-xl bg-slate-50 p-8 text-center text-slate-500 ring-1 ring-slate-200">
-            No upcoming events{city ? ` in ${city}` : ""}{category ? ` under ${category}` : ""} right now.{" "}
+            No upcoming events{isSearching ? ` match “${q}”` : ""}{city ? ` in ${city}` : ""}{category ? ` under ${category}` : ""} right now.{" "}
             <Link href="/" className="text-brand-700 hover:underline">See all events</Link>.
           </div>
         ) : (

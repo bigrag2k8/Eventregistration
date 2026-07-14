@@ -18,6 +18,7 @@ export interface HeroConfig {
   ctaHref: string;
 }
 
+/** Code defaults — used for any hero field a SUPERADMIN hasn't set at /admin. */
 export const HERO: HeroConfig = {
   imageUrl: "",
   headline: "Discover events near you",
@@ -25,3 +26,34 @@ export const HERO: HeroConfig = {
   ctaText: "Browse events",
   ctaHref: "#events",
 };
+
+/**
+ * The effective hero for the public homepage: SUPERADMIN-set values from
+ * PlatformConfig, falling back to the HERO code defaults per field. Empty
+ * strings count as "unset" so clearing a field in the editor restores the
+ * default. Reads are cheap (one singleton row) and the homepage is dynamic.
+ */
+export async function getHomepageHero(): Promise<HeroConfig> {
+  // Local import avoids pulling prisma into modules that only want HERO/types.
+  const { prisma } = await import("@/lib/db");
+  let cfg: {
+    heroImageUrl: string | null; heroHeadline: string | null; heroSubhead: string | null;
+    heroCtaText: string | null; heroCtaHref: string | null;
+  } | null = null;
+  try {
+    cfg = await prisma.platformConfig.findUnique({
+      where: { id: "singleton" },
+      select: { heroImageUrl: true, heroHeadline: true, heroSubhead: true, heroCtaText: true, heroCtaHref: true },
+    });
+  } catch {
+    // DB hiccup — fall back to defaults rather than break the homepage.
+  }
+  const pick = (v: string | null | undefined, fallback: string) => (v && v.trim() ? v : fallback);
+  return {
+    imageUrl: pick(cfg?.heroImageUrl, HERO.imageUrl),
+    headline: pick(cfg?.heroHeadline, HERO.headline),
+    subhead: pick(cfg?.heroSubhead, HERO.subhead),
+    ctaText: pick(cfg?.heroCtaText, HERO.ctaText),
+    ctaHref: pick(cfg?.heroCtaHref, HERO.ctaHref),
+  };
+}
