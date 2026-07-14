@@ -42,7 +42,7 @@ export default async function CheckinEventPicker() {
   return (
     <main className="min-h-screen bg-slate-900 text-white">
       <header className="flex items-center justify-between px-4 py-4">
-        <Link href="/" className="text-sm opacity-70" title="Your Events App">Your Events App</Link>
+        <Link href="/" className="text-sm opacity-70" title="Your Events App"><img src="/logo.png" alt="Your Events App" className="h-9 w-auto" /></Link>
         <span className="text-xs opacity-70">{session.email}</span>
         <SignOutButton className="text-sm opacity-70 hover:text-red-400" />
       </header>

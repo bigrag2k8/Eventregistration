@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { SiteFooter } from "@/components/SiteFooter";
+import { LogoFull } from "@/components/Logo";
 
 // PublicAccountNav reads the session cookie, so these pages render per-request.
 export const dynamic = "force-dynamic";
@@ -15,8 +16,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <Link href="/" className="text-3xl font-bold text-brand-700">
-            Your Events App
+          <Link href="/" aria-label="Your Events home">
+            <LogoFull height={56} />
           </Link>
           <nav>
             <PublicAccountNav />
