@@ -22,6 +22,7 @@ const schema = z.object({
   subscriptionPlan: z.enum(PLAN_KEYS),
   subscriptionStatus: z.enum(STATUS_KEYS),
   singleEventCredits: z.coerce.number().int().min(0).max(100_000),
+  seriesCredits: z.coerce.number().int().min(0).max(100_000),
   monthlyEventLimit_mode: overrideMode,
   monthlyEventLimit_value: z.string().optional(),
   registrationLimitPerEvent_mode: overrideMode,
@@ -80,6 +81,7 @@ export async function editOrgSubscriptionAction(formData: FormData) {
       subscriptionPlan: data.subscriptionPlan,
       subscriptionStatus: data.subscriptionStatus,
       singleEventCredits: data.singleEventCredits,
+      seriesCredits: data.seriesCredits,
       // Clear the column to SQL NULL when there are no overrides left.
       planOverrides: hasOverrides ? (overrides as Prisma.InputJsonValue) : Prisma.DbNull,
       // An admin assigning a plan has, by definition, made a plan selection.
@@ -98,12 +100,14 @@ export async function editOrgSubscriptionAction(formData: FormData) {
         plan: org.subscriptionPlan,
         status: org.subscriptionStatus,
         credits: org.singleEventCredits,
+        seriesCredits: org.seriesCredits,
         overrides: parseOverrides(org.planOverrides),
       },
       after: {
         plan: data.subscriptionPlan,
         status: data.subscriptionStatus,
         credits: data.singleEventCredits,
+        seriesCredits: data.seriesCredits,
         overrides,
       },
     },

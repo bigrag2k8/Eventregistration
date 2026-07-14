@@ -143,6 +143,7 @@ export default async function AdminOrgPage({
             <Readout label="Registrations / event" value={fmtLimit(effective.registrationLimitPerEvent)} />
             <Readout label="Comm. emails / event" value={fmtLimit(effective.emailCampaignsPerEvent)} />
             <Readout label="Single-event credits" value={String(org.singleEventCredits)} />
+            <Readout label="Series credits" value={String(org.seriesCredits)} />
             <Readout label="Status" value={org.subscriptionStatus} />
           </dl>
           {org.stripeSubscriptionId && (
@@ -191,6 +192,20 @@ export default async function AdminOrgPage({
                   defaultValue={org.singleEventCredits}
                   className="input"
                 />
+              </div>
+              <div>
+                <label className="label">Series credits</label>
+                <input
+                  name="seriesCredits"
+                  type="number"
+                  min={0}
+                  max={100000}
+                  defaultValue={org.seriesCredits}
+                  className="input"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Each makes one recurring series premium (bundle pass, unlimited regs, branding).
+                </p>
               </div>
             </div>
             <p className="mt-2 text-xs text-slate-500">
