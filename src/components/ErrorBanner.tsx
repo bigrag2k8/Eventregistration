@@ -47,8 +47,9 @@ const MESSAGES: Record<string, string> = {
   already_cancelled: "This event is already cancelled.",
   delete_has_registrations: "This event has registrations and can't be deleted. Cancel it (which refunds attendees) or Reschedule it instead.",
   weekday_required: "Pick at least one day of the week for a weekly recurring event.",
-  series_has_registrations: "Some upcoming sessions in this recurring event have confirmed registrations. Cancel those sessions first (which refunds attendees), then delete it.",
-  series_credit_required: "This needs a recurring event credit ($34.99) — the free plan includes one active drop-in recurring event. Use the “Buy recurring event credit” button above; after checkout you'll come right back here to finish.",
+  recurring_has_registrations: "Some upcoming sessions in this recurring event have confirmed registrations. Cancel those sessions first (which refunds attendees), then delete it.",
+  recurring_credit_required: "This needs a recurring event credit ($34.99) — the free plan includes one active drop-in recurring event. Use the “Buy recurring event credit” button above; after checkout you'll come right back here to finish.",
+  session_no_upgrade: "This is a session of a recurring event — premium comes from the recurring event's credit, not per-session upgrades.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

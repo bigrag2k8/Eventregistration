@@ -31,6 +31,7 @@ export default async function EventManagePage({ params, searchParams }: { params
     include: {
       location: true,
       ticketTypes: { orderBy: { sortOrder: "asc" } },
+      recurringEvent: { select: { name: true, slug: true, isPremium: true, organization: { select: { slug: true } } } },
       _count: { select: { registrations: { where: { status: "CONFIRMED" } } } },
     },
   });
@@ -101,7 +102,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             }`}>{isCancelled ? "CANCELLED" : hasEnded ? "ENDED" : event.status}</span>
             <span className={`rounded-full px-2 py-0.5 text-xs ${
               event.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
-            }`}>{event.isPremium ? "Single Event" : "Free"}</span>
+            }`}>{event.recurringEvent ? (event.isPremium ? "Premium session" : "Free session") : event.isPremium ? "Single Event" : "Free"}</span>
           </div>
           <div className="flex items-center gap-2">
             <Link href={publicUrl} target="_blank" className="btn-secondary">View public page ↗</Link>
@@ -124,7 +125,31 @@ export default async function EventManagePage({ params, searchParams }: { params
           </div>
         )}
 
-        {/* Event type / upgrade */}
+        {/* Event type / upgrade. Sessions of a recurring event NEVER get the $19
+            single-event upgrade — premium is inherited from the recurring event
+            (its $34.99 credit), not bought per session. */}
+        {event.recurringEvent ? (
+          <section className="card flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">
+                Session of <span className="text-brand-700">{event.recurringEvent.name}</span>
+                {event.isPremium && " (premium)"}
+              </h2>
+              <p className="text-sm text-slate-500">
+                {event.isPremium
+                  ? "This session inherits premium from its recurring event: unlimited registrations, custom branding, 5 email broadcasts."
+                  : "Free recurring event — up to 50 registrations per session, drop-in tickets. Premium (unlimited registrations, branding, all-sessions pass) comes from a recurring event credit, not per-session upgrades."}
+              </p>
+            </div>
+            <Link
+              href={`/o/${event.recurringEvent.organization.slug}/recurring/${event.recurringEvent.slug}`}
+              target="_blank"
+              className="btn-secondary"
+            >
+              View recurring event ↗
+            </Link>
+          </section>
+        ) : (
         <section className="card flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold">{event.isPremium ? "Single Event (premium)" : "Free event"}</h2>
@@ -145,6 +170,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             )
           )}
         </section>
+        )}
 
         {/* Financials */}
         <section className="card">
