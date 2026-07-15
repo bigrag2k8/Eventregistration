@@ -7,7 +7,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { materializeOccurrences } from "@/server/recurring-events";
+import { materializeOccurrences, computeOccurrences, ruleForRecurringEvent } from "@/server/recurring-events";
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
@@ -67,7 +67,99 @@ const editSchema = z.object({
   postalCode: z.string().max(20).optional(),
   country: z.string().max(100).optional(),
   propagate: z.string().optional(),
+  // Run length. Extending is free (new indexes just get materialized);
+  // shortening drops the now-out-of-range tail (see pruneOutOfRange).
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  occurrenceCap: z.coerce.number().int().min(1).max(400).optional().or(z.literal("")),
 });
+
+/**
+ * After the run length shrinks, sessions past the new end/cap are still in the
+ * DB — the materializer only ever CREATES. Remove the ones that are pure
+ * generated data (no registrations at all, not even abandoned PENDING ones)
+ * and report any that had to stay.
+ *
+ * These are HARD deletes on purpose. A soft delete would leave the row holding
+ * its unique (organizationId, slug), so re-extending the run later would hit
+ * that constraint and silently skip the date — the session would never come
+ * back. A zero-registration occurrence has no money, no tickets and no
+ * attendees attached, so there is nothing to preserve.
+ */
+async function pruneOutOfRange(recurringEventId: string, validIndexes: Set<number>) {
+  const now = new Date();
+  const future = await prisma.event.findMany({
+    where: { recurringEventId, deletedAt: null, endAt: { gte: now } },
+    select: { id: true, occurrenceIndex: true, startAt: true, _count: { select: { registrations: true } } },
+  });
+  let removed = 0;
+  const keptWithRegs: string[] = [];
+  for (const ev of future) {
+    if (ev.occurrenceIndex == null || validIndexes.has(ev.occurrenceIndex)) continue; // still in range
+    if (ev._count.registrations > 0) {
+      keptWithRegs.push(ev.startAt.toISOString().slice(0, 10));
+      continue;
+    }
+    await prisma.event.delete({ where: { id: ev.id } });
+    removed += 1;
+  }
+  return { removed, keptWithRegs };
+}
+
+/**
+ * Stop an ACTIVE recurring event from generating any more sessions, without
+ * touching the sessions it has already created — they stay published and
+ * sellable so committed attendees keep their dates. This is the only way to
+ * retire an OPEN-ENDED recurring event: the worker only auto-ENDs bounded ones
+ * (when their last date passes), and delete is blocked while any future session
+ * holds registrations, so before this an open-ended run generated forever.
+ * Reversible via reactivateRecurringEventAction.
+ */
+export async function endRecurringEventAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const id = String(formData.get("recurringEventId") ?? "");
+  const re = await prisma.recurringEvent.findFirst({
+    where: { id, ...orgScope(session), deletedAt: null },
+  });
+  if (!re) redirect("/dashboard?error=not_found");
+  if (re.status !== "ENDED") {
+    await prisma.recurringEvent.update({ where: { id: re.id }, data: { status: "ENDED" } });
+    await audit({
+      organizationId: re.organizationId,
+      userId: session.sub,
+      action: "recurring.end",
+      targetType: "RecurringEvent",
+      targetId: re.id,
+      metadata: { name: re.name },
+    });
+  }
+  revalidatePath("/dashboard");
+  redirect(`/dashboard/recurring/${re.id}/edit?ended=1`);
+}
+
+/** Undo an End: generation resumes on the next worker tick. */
+export async function reactivateRecurringEventAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const id = String(formData.get("recurringEventId") ?? "");
+  const re = await prisma.recurringEvent.findFirst({
+    where: { id, ...orgScope(session), deletedAt: null },
+  });
+  if (!re) redirect("/dashboard?error=not_found");
+  if (re.status !== "ACTIVE") {
+    await prisma.recurringEvent.update({ where: { id: re.id }, data: { status: "ACTIVE" } });
+    // Fill the horizon straight away so the organizer sees sessions return.
+    await materializeOccurrences(re.id, new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)).catch(() => 0);
+    await audit({
+      organizationId: re.organizationId,
+      userId: session.sub,
+      action: "recurring.reactivate",
+      targetType: "RecurringEvent",
+      targetId: re.id,
+      metadata: { name: re.name },
+    });
+  }
+  revalidatePath("/dashboard");
+  redirect(`/dashboard/recurring/${re.id}/edit?reactivated=1`);
+}
 
 /**
  * Update a recurring event's template and (optionally) push the change down to
@@ -109,13 +201,21 @@ export async function updateRecurringEventAction(formData: FormData) {
 
   // All-sessions pass keeps its create-time rules: PREMIUM only, and only on a
   // BOUNDED recurring event (an open-ended one has no finite "all sessions").
-  const bounded = !!(re.seriesEnd || re.occurrenceCap);
+  // Run length. Stored at LOCAL NOON in the recurring event's timezone, exactly
+  // like create — the rule reads only the date, and noon is unambiguous across
+  // every DST transition.
+  const seriesEnd = d.endDate ? fromZonedTime(`${d.endDate} 12:00:00`, re.timezone) : null;
+  const occurrenceCap = d.occurrenceCap === "" || d.occurrenceCap === undefined ? null : Number(d.occurrenceCap);
+
+  const bounded = !!(seriesEnd || occurrenceCap);
   const bundlePriceCents =
     re.isPremium && d.bundlePriceDollars && bounded ? Math.round(Number(d.bundlePriceDollars) * 100) : null;
 
   await prisma.recurringEvent.update({
     where: { id: re.id },
     data: {
+      seriesEnd,
+      occurrenceCap,
       name: d.name,
       description: d.description || d.name,
       category: d.category || null,
@@ -202,6 +302,31 @@ export async function updateRecurringEventAction(formData: FormData) {
     }
   }
 
+  // ── Reconcile the run length ─────────────────────────────────────────────
+  // Read back the updated row so the rule reflects the new end/cap, then:
+  //  • shorten → drop the tail that's now out of range (empty ones only)
+  //  • extend  → materialize the newly-in-range dates right away
+  // Both are safe for the index-keyed idempotency: extending only ADDS higher
+  // indexes, and pruning removes rows the rule no longer produces — the
+  // surviving sessions keep the exact indexes the rule still assigns them.
+  let removedTail = 0;
+  const tailKeptWithRegs: string[] = [];
+  let addedTail = 0;
+  const runLengthChanged =
+    (re.seriesEnd?.getTime() ?? null) !== (seriesEnd?.getTime() ?? null) || re.occurrenceCap !== occurrenceCap;
+
+  if (runLengthChanged) {
+    const fresh = await prisma.recurringEvent.findUnique({ where: { id: re.id } });
+    if (fresh && fresh.status === "ACTIVE") {
+      const far = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000);
+      const valid = new Set(computeOccurrences(ruleForRecurringEvent(fresh), far).map((o) => o.index));
+      const pruned = await pruneOutOfRange(re.id, valid);
+      removedTail = pruned.removed;
+      tailKeptWithRegs.push(...pruned.keptWithRegs);
+      addedTail = await materializeOccurrences(re.id, new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)).catch(() => 0);
+    }
+  }
+
   await audit({
     organizationId: re.organizationId,
     userId: session.sub,
@@ -215,12 +340,24 @@ export async function updateRecurringEventAction(formData: FormData) {
       capacitySkipped,
       priceCentsBefore: re.priceCents,
       priceCentsAfter: priceCents,
+      runLengthChanged,
+      sessionsRemoved: removedTail,
+      sessionsAdded: addedTail,
+      tailKeptWithRegs,
     },
   });
 
   revalidatePath("/dashboard");
   revalidatePath(`/o/${re.organizationId}/recurring/${re.slug}`);
-  redirect(`/dashboard/recurring/${re.id}/edit?saved=1&updated=${updated}&skipped=${capacitySkipped.length}`);
+  const q = new URLSearchParams({
+    saved: "1",
+    updated: String(updated),
+    skipped: String(capacitySkipped.length),
+    removed: String(removedTail),
+    added: String(addedTail),
+    kept: String(tailKeptWithRegs.length),
+  });
+  redirect(`/dashboard/recurring/${re.id}/edit?${q.toString()}`);
 }
 
 function slugify(s: string): string {

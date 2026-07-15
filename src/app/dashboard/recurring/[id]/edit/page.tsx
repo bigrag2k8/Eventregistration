@@ -8,8 +8,9 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { EventLocationFields } from "@/components/EventLocationFields";
 import { describeRecurrence } from "@/server/recurring-rule";
+import { formatInTimeZone } from "date-fns-tz";
 import { categoryOptions } from "@/lib/categories";
-import { updateRecurringEventAction } from "../../actions";
+import { updateRecurringEventAction, endRecurringEventAction, reactivateRecurringEventAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,10 @@ export default async function EditRecurringEventPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { error?: string; saved?: string; updated?: string; skipped?: string };
+  searchParams: {
+    error?: string; saved?: string; updated?: string; skipped?: string;
+    removed?: string; added?: string; kept?: string; ended?: string; reactivated?: string;
+  };
 }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId && session.role !== "SUPERADMIN") redirect("/dashboard");
@@ -48,6 +52,12 @@ export default async function EditRecurringEventPage({
   const bounded = !!(re.seriesEnd || re.occurrenceCap);
   const updatedN = Number(searchParams?.updated ?? 0);
   const skippedN = Number(searchParams?.skipped ?? 0);
+  const removedN = Number(searchParams?.removed ?? 0);
+  const addedN = Number(searchParams?.added ?? 0);
+  const keptN = Number(searchParams?.kept ?? 0);
+  const isEnded = re.status === "ENDED";
+  // datetime-local/date inputs want the wall-clock date in the event's own zone.
+  const endDateValue = re.seriesEnd ? formatInTimeZone(re.seriesEnd, re.timezone, "yyyy-MM-dd") : "";
 
   return (
     <main>
@@ -82,6 +92,29 @@ export default async function EditRecurringEventPage({
                 — they have already sold more tickets than the new capacity. Everything else was applied there.
               </>
             )}
+            {addedN > 0 && <> {addedN} new session{addedN === 1 ? "" : "s"} added from the longer run.</>}
+            {removedN > 0 && <> {removedN} session{removedN === 1 ? "" : "s"} removed from the shortened run.</>}
+            {keptN > 0 && (
+              <>
+                {" "}
+                <strong>
+                  {keptN} session{keptN === 1 ? "" : "s"} past the new end could not be removed
+                </strong>{" "}
+                — {keptN === 1 ? "it has" : "they have"} registrations. Cancel {keptN === 1 ? "it" : "them"} from{" "}
+                {keptN === 1 ? "its" : "their"} own page to refund attendees.
+              </>
+            )}
+          </div>
+        )}
+
+        {searchParams?.ended && (
+          <div className="mb-6 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 ring-1 ring-slate-200">
+            ✓ Ended — no new sessions will be generated. Sessions already scheduled stay live and can still sell tickets.
+          </div>
+        )}
+        {searchParams?.reactivated && (
+          <div className="mb-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Reactivated — sessions will generate again.
           </div>
         )}
 
@@ -210,6 +243,28 @@ export default async function EditRecurringEventPage({
           </section>
 
           <section className="card">
+            <h2 className="text-lg font-semibold">How long it runs</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              The pattern itself ({describeRecurrence(re)}) can&rsquo;t change here — but you can extend or shorten the run.
+              Extending generates the new dates immediately; shortening removes sessions past the new end.
+            </p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="e-enddate">Ends on (optional)</label>
+                <input id="e-enddate" name="endDate" type="date" defaultValue={endDateValue} className="input" />
+              </div>
+              <div>
+                <label className="label" htmlFor="e-cap">…or after this many sessions</label>
+                <input id="e-cap" name="occurrenceCap" type="number" min={1} max={400} defaultValue={re.occurrenceCap ?? ""} placeholder="e.g. 12" className="input" />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Leave both blank for an open-ended run that keeps generating. Sessions past a new, earlier end are removed
+              only when they have no registrations — any with attendees are reported so you can cancel and refund them.
+            </p>
+          </section>
+
+          <section className="card">
             <h2 className="text-lg font-semibold">Apply to existing sessions</h2>
             <label className="mt-3 flex items-start gap-2 text-sm">
               <input type="checkbox" name="propagate" value="1" defaultChecked className="mt-1" />
@@ -232,9 +287,33 @@ export default async function EditRecurringEventPage({
           </div>
         </form>
 
+        {/* End / reactivate — separate forms so they can't be submitted by the
+            main Save button. */}
+        <section className="card mt-8">
+          <h2 className="text-lg font-semibold">{isEnded ? "This recurring event has ended" : "Stop generating sessions"}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {isEnded
+              ? "No new sessions are being generated. Sessions already scheduled are still live and can sell tickets. Reactivate to resume."
+              : "Ends the run: no new sessions are generated from now on. Everything already scheduled stays live and keeps selling — nobody is cancelled and nothing is refunded. You can reactivate later."}
+          </p>
+          <div className="mt-4">
+            {isEnded ? (
+              <form action={reactivateRecurringEventAction}>
+                <input type="hidden" name="recurringEventId" value={re.id} />
+                <button type="submit" className="btn-secondary">Reactivate</button>
+              </form>
+            ) : (
+              <form action={endRecurringEventAction}>
+                <input type="hidden" name="recurringEventId" value={re.id} />
+                <button type="submit" className="btn-secondary">End this recurring event</button>
+              </form>
+            )}
+          </div>
+        </section>
+
         <p className="mt-6 text-xs text-slate-400">
-          The schedule ({describeRecurrence(re)}) and the public link can&rsquo;t be changed here — cancel or reschedule an
-          individual session from its own page instead.
+          The repeat pattern ({describeRecurrence(re)}) and the public link can&rsquo;t be changed here — to move a single
+          date, reschedule that session from its own page.
         </p>
       </div>
     </main>
