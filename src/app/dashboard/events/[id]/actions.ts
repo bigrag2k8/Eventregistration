@@ -9,7 +9,7 @@ import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
-import { sendConfirmationEmail } from "@/lib/email";
+import { sendConfirmationEmail, sendReviewRequestEmail } from "@/lib/email";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -105,6 +105,54 @@ export async function reissueTicketsAction(formData: FormData) {
  * decrement so the event is never upgraded without a paid credit. No-op if
  * already premium.
  */
+/**
+ * Re-send the post-event review invite to one attendee.
+ *
+ * The automatic invite is deliberately ONE-SHOT: inviteEventReviews stamps
+ * reviewInvitedAt BEFORE sending (claim-first) so a crash can't spam attendees
+ * — which also means a send that fails, or an email that never arrives, is
+ * unrecoverable. There was no way to re-send it, for an organizer whose
+ * attendee says "I never got it" or for testing the review link at all.
+ *
+ * Re-stamps reviewInvitedAt to now, so the 3-day reminder re-anchors to the
+ * invite the attendee actually received rather than firing right after this.
+ */
+export async function resendReviewInviteAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const registrationId = String(formData.get("registrationId"));
+  const { session, event } = await authorizeEvent(eventId);
+  const basePath = `/dashboard/events/${event.id}/registrations`;
+
+  const reg = await prisma.registration.findFirst({
+    where: { id: registrationId, eventId: event.id },
+    select: { id: true, status: true, email: true, review: { select: { id: true } } },
+  });
+  if (!reg) redirect(`${basePath}?error=not_found`);
+  if (reg.status !== "CONFIRMED") redirect(`${basePath}?error=review_not_confirmed`);
+  // Nothing to invite — they already left one.
+  if (reg.review) redirect(`${basePath}?error=review_already_left`);
+  // Reviews are post-event; the invite links to a form that asks how it went.
+  if (event.endAt > new Date()) redirect(`${basePath}?error=review_event_not_ended`);
+
+  let failed = false;
+  try {
+    await prisma.registration.update({ where: { id: reg.id }, data: { reviewInvitedAt: new Date() } });
+    await sendReviewRequestEmail(reg.id);
+  } catch (e: any) {
+    console.error("[review] resend invite failed:", e?.message);
+    failed = true;
+  }
+  if (failed) redirect(`${basePath}?error=review_resend_failed`);
+
+  await audit({
+    organizationId: event.organizationId, eventId: event.id, userId: session.sub,
+    action: "review.invite_resent", targetType: "Registration", targetId: reg.id,
+    metadata: { email: reg.email },
+  });
+  revalidatePath(basePath);
+  redirect(`${basePath}?review_sent=1`);
+}
+
 export async function upgradeEventAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const { session, event } = await authorizeEvent(eventId);

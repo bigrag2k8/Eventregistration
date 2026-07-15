@@ -34,6 +34,9 @@ interface Props {
   refundAction: (fd: FormData) => Promise<void>;
   bulkRefundAction: (fd: FormData) => Promise<void>;
   reissueAction: (fd: FormData) => Promise<void>;
+  resendReviewAction: (fd: FormData) => Promise<void>;
+  /** Reviews are post-event, so the resend control only shows once it's over. */
+  eventHasEnded: boolean;
 }
 
 function money(cents: number, currency = "USD") {
@@ -42,6 +45,7 @@ function money(cents: number, currency = "USD") {
 
 export function RegistrationsClient({
   eventId, isSuperAdmin, regs, cancelAction, deleteAction, refundAction, bulkRefundAction, reissueAction,
+  resendReviewAction, eventHasEnded,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
@@ -240,6 +244,17 @@ export function RegistrationsClient({
                           <ConfirmButton
                             label="Reissue"
                             confirmText={`Regenerate the QR ticket${(r.ticketCount || r.quantity) > 1 ? "s" : ""} for ${r.firstName} ${r.lastName} and email a fresh copy to ${r.email}? Any previously issued QR codes will stop working.`}
+                            className="text-xs text-slate-600 hover:underline"
+                          />
+                        </form>
+                      )}
+                      {r.status === "CONFIRMED" && eventHasEnded && (
+                        <form action={resendReviewAction} className="inline">
+                          <input type="hidden" name="eventId" value={eventId} />
+                          <input type="hidden" name="registrationId" value={r.id} />
+                          <ConfirmButton
+                            label="Resend review"
+                            confirmText={`Email the review invite to ${r.firstName} ${r.lastName} (${r.email}) again? The link in any earlier invite keeps working — this just sends a fresh one.`}
                             className="text-xs text-slate-600 hover:underline"
                           />
                         </form>

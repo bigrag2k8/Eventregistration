@@ -4,14 +4,14 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { cancelRegistrationAction, deleteRegistrationAction, refundRegistrationAction, bulkRefundAction, reissueTicketsAction } from "../actions";
+import { cancelRegistrationAction, deleteRegistrationAction, refundRegistrationAction, bulkRefundAction, reissueTicketsAction, resendReviewInviteAction } from "../actions";
 import { RegistrationsClient } from "./RegistrationsClient";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
   params: { id: string };
-  searchParams: { q?: string; status?: string; error?: string; refunded?: string; skipped?: string; failed?: string; reissued?: string };
+  searchParams: { q?: string; status?: string; error?: string; refunded?: string; skipped?: string; failed?: string; reissued?: string; review_sent?: string };
 }
 
 export default async function RegistrationsListPage({ params, searchParams }: Props) {
@@ -120,6 +120,11 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
             Tickets reissued and a fresh confirmation email sent.
           </div>
         )}
+        {searchParams.review_sent && (
+          <div className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            Review invite sent again.
+          </div>
+        )}
         {bulkResult && (
           <div className={`rounded-lg px-4 py-3 text-sm ${failedCount > 0 ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200" : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"}`}>
             Bulk refund complete: <strong>{refundedCount}</strong> refunded
@@ -157,6 +162,8 @@ export default async function RegistrationsListPage({ params, searchParams }: Pr
           refundAction={refundRegistrationAction}
           bulkRefundAction={bulkRefundAction}
           reissueAction={reissueTicketsAction}
+          resendReviewAction={resendReviewInviteAction}
+          eventHasEnded={event.endAt < new Date()}
         />
 
         <p className="text-xs text-slate-400">Showing up to 500 most recent. Use Export CSV for the full list.</p>
