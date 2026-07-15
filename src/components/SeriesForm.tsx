@@ -27,7 +27,7 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
         <h2 className="text-lg font-semibold">Basics</h2>
         <div className="mt-3 grid gap-4">
           <div>
-            <label className="label" htmlFor="s-name">Series name *</label>
+            <label className="label" htmlFor="s-name">Name *</label>
             <input id="s-name" name="name" required maxLength={120} className="input" placeholder="Tuesday Night Yoga" />
           </div>
           <div>
@@ -49,7 +49,7 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" name="isPrivate" className="h-4 w-4 rounded border-slate-300" />
-            Private series — reachable by direct link only, hidden from the app-wide directory
+            Private — reachable by direct link only, hidden from the app-wide directory
           </label>
         </div>
       </section>
@@ -130,20 +130,20 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
               <input id="s-cap" name="occurrenceCap" type="number" min={1} max={400} className="input" placeholder="e.g. 12" />
             </div>
           </div>
-          <p className="text-xs text-slate-500">Leave both blank for an open-ended series that keeps generating new sessions automatically.</p>
+          <p className="text-xs text-slate-500">Leave both blank for an open-ended recurring event that keeps generating new sessions automatically.</p>
         </div>
       </section>
 
       <section className="card">
         <h2 className="text-lg font-semibold">Banner (optional)</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Shown on the series page and on every session&rsquo;s page. You can still change an
+          Shown on the recurring event&rsquo;s page and on every session&rsquo;s page. You can still change an
           individual session&rsquo;s banner later from that event&rsquo;s page.
         </p>
         <div className="mt-4">
           <ImageUploadInput
             name="bannerUrl"
-            label="Series banner"
+            label="Banner"
             aspect="16 / 6"
             previewFit="cover"
             folder="eventflow/banners"
@@ -186,14 +186,14 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
           <input id="s-bundle" name="bundlePriceDollars" type="number" min={0.5} step="0.01" className="input max-w-xs" placeholder="e.g. 100.00" />
           <p className="mt-1 text-xs text-slate-500">
             One checkout buys a seat in every remaining session — price it below the drop-in total so the discount shows.
-            Requires a <strong>series credit ($34.99)</strong> and an end date or session cap. Premium series also get
-            unlimited registrations per session and your custom branding.
+            Requires a <strong>series credit ($34.99)</strong> and an end date or session cap. Premium recurring events
+            also get unlimited registrations per session and your custom branding.
           </p>
         </div>
       </section>
 
       <div className="flex items-center justify-end gap-3">
-        <SubmitButton className="btn-primary" pendingText="Creating series…">Create series</SubmitButton>
+        <SubmitButton className="btn-primary" pendingText="Creating…">Create recurring event</SubmitButton>
       </div>
     </form>
   );

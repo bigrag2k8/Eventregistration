@@ -46,9 +46,9 @@ const MESSAGES: Record<string, string> = {
   reschedule_dates_required: "Pick a new start and end date/time to reschedule.",
   already_cancelled: "This event is already cancelled.",
   delete_has_registrations: "This event has registrations and can't be deleted. Cancel it (which refunds attendees) or Reschedule it instead.",
-  weekday_required: "Pick at least one day of the week for a weekly series.",
-  series_has_registrations: "Some upcoming sessions in this series have confirmed registrations. Cancel those sessions first (which refunds attendees), then delete the series.",
-  series_credit_required: "This needs a series credit ($34.99) — the free plan includes one active drop-in series. Use the “Buy series credit” button above; after checkout you'll come right back here to finish.",
+  weekday_required: "Pick at least one day of the week for a weekly recurring event.",
+  series_has_registrations: "Some upcoming sessions in this recurring event have confirmed registrations. Cancel those sessions first (which refunds attendees), then delete it.",
+  series_credit_required: "This needs a series credit ($34.99) — the free plan includes one active drop-in recurring event. Use the “Buy series credit” button above; after checkout you'll come right back here to finish.",
 };
 
 export function ErrorBanner({ code }: { code?: string }) {

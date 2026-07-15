@@ -32,7 +32,7 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="font-bold text-brand-700"><img src="/logo.png" alt="Your Events App" className="h-9 w-auto" /></Link>
             <span className="text-slate-300">/</span>
-            <span className="font-semibold">New recurring series</span>
+            <span className="font-semibold">New recurring event</span>
           </div>
           <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">◀ Dashboard</Link>
         </div>
@@ -43,11 +43,11 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
         {searchParams?.bought === "SERIES_CREDIT" && (
           <div className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Series credit added — you now have <strong>{credits}</strong> credit{credits === 1 ? "" : "s"}.
-            Finish setting up your series below (you can include the full-series pass).
+            Finish setting up your recurring event below (you can include the full-series pass).
           </div>
         )}
         <p className="mb-4 text-sm text-slate-600">
-          A recurring series generates a real, independently-registerable event for each session on your schedule —
+          A recurring event runs on a schedule and creates a real, independently-registerable session for each date —
           so a weekly class always shows its next few months. You can cancel or reschedule any single session later.
         </p>
 
@@ -57,8 +57,8 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
             <span className="font-medium">Series credits: {credits}</span>
             <span className="ml-2 text-slate-500">
               {freeSlotOpen
-                ? "Your free series slot is open — drop-in only, 50 registrations per session. A credit unlocks the full-series pass, unlimited registrations, and your branding."
-                : "Your free series slot is in use — creating another series needs a credit ($34.99)."}
+                ? "Your free recurring-event slot is open — drop-in only, 50 registrations per session. A credit unlocks the full-series pass, unlimited registrations, and your branding."
+                : "Your free recurring-event slot is in use — creating another one needs a credit ($34.99)."}
             </span>
           </div>
           <form action="/api/billing/checkout" method="POST">
