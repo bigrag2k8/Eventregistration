@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, orgScope } from "@/lib/auth";
+import { formatInTimeZone } from "date-fns-tz";
 import { KycBanner } from "@/components/KycBanner";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { SeriesGroup } from "@/components/SeriesGroup";
 import { money } from "@/lib/format";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -39,9 +41,12 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
     : null;
   const eventScope = orgScope(session); // {} for SUPERADMIN, {organizationId} otherwise
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [events, seriesList, totalRevenue, totalRegs, checkInRate, publishedCount] = await Promise.all([
+  const [events, seriesList, totalRevenue, totalRegs, checkInRate, publishedCount, totalEventCount] = await Promise.all([
     prisma.event.findMany({
-      where: { ...eventScope, deletedAt: null },
+      // Series occurrences are listed UNDER their series (SeriesGroup), so keep
+      // them out of the one-off events table — otherwise every session shows up
+      // here as its own row and drowns the real events.
+      where: { ...eventScope, deletedAt: null, seriesId: null },
       orderBy: { startAt: "desc" },
       take: 12,
       include: {
@@ -56,8 +61,16 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
       include: {
         organization: { select: { slug: true } },
         events: {
-          where: { deletedAt: null, status: "PUBLISHED", endAt: { gte: new Date() } },
-          select: { id: true },
+          where: { deletedAt: null },
+          orderBy: { startAt: "asc" },
+          select: {
+            id: true,
+            startAt: true,
+            endAt: true,
+            status: true,
+            timezone: true,
+            _count: { select: { registrations: true } },
+          },
         },
       },
     }),
@@ -86,6 +99,10 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
       return total === 0 ? 0 : Math.round((checked / total) * 100);
     })(),
     prisma.event.count({ where: { ...eventScope, deletedAt: null, status: "PUBLISHED" } }),
+    // Every event incl. series sessions — the "Events" stat should not drop
+    // just because sessions moved under their series (and this also fixes the
+    // old count, which was capped by the table's take:12).
+    prisma.event.count({ where: { ...eventScope, deletedAt: null } }),
   ]);
 
   // Onboarding checklist: shown to a real (non-super) organizer/admin until
@@ -152,7 +169,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         )}
         <Stat label="Registrations" value={String(totalRegs)} />
         <Stat label="Check-in rate" value={`${checkInRate}%`} />
-        <Stat label="Events" value={String(events.length)} />
+        <Stat label="Events" value={String(totalEventCount)} />
       </div>
 
       {seriesList.length > 0 && (
@@ -167,27 +184,35 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                   <th className="px-4 py-3">Series</th>
                   <th className="px-4 py-3">Schedule</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Upcoming sessions</th>
+                  <th className="px-4 py-3 text-right">Regs</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {seriesList.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-4 py-3 font-medium">{s.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{describeRecurrence(s)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${s.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">{s.events.length}</td>
-                    <td className="px-4 py-3 text-right">
+              {seriesList.map((s) => {
+                const canManage = session.role !== "STAFF" && session.role !== "VOLUNTEER";
+                return (
+                  <SeriesGroup
+                    key={s.id}
+                    seriesId={s.id}
+                    name={s.name}
+                    schedule={describeRecurrence(s)}
+                    status={s.status}
+                    totalRegs={s.events.reduce((n, e) => n + e._count.registrations, 0)}
+                    canManage={canManage}
+                    sessions={s.events.map((e, i) => ({
+                      id: e.id,
+                      dateLabel: formatInTimeZone(e.startAt, e.timezone, "EEE, MMM d · h:mm a"),
+                      sessionLabel: `Session ${i + 1} of ${s.events.length}`,
+                      status: e.status,
+                      regs: e._count.registrations,
+                      isPast: e.endAt < new Date(),
+                    }))}
+                    actions={
                       <div className="flex items-center justify-end gap-3">
                         <Link href={`/o/${s.organization.slug}/series/${s.slug}`} target="_blank" className="text-xs text-brand-700 hover:underline">
                           View ↗
                         </Link>
-                        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
+                        {canManage && (
                           <form action={deleteSeriesAction}>
                             <input type="hidden" name="seriesId" value={s.id} />
                             <ConfirmButton
@@ -197,10 +222,10 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                           </form>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                    }
+                  />
+                );
+              })}
             </table>
           </div>
         </>
