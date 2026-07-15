@@ -217,11 +217,11 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
         </section>
       )}
 
-      {/* Classes & series — each recurring series collapses to one card */}
+      {/* Classes & recurring events — each recurring event collapses to one card */}
       {series.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 pb-2 pt-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold">Classes &amp; series</h2>
+            <h2 className="text-xl font-semibold">Classes &amp; recurring events</h2>
             <div className="h-px flex-1" style={{ background: "linear-gradient(to right, var(--org-brand), transparent)" }} />
           </div>
           <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -238,7 +238,7 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
                     </div>
                   )}
                   <div className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wider" style={{ color: "var(--org-brand)" }}>
-                    <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Series
+                    <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Recurring
                   </div>
                   <h3 className="mt-1 text-lg font-semibold">{s.name}</h3>
                   <p className="mt-1 text-sm text-slate-600">{describeRecurrence(s)}</p>

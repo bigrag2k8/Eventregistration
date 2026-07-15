@@ -182,11 +182,11 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
           </div>
         </div>
         <div className="mt-4 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-100">
-          <label className="label" htmlFor="s-bundle">Full-series pass price (USD, optional)</label>
+          <label className="label" htmlFor="s-bundle">All-sessions pass price (USD, optional)</label>
           <input id="s-bundle" name="bundlePriceDollars" type="number" min={0.5} step="0.01" className="input max-w-xs" placeholder="e.g. 100.00" />
           <p className="mt-1 text-xs text-slate-500">
             One checkout buys a seat in every remaining session — price it below the drop-in total so the discount shows.
-            Requires a <strong>series credit ($34.99)</strong> and an end date or session cap. Premium recurring events
+            Requires a <strong>recurring event credit ($34.99)</strong> and an end date or session cap. Premium recurring events
             also get unlimited registrations per session and your custom branding.
           </p>
         </div>

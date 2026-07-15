@@ -318,7 +318,7 @@ function renderConfirmation(reg: any) {
 }
 
 /**
- * One confirmation for a full-series bundle purchase: lists every session with
+ * One confirmation for a all-sessions bundle purchase: lists every session with
  * its own QR ticket inline (cid-referenced, same print-safe pattern as the
  * single confirmation email). Sent once by the webhook after payment.
  */
@@ -394,7 +394,7 @@ export async function sendBundleConfirmationEmail(bundlePurchaseId: string) {
     <tr><td>
       ${logo}
       <h1 style="margin:0 0 8px;color:${brand}">You're in — the whole series 🎉</h1>
-      <p style="color:#475569">Hi ${esc(purchase.firstName)}, your full-series pass for <strong>${esc(purchase.series.name)}</strong>${orgName ? ` with ${orgName}` : ""} is confirmed. Total paid: <strong>$${(purchase.totalCents / 100).toFixed(2)}</strong> for ${regsByDate.length} sessions.</p>
+      <p style="color:#475569">Hi ${esc(purchase.firstName)}, your all-sessions pass for <strong>${esc(purchase.series.name)}</strong>${orgName ? ` with ${orgName}` : ""} is confirmed. Total paid: <strong>$${(purchase.totalCents / 100).toFixed(2)}</strong> for ${regsByDate.length} sessions.</p>
       <p style="color:#475569">Each session has its own QR ticket below — show the matching QR at the door.</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">${sessionBlocks.join("")}</table>
       <p style="color:#94a3b8;font-size:12px;margin-top:24px">Can't make a session? Reply to this email to reach the organizer.</p>

@@ -97,7 +97,7 @@ export default async function SeriesPublicPage({
           <p className="max-w-3xl whitespace-pre-line leading-relaxed text-slate-700">{series.description}</p>
         )}
 
-        {/* Full-series pass — only on bounded, active series with 2+ sessions left */}
+        {/* All-sessions pass — only on bounded, active series with 2+ sessions left */}
         {series.status === "ACTIVE" &&
           series.bundlePriceCents != null &&
           series.bundlePriceCents > 0 &&
@@ -110,7 +110,7 @@ export default async function SeriesPublicPage({
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
                     <Ticket className="h-5 w-5" aria-hidden style={{ color: "var(--org-brand)" }} />
-                    Full-series pass
+                    All-sessions pass
                   </h2>
                   <div className="text-right">
                     <span className="text-2xl font-bold">${(series.bundlePriceCents / 100).toFixed(2)}</span>

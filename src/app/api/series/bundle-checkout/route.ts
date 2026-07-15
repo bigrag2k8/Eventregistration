@@ -8,7 +8,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { reserveSeats } from "@/server/tickets";
 
 /**
- * Full-series bundle checkout: one payment buys a seat in EVERY remaining
+ * All-sessions bundle checkout: one payment buys a seat in EVERY remaining
  * session of a bounded series. Creates one SeriesBundlePurchase + one PENDING
  * Registration per session (each carrying its per-session share of the price —
  * remainder cents land on the first session so the shares sum exactly), then a
@@ -41,13 +41,13 @@ export async function POST(req: Request) {
   });
   if (!series) return NextResponse.json({ error: "This series is no longer available." }, { status: 410 });
   if (!series.bundlePriceCents || series.bundlePriceCents <= 0) {
-    return NextResponse.json({ error: "This series doesn't offer a full-series pass." }, { status: 400 });
+    return NextResponse.json({ error: "This series doesn't offer a all-sessions pass." }, { status: 400 });
   }
   // Bundles only exist on bounded series — "every remaining session" must be a
   // finite, fully-materialized set. (occurrenceCap/seriesEnd series are always
   // fully generated once inside the worker horizon.)
   if (!series.seriesEnd && series.occurrenceCap == null) {
-    return NextResponse.json({ error: "This series doesn't offer a full-series pass." }, { status: 400 });
+    return NextResponse.json({ error: "This series doesn't offer a all-sessions pass." }, { status: 400 });
   }
 
   const org = series.organization;
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     include: { ticketTypes: { where: { isVendorTier: false }, orderBy: { sortOrder: "asc" }, take: 1 } },
   });
   if (sessions.length < 2) {
-    return NextResponse.json({ error: "Not enough upcoming sessions left for a full-series pass — register per session instead." }, { status: 400 });
+    return NextResponse.json({ error: "Not enough upcoming sessions left for a all-sessions pass — register per session instead." }, { status: 400 });
   }
   if (sessions.some((s) => s.ticketTypes.length === 0)) {
     return NextResponse.json({ error: "This series isn't ready for purchase yet. Try again later." }, { status: 409 });
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     where: { eventId: { in: sessions.map((s) => s.id) }, email, status: { in: ["PENDING", "CONFIRMED"] } },
   });
   if (existing > 0) {
-    return NextResponse.json({ error: "You're already registered for one of these sessions with this email. Contact the organizer to switch to the full-series pass." }, { status: 409 });
+    return NextResponse.json({ error: "You're already registered for one of these sessions with this email. Contact the organizer to switch to the all-sessions pass." }, { status: 409 });
   }
 
   // Per-session share: divide the bundle across sessions, remainder cents on
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
     });
   } catch (e: any) {
     if (e?.message === "SOLD_OUT") {
-      return NextResponse.json({ error: "One of the sessions is sold out, so the full-series pass isn't available. You can still register for individual sessions." }, { status: 409 });
+      return NextResponse.json({ error: "One of the sessions is sold out, so the all-sessions pass isn't available. You can still register for individual sessions." }, { status: 409 });
     }
     console.error("[bundle-checkout] create failed:", e?.message);
     return NextResponse.json({ error: "Couldn't start checkout. Please try again." }, { status: 500 });

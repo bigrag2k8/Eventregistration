@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 
 /**
- * "Buy the full series" form on the public series page. Collects the minimum
+ * "Buy the all-sessions pass" form on the public series page. Collects the minimum
  * (name/email/phone), then hands off to Stripe Checkout for the bundle total.
  */
 export function BundleCheckoutForm({ seriesId, brand }: { seriesId: string; brand?: string | null }) {
@@ -73,7 +73,7 @@ export function BundleCheckoutForm({ seriesId, brand }: { seriesId: string; bran
         className="btn-primary w-full disabled:opacity-60"
         style={brand ? { backgroundColor: brand } : undefined}
       >
-        {submitting ? "Starting checkout…" : "Buy the full series"}
+        {submitting ? "Starting checkout…" : "Buy the all-sessions pass"}
       </button>
     </form>
   );

@@ -123,21 +123,21 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
           </form>
         </section>
 
-        {/* Series credits */}
+        {/* Recurring event credits */}
         <section className="card flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <div className="text-xs uppercase tracking-wider text-slate-500">Series credits</div>
+            <div className="text-xs uppercase tracking-wider text-slate-500">Recurring event credits</div>
             <div className="mt-1 text-4xl font-bold">{org.seriesCredits}</div>
             <p className="mt-2 text-slate-600">
               Each credit makes one <strong>recurring series</strong> premium — every session gets unlimited
               registrations, custom branding, and 5 email broadcasts, and you can sell the{" "}
-              <strong>full-series pass</strong> (one checkout for all sessions). The free plan includes one
+              <strong>all-sessions pass</strong> (one checkout for all sessions). The free plan includes one
               active drop-in-only series. Credits don&rsquo;t expire.
             </p>
           </div>
           <form action="/api/billing/checkout" method="POST">
             <input type="hidden" name="planKey" value="SERIES_CREDIT" />
-            <button type="submit" className="btn-primary">Buy series credit — $34.99</button>
+            <button type="submit" className="btn-primary">Buy recurring event credit — $34.99</button>
           </form>
         </section>
 

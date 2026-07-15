@@ -18,7 +18,7 @@ const TIERS = [
     tagline: "Try the platform, no card required.",
     features: [
       "1 event per month",
-      "1 recurring series (drop-in tickets)",
+      "1 recurring event (drop-in tickets)",
       "Up to 50 registrations per event",
       "1 email broadcast per event",
       "QR check-in & CSV export",
@@ -44,12 +44,12 @@ const TIERS = [
     tagline: "Turn a class or course into one page that runs itself.",
     features: [
       "Every session auto-scheduled on one page",
-      "Sell drop-ins or a full-series pass",
+      "Sell drop-ins or a all-sessions pass",
       "Unlimited registrations + your branding",
       "Cancel or reschedule any single session",
       `Class drop-in fees capped at ${SERIES_FEE_CAP_PERCENT}%`,
     ],
-    cta: { label: "Start a series", href: "/signup" },
+    cta: { label: "Start a recurring event", href: "/signup" },
     featured: false,
   },
 ];
@@ -63,7 +63,7 @@ export default function PricingPage() {
           Run unlimited free events. When you need the full feature set for an event, unlock it with a single payment — no subscription.
         </p>
         <p className="mt-3 text-slate-600">
-          Running a weekly class or a multi-week course? A series puts every session on one page —
+          Running a weekly class or a multi-week course? A recurring event puts every session on one page —
           sell drop-ins or the whole thing at once.
         </p>
       </section>
@@ -136,7 +136,7 @@ export default function PricingPage() {
                 On recurring class sessions, the ${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} minimum
                 is capped at {SERIES_FEE_CAP_PERCENT}% of the ticket. A $5 drop-in costs you $0.50,
                 not ${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} — so cheap classes stay cheap. Sell
-                the full-series pass and it&apos;s a flat {PLATFORM_FEE_PERCENT}%.
+                the all-sessions pass and it&apos;s a flat {PLATFORM_FEE_PERCENT}%.
               </p>
             </div>
             <div className="rounded-lg bg-white p-4 ring-1 ring-slate-200">

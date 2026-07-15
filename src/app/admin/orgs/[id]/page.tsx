@@ -143,7 +143,7 @@ export default async function AdminOrgPage({
             <Readout label="Registrations / event" value={fmtLimit(effective.registrationLimitPerEvent)} />
             <Readout label="Comm. emails / event" value={fmtLimit(effective.emailCampaignsPerEvent)} />
             <Readout label="Single-event credits" value={String(org.singleEventCredits)} />
-            <Readout label="Series credits" value={String(org.seriesCredits)} />
+            <Readout label="Recurring event credits" value={String(org.seriesCredits)} />
             <Readout label="Status" value={org.subscriptionStatus} />
           </dl>
           {org.stripeSubscriptionId && (
@@ -194,7 +194,7 @@ export default async function AdminOrgPage({
                 />
               </div>
               <div>
-                <label className="label">Series credits</label>
+                <label className="label">Recurring event credits</label>
                 <input
                   name="seriesCredits"
                   type="number"

@@ -42,8 +42,8 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
         <ErrorBanner code={searchParams?.error} />
         {searchParams?.bought === "SERIES_CREDIT" && (
           <div className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ Series credit added — you now have <strong>{credits}</strong> credit{credits === 1 ? "" : "s"}.
-            Finish setting up your recurring event below (you can include the full-series pass).
+            ✓ Recurring event credit added — you now have <strong>{credits}</strong> credit{credits === 1 ? "" : "s"}.
+            Finish setting up your recurring event below (you can include the all-sessions pass).
           </div>
         )}
         <p className="mb-4 text-sm text-slate-600">
@@ -54,17 +54,17 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
         {/* Credits status + in-context purchase */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-4 ring-1 ring-slate-200">
           <div className="text-sm text-slate-700">
-            <span className="font-medium">Series credits: {credits}</span>
+            <span className="font-medium">Recurring event credits: {credits}</span>
             <span className="ml-2 text-slate-500">
               {freeSlotOpen
-                ? "Your free recurring-event slot is open — drop-in only, 50 registrations per session. A credit unlocks the full-series pass, unlimited registrations, and your branding."
+                ? "Your free recurring-event slot is open — drop-in only, 50 registrations per session. A credit unlocks the all-sessions pass, unlimited registrations, and your branding."
                 : "Your free recurring-event slot is in use — creating another one needs a credit ($34.99)."}
             </span>
           </div>
           <form action="/api/billing/checkout" method="POST">
             <input type="hidden" name="planKey" value="SERIES_CREDIT" />
             <input type="hidden" name="returnTo" value="/dashboard/series/new" />
-            <button type="submit" className="btn-secondary whitespace-nowrap">Buy series credit — $34.99</button>
+            <button type="submit" className="btn-secondary whitespace-nowrap">Buy recurring event credit — $34.99</button>
           </form>
         </div>
 

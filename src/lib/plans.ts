@@ -128,8 +128,8 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
   },
   SERIES_CREDIT: {
     key: "SERIES_CREDIT",
-    name: "Series",
-    price: "$34.99 per series",
+    name: "Recurring event",
+    price: "$34.99 per recurring event",
     priceCents: SERIES_CREDIT_PRICE_CENTS,
     cadence: "one_time",
     stripePriceId: STRIPE_PRICES.SERIES_CREDIT,
@@ -145,7 +145,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
       customDomain: false,
       prioritySupport: false,
     },
-    blurb: "One payment unlocks one full recurring series — every session premium, plus the full-series pass.",
+    blurb: "One payment unlocks one full recurring event — every session premium, plus the all-sessions pass.",
   },
   STARTER: {
     key: "STARTER",
