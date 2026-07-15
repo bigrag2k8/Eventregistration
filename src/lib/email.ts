@@ -171,7 +171,9 @@ export async function sendEventRescheduledEmail(registrationId: string) {
   const when = formatInTimeZone(e.startAt, e.timezone, "EEEE, MMMM d 'at' h:mm a zzz");
   const loc = e.location ? esc(`${e.location.venueName ?? ""} ${e.location.addressLine1 ?? ""}, ${e.location.city ?? ""}`) : "";
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
-  const refundUrl = `${base}/o/${esc(org.slug)}/events/${esc(e.slug)}/refund-request`;
+  // The refund-request page 404s without ?reg + &key (the accessToken) — match
+  // how the confirmation email builds this link.
+  const refundUrl = `${base}/o/${esc(org.slug)}/events/${esc(e.slug)}/refund-request?reg=${reg.id}${reg.accessToken ? `&key=${esc(reg.accessToken)}` : ""}`;
 
   // Guarantee a scannable ticket exists before we build the email. issueTickets
   // is idempotent (creates only what's missing), so this self-heals any
