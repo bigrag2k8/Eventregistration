@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession, orgScope } from "@/lib/auth";
 import { KycBanner } from "@/components/KycBanner";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { money } from "@/lib/format";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -38,7 +39,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
     : null;
   const eventScope = orgScope(session); // {} for SUPERADMIN, {organizationId} otherwise
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [events, seriesList, totalRevenue, totalRegs, checkInRate] = await Promise.all([
+  const [events, seriesList, totalRevenue, totalRegs, checkInRate, publishedCount] = await Promise.all([
     prisma.event.findMany({
       where: { ...eventScope, deletedAt: null },
       orderBy: { startAt: "desc" },
@@ -84,7 +85,17 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
       });
       return total === 0 ? 0 : Math.round((checked / total) * 100);
     })(),
+    prisma.event.count({ where: { ...eventScope, deletedAt: null, status: "PUBLISHED" } }),
   ]);
+
+  // Onboarding checklist: shown to a real (non-super) organizer/admin until
+  // they publish their first event. Established orgs (already published) and
+  // door staff never see it.
+  const showOnboarding =
+    !isSuper &&
+    !!org &&
+    (session.role === "ORGANIZER" || session.role === "ADMIN") &&
+    publishedCount === 0;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -109,6 +120,15 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
           </p>
         </div>
       </div>
+
+      {showOnboarding && org && (
+        <OnboardingChecklist
+          brandDone={!!org.logoUrl}
+          payoutsDone={!!org.stripeAccountChargesEnabled}
+          hasEvent={events.length > 0}
+          publishedDone={publishedCount > 0}
+        />
+      )}
 
       {/* KYC banner: only nag when there's actual MONEY waiting.
           Free events generate registrations but no revenue, so no payout is
@@ -196,6 +216,23 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         )}
       </div>
 
+      {events.length === 0 ? (
+        <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <div className="text-4xl" aria-hidden>🎟️</div>
+          <h3 className="mt-3 text-lg font-semibold">No events yet</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            {session.role === "STAFF" || session.role === "VOLUNTEER"
+              ? "You'll see events here once an organizer creates them."
+              : "Create your first event in a few guided steps — you can save a draft and finish anytime."}
+          </p>
+          {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link href="/dashboard/events/new" className="btn-primary">+ Create your first event</Link>
+              <Link href="/dashboard/series/new" className="btn-secondary">+ Recurring series</Link>
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="mt-3 overflow-x-auto rounded-xl ring-1 ring-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
@@ -241,12 +278,10 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                 </td>
               </tr>
             ))}
-            {events.length === 0 && (
-              <tr><td colSpan={isSuper ? 7 : 6} className="px-4 py-8 text-center text-slate-500">No events yet.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
+      )}
     </main>
   );
 }
