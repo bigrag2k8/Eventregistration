@@ -220,6 +220,11 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                     }))}
                     actions={
                       <div className="flex items-center justify-end gap-3">
+                        {canManage && (
+                          <Link href={`/dashboard/recurring/${s.id}/edit`} className="text-xs text-brand-700 hover:underline">
+                            Edit
+                          </Link>
+                        )}
                         <Link href={`/o/${s.organization.slug}/recurring/${s.slug}`} target="_blank" className="text-xs text-brand-700 hover:underline">
                           View ↗
                         </Link>

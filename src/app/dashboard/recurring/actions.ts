@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { materializeOccurrences } from "@/server/recurring-events";
 
@@ -40,6 +40,188 @@ const schema = z.object({
   postalCode: z.string().max(20).optional(),
   country: z.string().max(100).optional(),
 });
+
+/**
+ * Editable fields of an existing recurring event (slice 1). The SCHEDULE
+ * (frequency/interval/days/time/dates/timezone) and the SLUG are deliberately
+ * NOT here: schedule changes need occurrence regeneration (slice 2), and the
+ * slug is the public URL.
+ */
+const editSchema = z.object({
+  recurringEventId: z.string().min(1),
+  name: z.string().min(2).max(120),
+  description: z.string().max(4000).optional(),
+  category: z.string().max(60).optional(),
+  isPrivate: z.string().optional(),
+  ticketName: z.string().min(1).max(80),
+  priceDollars: z.coerce.number().min(0).max(100000),
+  capacity: z.coerce.number().int().min(1).max(1000000).optional().or(z.literal("")),
+  bundlePriceDollars: z.coerce.number().min(0.5).max(1000000).optional().or(z.literal("")),
+  bannerUrl: z.string().url().max(500).optional().or(z.literal("")),
+  isVirtual: z.string().optional(),
+  virtualUrl: z.string().url().max(500).optional().or(z.literal("")),
+  venueName: z.string().max(200).optional(),
+  addressLine1: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  postalCode: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
+  propagate: z.string().optional(),
+});
+
+/**
+ * Update a recurring event's template and (optionally) push the change down to
+ * its UPCOMING sessions. Propagation rules, deliberately conservative:
+ *   • only future, non-cancelled, non-deleted sessions — history is never rewritten
+ *   • capacity is SKIPPED on any session that has already sold more than the new
+ *     value (never corrupt seat math); everything else still applies there
+ *   • only the drop-in tier the materializer created (oldest non-vendor tier) is
+ *     touched — tiers an organizer added to one session by hand are left alone
+ *   • the all-sessions pass price lives only on the recurring event (read at
+ *     checkout), so it needs no per-session push
+ * Already-sold tickets are unaffected by a price change: their Payment rows are
+ * historical. Only NEW buyers of a future session pay the new price.
+ */
+export async function updateRecurringEventAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  if (!session.orgId) throw new Error("No organization linked");
+
+  const id = String(formData.get("recurringEventId") ?? "");
+  const parsed = editSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/recurring/${id}/edit?error=validation`);
+  const d = parsed.data;
+
+  const re = await prisma.recurringEvent.findFirst({
+    where: { id: d.recurringEventId, ...orgScope(session), deletedAt: null },
+  });
+  if (!re) redirect("/dashboard?error=not_found");
+
+  const priceCents = Math.round(d.priceDollars * 100);
+  const capacity = d.capacity === "" || d.capacity === undefined ? null : Number(d.capacity);
+  const isPrivate = d.isPrivate === "on" || d.isPrivate === "1";
+  const isVirtual = d.isVirtual === "1" || d.isVirtual === "on";
+  const venueName = d.venueName?.trim() || null;
+  const addressLine1 = d.addressLine1?.trim() || null;
+  const city = d.city?.trim() || null;
+  const state = d.state?.trim() || null;
+  const postalCode = d.postalCode?.trim() || null;
+  const country = d.country?.trim() || null;
+
+  // All-sessions pass keeps its create-time rules: PREMIUM only, and only on a
+  // BOUNDED recurring event (an open-ended one has no finite "all sessions").
+  const bounded = !!(re.seriesEnd || re.occurrenceCap);
+  const bundlePriceCents =
+    re.isPremium && d.bundlePriceDollars && bounded ? Math.round(Number(d.bundlePriceDollars) * 100) : null;
+
+  await prisma.recurringEvent.update({
+    where: { id: re.id },
+    data: {
+      name: d.name,
+      description: d.description || d.name,
+      category: d.category || null,
+      bannerUrl: d.bannerUrl || null,
+      isPrivate,
+      isVirtual,
+      virtualUrl: d.virtualUrl || null,
+      venueName,
+      addressLine1,
+      city,
+      state,
+      postalCode,
+      country,
+      ticketName: d.ticketName,
+      priceCents,
+      capacity,
+      bundlePriceCents,
+    },
+  });
+
+  // Mirrors materializeOccurrences: a physical location needs street + city
+  // (EventLocation requires them); a virtual one just needs the flag. When
+  // there's nothing usable we leave each session's existing location alone.
+  const hasPhysical = !!(addressLine1 && city);
+  const locationData = isVirtual
+    ? { isVirtual: true, virtualUrl: d.virtualUrl || null, venueName, addressLine1: addressLine1 ?? "", city: city ?? "", state, postalCode, country: country ?? "US" }
+    : hasPhysical
+      ? { isVirtual: false, virtualUrl: null, venueName, addressLine1: addressLine1!, city: city!, state, postalCode, country: country ?? "US" }
+      : null;
+
+  let updated = 0;
+  const capacitySkipped: string[] = [];
+
+  if (d.propagate === "1") {
+    const now = new Date();
+    const sessions = await prisma.event.findMany({
+      where: { recurringEventId: re.id, deletedAt: null, status: { not: "CANCELLED" }, endAt: { gte: now } },
+      // The materializer creates exactly one drop-in tier per session (sortOrder
+      // 0). Order by sortOrder then id so we always target THAT tier and leave
+      // any extra tiers an organizer added to one session by hand alone.
+      include: { ticketTypes: { where: { isVendorTier: false }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] } },
+      take: 400,
+    });
+
+    for (const ev of sessions) {
+      const sold = ev.ticketTypes.reduce((n, t) => n + t.quantitySold, 0);
+      // Never shrink a session below what it has already sold.
+      const capacityOk = capacity === null || sold <= capacity;
+      if (!capacityOk) capacitySkipped.push(ev.startAt.toISOString().slice(0, 10));
+
+      await prisma.event.update({
+        where: { id: ev.id },
+        data: {
+          name: d.name,
+          description: d.description || d.name,
+          category: d.category || null,
+          bannerUrl: d.bannerUrl || null,
+          isPrivate,
+          ...(capacityOk ? { capacity } : {}),
+        },
+      });
+
+      if (locationData) {
+        await prisma.eventLocation.upsert({
+          where: { eventId: ev.id },
+          create: { eventId: ev.id, ...locationData },
+          update: locationData,
+        });
+      }
+
+      const tier = ev.ticketTypes[0];
+      if (tier) {
+        await prisma.ticketType.update({
+          where: { id: tier.id },
+          data: {
+            name: d.ticketName,
+            priceCents,
+            kind: priceCents > 0 ? "GENERAL" : "FREE",
+            ...(capacityOk ? { quantityTotal: capacity } : {}),
+          },
+        });
+      }
+      updated += 1;
+    }
+  }
+
+  await audit({
+    organizationId: re.organizationId,
+    userId: session.sub,
+    action: "recurring.update",
+    targetType: "RecurringEvent",
+    targetId: re.id,
+    metadata: {
+      name: d.name,
+      propagated: d.propagate === "1",
+      sessionsUpdated: updated,
+      capacitySkipped,
+      priceCentsBefore: re.priceCents,
+      priceCentsAfter: priceCents,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/o/${re.organizationId}/recurring/${re.slug}`);
+  redirect(`/dashboard/recurring/${re.id}/edit?saved=1&updated=${updated}&skipped=${capacitySkipped.length}`);
+}
 
 function slugify(s: string): string {
   return (
