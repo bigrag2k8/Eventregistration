@@ -12,6 +12,7 @@ import { EventLocationFields } from "@/components/EventLocationFields";
 import { AddTicketFields } from "@/components/AddTicketFields";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { categoryOptions } from "@/lib/categories";
 import { QrButton } from "./QrButton";
 
 export const dynamic = "force-dynamic";
@@ -327,6 +328,16 @@ export default async function EventManagePage({ params, searchParams }: { params
             <div className="sm:col-span-2">
               <label className="label">Short description</label>
               <input name="shortDescription" defaultValue={event.shortDescription ?? ""} className="input" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="ev-category">Category</label>
+              <select id="ev-category" name="category" defaultValue={event.category ?? ""} className="input">
+                <option value="">— Pick one —</option>
+                {categoryOptions(event.category).map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">Drives the icon and category filter on the homepage.</p>
             </div>
             <div className="sm:col-span-2">
               <label className="label">Description</label>
