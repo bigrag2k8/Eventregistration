@@ -68,7 +68,14 @@ export async function finalizeBundlePurchase(
     try {
       await issueTickets(regId);
     } catch (e: any) {
+      // A paid bundle session with no ticket is a real incident — surface it,
+      // don't just log. The confirmation + reschedule emails also self-heal by
+      // issuing tickets before they build QRs, so this is defense-in-depth.
       console.error(`[bundle] issueTickets failed for reg ${regId}:`, e?.message);
+      try {
+        const S = await import("@sentry/nextjs");
+        S.captureException(e, { tags: { path: "finalizeBundlePurchase", step: "issueTickets" }, extra: { regId } });
+      } catch {}
     }
   }
   try {

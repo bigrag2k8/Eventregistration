@@ -391,9 +391,14 @@ async function processRescheduledEvents() {
     });
     for (const reg of regs) {
       try {
-        await reissueTickets(reg.id).catch((err: any) =>
-          console.error(`[worker] reschedule reissue failed for reg ${reg.id}:`, err?.message),
-        );
+        await reissueTickets(reg.id).catch((err: any) => {
+          // Don't let a reissue failure block the notification, but DON'T
+          // swallow it silently either — a paid attendee with no scannable
+          // ticket is a real incident. (sendEventRescheduledEmail also
+          // self-heals by issuing tickets before it builds the QR.)
+          console.error(`[worker] reschedule reissue failed for reg ${reg.id}:`, err?.message);
+          Sentry.captureException(err, { tags: { job: "processRescheduledEvents", step: "reissue" }, extra: { regId: reg.id } });
+        });
         await sendEventRescheduledEmail(reg.id);
         await prisma.registration.update({ where: { id: reg.id }, data: { rescheduleNotifiedAt: new Date() } });
       } catch (err) {

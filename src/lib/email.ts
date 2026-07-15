@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { prisma } from "@/lib/db";
-import { renderQrPngDataUrl } from "@/server/tickets";
+import { renderQrPngDataUrl, issueTickets } from "@/server/tickets";
 import { signReviewToken } from "@/lib/auth";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -173,13 +173,36 @@ export async function sendEventRescheduledEmail(registrationId: string) {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
   const refundUrl = `${base}/o/${esc(org.slug)}/events/${esc(e.slug)}/refund-request`;
 
+  // Guarantee a scannable ticket exists before we build the email. issueTickets
+  // is idempotent (creates only what's missing), so this self-heals any
+  // CONFIRMED reg that reached here without a ticket — e.g. a bundle
+  // finalization where issueTickets had failed. Then read the current set.
+  let tickets: any[] = reg.tickets;
+  if (reg.status === "CONFIRMED" && tickets.length < reg.quantity) {
+    try {
+      await issueTickets(reg.id);
+      tickets = await prisma.ticket.findMany({ where: { registrationId: reg.id } });
+    } catch (err) {
+      console.error(`[reschedule] issueTickets failed for ${reg.id}`, err);
+    }
+  }
+
   const qrAttachments = await Promise.all(
-    reg.tickets.map(async (t: any, i: number) => ({
+    tickets.map(async (t: any, i: number) => ({
       filename: `ticket-${i + 1}.png`,
       content: (await renderQrPngDataUrl(t.qrToken)).split(",")[1],
       content_id: `ticket-${i + 1}`,
     })),
   );
+  // Show the QR INLINE in the body (cid: ref) — not just as a loose file
+  // attachment — so it's visible at a glance and survives "Print email",
+  // matching the confirmation email.
+  const qrBlock = tickets.length
+    ? `<div style="margin-top:16px">
+         <p style="color:#475569;margin:0 0 10px">Your updated ticket${tickets.length > 1 ? "s" : ""} — scan the QR at the door:</p>
+         ${tickets.map((_t: any, i: number) => `<img src="cid:ticket-${i + 1}" alt="Ticket ${i + 1} QR code" width="220" height="220" style="display:block;border:0;width:220px;height:220px;margin-bottom:12px"/>`).join("")}
+       </div>`
+    : "";
 
   const subject = `New date: ${e.name}`;
   const html = `
@@ -196,7 +219,7 @@ export async function sendEventRescheduledEmail(registrationId: string) {
           ${loc ? `<span style="color:#475569">📍 ${loc}</span>` : ""}
         </td></tr>
       </table>
-      ${reg.tickets.length ? `<p style="color:#475569;margin-top:16px">Your updated ticket${reg.tickets.length > 1 ? "s are" : " is"} attached — scan the QR at the door as usual.</p>` : ""}
+      ${qrBlock}
       <p style="color:#475569;margin-top:16px">Can&rsquo;t make the new date? <a href="${refundUrl}" style="color:${brand};font-weight:600">Request a full refund</a>.</p>
       <p style="color:#94a3b8;font-size:12px;margin-top:24px">Questions? Just reply to this email to reach the organizer.</p>
     </td></tr>
@@ -322,6 +345,19 @@ export async function sendBundleConfirmationEmail(bundlePurchaseId: string) {
   const regsByDate = [...purchase.registrations].sort(
     (a, b) => a.event.startAt.getTime() - b.event.startAt.getTime(),
   );
+  // Self-heal: guarantee each confirmed session has its ticket before building
+  // the QR blocks, so a finalization where issueTickets had failed can't send a
+  // QR-less pass. issueTickets is idempotent.
+  for (const reg of regsByDate) {
+    if (reg.tickets.length === 0) {
+      try {
+        await issueTickets(reg.id);
+        (reg as any).tickets = await prisma.ticket.findMany({ where: { registrationId: reg.id } });
+      } catch (err) {
+        console.error(`[bundle] issueTickets (email self-heal) failed for ${reg.id}`, err);
+      }
+    }
+  }
   const attachments: Array<{ filename: string; content: string; content_id: string }> = [];
   const sessionBlocks: string[] = [];
   for (let i = 0; i < regsByDate.length; i++) {
