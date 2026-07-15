@@ -172,11 +172,22 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         <Stat label="Events" value={String(totalEventCount)} />
       </div>
 
-      {seriesList.length > 0 && (
+      {/* This section always renders — it owns the "create a recurring event"
+          button, so gating it on seriesList.length would leave an org with no
+          series unable to make their first one. */}
+      <div className="mt-8 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Your recurring events</h2>
+        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
+          <Link href="/dashboard/series/new" className="btn-primary">+ Recurring events</Link>
+        )}
+      </div>
+
+      {seriesList.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
+          No recurring events yet — create one for a class, weekly meetup, or anything that repeats.
+        </p>
+      ) : (
         <>
-          <div className="mt-8">
-            <h2 className="text-lg font-semibold">Your recurring series</h2>
-          </div>
           <div className="mt-3 overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
@@ -234,10 +245,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your events</h2>
         {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-          <div className="flex gap-2">
-            <Link href="/dashboard/series/new" className="btn-secondary">+ Recurring series</Link>
-            <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
-          </div>
+          <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
         )}
       </div>
 
@@ -253,7 +261,6 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
           {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Link href="/dashboard/events/new" className="btn-primary">+ Create your first event</Link>
-              <Link href="/dashboard/series/new" className="btn-secondary">+ Recurring series</Link>
             </div>
           )}
         </div>
