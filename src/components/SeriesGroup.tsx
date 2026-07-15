@@ -65,6 +65,10 @@ export function SeriesGroup({ seriesId, name, schedule, status, totalRegs, sessi
   const pastSlice = past.slice(pastPage * PAGE, pastPage * PAGE + PAGE);
 
   const sessionCount = sessions.length;
+  // "Upcoming" only counts sessions that are actually still happening — a
+  // cancelled one isn't. Surfacing this stops the "series says ACTIVE but
+  // everything under it is cancelled" confusion.
+  const liveUpcoming = upcoming.filter((s) => s.status !== "CANCELLED").length;
   const statusPill =
     status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600";
 
@@ -86,6 +90,11 @@ export function SeriesGroup({ seriesId, name, schedule, status, totalRegs, sessi
             <span className="ml-1 text-xs font-normal text-slate-400">
               {sessionCount} session{sessionCount === 1 ? "" : "s"}
             </span>
+            {liveUpcoming > 0 ? (
+              <span className="ml-1 text-xs font-normal text-slate-400">· {liveUpcoming} upcoming</span>
+            ) : (
+              <span className="ml-1 text-xs font-normal text-amber-700">· none upcoming</span>
+            )}
           </button>
         </td>
         <td className="px-4 py-3 text-slate-600">{schedule}</td>

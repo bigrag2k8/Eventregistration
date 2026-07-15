@@ -515,12 +515,33 @@ async function extendSeriesHorizon() {
   for (const s of seriesList) {
     try {
       await materializeOccurrences(s.id, horizon);
-      // Only bounded series can end; open-ended ones roll forever.
+      // Only bounded series can end; open-ended ones roll forever (cancelling
+      // every current session there is temporary — the horizon generates more).
       if (s.seriesEnd || s.occurrenceCap != null) {
         const far = new Date(Date.now() + 5 * 365 * ONE_DAY);
         const all = computeOccurrences(ruleForSeries(s), far);
         const last = all[all.length - 1];
-        if (!last || last.start.getTime() < Date.now()) {
+        const lastDatePassed = !last || last.start.getTime() < Date.now();
+
+        // A bounded series is ALSO over when every session it will ever have is
+        // cancelled: no live session remains and every occurrence the rule can
+        // produce already exists, so nothing new will ever generate. Without
+        // this the series sits at ACTIVE forever with nothing running — which
+        // reads as a live series to the organizer.
+        let noLiveSessionsLeft = false;
+        if (!lastDatePassed) {
+          const existing = await prisma.event.findMany({
+            where: { seriesId: s.id, deletedAt: null },
+            select: { occurrenceIndex: true, status: true, endAt: true },
+          });
+          const haveIdx = new Set(existing.map((e) => e.occurrenceIndex));
+          const nothingLeftToGenerate = all.every((o) => haveIdx.has(o.index));
+          const now = new Date();
+          const hasLiveUpcoming = existing.some((e) => e.status !== "CANCELLED" && e.endAt >= now);
+          noLiveSessionsLeft = nothingLeftToGenerate && !hasLiveUpcoming;
+        }
+
+        if (lastDatePassed || noLiveSessionsLeft) {
           await prisma.eventSeries.update({ where: { id: s.id }, data: { status: "ENDED" } });
         }
       }
