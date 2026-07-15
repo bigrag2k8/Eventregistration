@@ -5,6 +5,7 @@ import { createRecurringEventAction } from "@/app/dashboard/recurring/actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { EventLocationFields } from "@/components/EventLocationFields";
+import { EVENT_CATEGORIES } from "@/lib/categories";
 
 const TIMEZONES = [
   "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
@@ -38,7 +39,10 @@ export function RecurringEventForm({ defaultTimezone = "America/New_York" }: { d
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="s-category">Category</label>
-              <input id="s-category" name="category" maxLength={60} className="input" placeholder="Fitness" />
+              <select id="s-category" name="category" className="input">
+                <option value="">— Pick one —</option>
+                {EVENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div>
               <label className="label" htmlFor="s-tz">Time zone *</label>

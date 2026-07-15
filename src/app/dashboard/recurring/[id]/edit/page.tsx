@@ -8,15 +8,10 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { EventLocationFields } from "@/components/EventLocationFields";
 import { describeRecurrence } from "@/server/recurring-rule";
+import { categoryOptions } from "@/lib/categories";
 import { updateRecurringEventAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
-
-const CATEGORIES = [
-  "Technology", "Business", "Education", "Health & Wellness",
-  "Arts", "Music", "Sports", "Community", "Nonprofit",
-  "Networking", "Workshop", "Conference", "Training", "Other",
-];
 
 export default async function EditRecurringEventPage({
   params,
@@ -115,10 +110,7 @@ export default async function EditRecurringEventPage({
                 <label className="label" htmlFor="e-category">Category</label>
                 <select id="e-category" name="category" defaultValue={re.category ?? ""} className="input">
                   <option value="">— Pick one —</option>
-                  {(CATEGORIES.includes(re.category ?? "") || !re.category
-                    ? CATEGORIES
-                    : [re.category, ...CATEGORIES]
-                  ).map((c) => (
+                  {categoryOptions(re.category).map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>

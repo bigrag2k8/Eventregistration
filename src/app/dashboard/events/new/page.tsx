@@ -7,6 +7,7 @@ import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EventWizard } from "@/components/EventWizard";
+import { EVENT_CATEGORIES } from "@/lib/categories";
 import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, CapacityField, VendorSettingsFields } from "@/components/EventTierForm";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +19,7 @@ const TIMEZONES = [
   "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "UTC",
 ];
 
-const CATEGORIES = [
-  "Technology", "Business", "Education", "Health & Wellness",
-  "Arts", "Music", "Sports", "Community", "Nonprofit",
-  "Networking", "Workshop", "Conference", "Training", "Other",
-];
+const CATEGORIES = EVENT_CATEGORIES;
 
 export default async function NewEventPage({ searchParams }: { searchParams: { error?: string; bought?: string; canceled?: string } }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
