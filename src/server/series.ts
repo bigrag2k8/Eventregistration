@@ -45,49 +45,62 @@ export async function materializeOccurrences(seriesId: string, throughInstant: D
         }
       : null;
 
+  // Idempotency keys on occurrenceIndex, NOT startAt: an occurrence's index is
+  // its stable identity in the series, but its startAt can move (an organizer
+  // reschedules a single session). Keying on startAt made a rescheduled
+  // occurrence look "missing", so the job retried its create and collided on
+  // the slug the rescheduled event still holds → unique(orgId, slug) failure
+  // every tick. Index is immutable across reschedules, so this can't recur.
   const existing = await prisma.event.findMany({
     where: { seriesId, deletedAt: null },
-    select: { startAt: true },
+    select: { occurrenceIndex: true },
   });
-  const seen = new Set(existing.map((e) => e.startAt.getTime()));
+  const seen = new Set(existing.map((e) => e.occurrenceIndex));
 
   let created = 0;
   for (const o of occ) {
-    if (seen.has(o.start.getTime())) continue;
+    if (seen.has(o.index)) continue;
     const endAt = new Date(o.start.getTime() + s.durationMinutes * 60_000);
-    await prisma.event.create({
-      data: {
-        organizationId: s.organizationId,
-        seriesId: s.id,
-        occurrenceIndex: o.index,
-        name: s.name,
-        slug: occurrenceSlug(s.slug, o.start, s.timezone),
-        description: s.description,
-        category: s.category,
-        bannerUrl: s.bannerUrl,
-        // Premium series → premium occurrences: the existing per-event
-        // entitlements (unlimited regs vs 50, branding, blast count) key off
-        // Event.isPremium, so the whole free/premium split enforces itself.
-        isPremium: s.isPremium,
-        status: "PUBLISHED",
-        publishedAt: new Date(),
-        startAt: o.start,
-        endAt,
-        timezone: s.timezone,
-        capacity: s.capacity,
-        isPrivate: s.isPrivate,
-        ticketTypes: {
-          create: {
-            name: s.ticketName,
-            kind: s.priceCents > 0 ? "GENERAL" : "FREE",
-            priceCents: s.priceCents,
-            quantityTotal: s.capacity,
+    try {
+      await prisma.event.create({
+        data: {
+          organizationId: s.organizationId,
+          seriesId: s.id,
+          occurrenceIndex: o.index,
+          name: s.name,
+          slug: occurrenceSlug(s.slug, o.start, s.timezone),
+          description: s.description,
+          category: s.category,
+          bannerUrl: s.bannerUrl,
+          // Premium series → premium occurrences: the existing per-event
+          // entitlements (unlimited regs vs 50, branding, blast count) key off
+          // Event.isPremium, so the whole free/premium split enforces itself.
+          isPremium: s.isPremium,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+          startAt: o.start,
+          endAt,
+          timezone: s.timezone,
+          capacity: s.capacity,
+          isPrivate: s.isPrivate,
+          ticketTypes: {
+            create: {
+              name: s.ticketName,
+              kind: s.priceCents > 0 ? "GENERAL" : "FREE",
+              priceCents: s.priceCents,
+              quantityTotal: s.capacity,
+            },
           },
+          ...(locationCreate ? { location: { create: locationCreate } } : {}),
         },
-        ...(locationCreate ? { location: { create: locationCreate } } : {}),
-      },
-    });
-    created += 1;
+      });
+      created += 1;
+    } catch (e: any) {
+      // A slug/index collision must never wedge the whole horizon-extension
+      // job — skip this occurrence and keep generating the rest.
+      if (e?.code === "P2002") continue;
+      throw e;
+    }
   }
   return created;
 }
