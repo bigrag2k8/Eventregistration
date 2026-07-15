@@ -60,21 +60,29 @@ export async function approveRefundRequestAction(formData: FormData) {
     redirect(basePath);
   }
 
+  // Refund principle: whoever breaks the commitment bears the cost. A
+  // reschedule is the ORGANIZER moving the date, so attendees who registered
+  // BEFORE the date change get a FULL refund including the platform fee —
+  // matching the reschedule email's "request a full refund" promise. Everyone
+  // else (attendee's own reasons, never-rescheduled event) follows the
+  // standard net policy: fee non-refundable, as disclosed at checkout.
+  const rescheduleCaused = !!event.rescheduledAt && reg.createdAt < event.rescheduledAt;
   const fee = payment.platformFeeCents ?? 0;
-  const refundAmountCents = fee > 0 ? Math.max(payment.amountCents - fee, 1) : payment.amountCents;
+  const fullRefund = rescheduleCaused || fee === 0;
+  const refundAmountCents = fullRefund ? payment.amountCents : Math.max(payment.amountCents - fee, 1);
 
   let refundFailed = false;
   try {
     await stripe.refunds.create({
       payment_intent: payment.stripePaymentIntentId,
       reverse_transfer: true,
-      refund_application_fee: false,
+      refund_application_fee: fullRefund && fee > 0,
       amount: refundAmountCents,
       metadata: {
         registrationId: reg.id,
         eventId: event.id,
         refundedBy: session.sub,
-        refundMode: "net",
+        refundMode: fullRefund ? "full_reschedule" : "net",
         refundRequestId: request.id,
       },
     });
@@ -118,12 +126,13 @@ export async function approveRefundRequestAction(formData: FormData) {
       email: reg.email,
       amountCents: payment.amountCents,
       refundedCents: refundAmountCents,
-      withheldFeeCents: fee,
+      withheldFeeCents: fullRefund ? 0 : fee,
+      refundMode: fullRefund ? "full_reschedule" : "net",
     },
   });
 
   try {
-    await sendRefundRequestDecisionEmail(request.id, "approved", { refundedCents: refundAmountCents });
+    await sendRefundRequestDecisionEmail(request.id, "approved", { refundedCents: refundAmountCents, full: fullRefund });
   } catch (e) {
     console.error("[refund-request/approve] attendee notification failed", e);
   }

@@ -34,7 +34,13 @@ export default async function RefundRequestPage({ params, searchParams }: Props)
     reg.totalCents > 0 &&
     !openRequest;
 
-  const feeCents = Math.ceil(reg.totalCents * 0.05);
+  // If the ORGANIZER rescheduled the event after this person registered, the
+  // approved refund is FULL (platform fee included) — the date change wasn't
+  // the attendee's doing. Matches approveRefundRequestAction's policy and the
+  // reschedule email's "request a full refund" promise.
+  const rescheduleCaused =
+    !!reg.event.rescheduledAt && reg.createdAt < reg.event.rescheduledAt;
+  const feeCents = rescheduleCaused ? 0 : Math.ceil(reg.totalCents * 0.05);
   const refundEstimate = reg.totalCents - feeCents;
 
   return (
@@ -59,7 +65,11 @@ export default async function RefundRequestPage({ params, searchParams }: Props)
             <span className="font-medium">{money(reg.totalCents, reg.currency)}</span>
           </div>
           <div className="mt-1 flex justify-between">
-            <span>Estimated refund (minus 5% processing fee)</span>
+            <span>
+              {rescheduleCaused
+                ? "Refund if approved (full — this event was rescheduled)"
+                : "Estimated refund (minus 5% processing fee)"}
+            </span>
             <span className="font-medium">{money(refundEstimate, reg.currency)}</span>
           </div>
         </div>

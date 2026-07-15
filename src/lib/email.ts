@@ -749,7 +749,7 @@ export async function sendVendorApplicationReceivedEmail(applicationId: string) 
 export async function sendRefundRequestDecisionEmail(
   refundRequestId: string,
   decision: "approved" | "denied",
-  opts?: { refundedCents?: number },
+  opts?: { refundedCents?: number; full?: boolean },
 ) {
   const rr = await prisma.refundRequest.findUnique({
     where: { id: refundRequestId },
@@ -771,9 +771,14 @@ export async function sendRefundRequestDecisionEmail(
     ? `Your refund request was approved — ${rr.event.name}`
     : `Update on your refund request — ${rr.event.name}`;
 
+  // "full" = the whole payment including the platform fee (used when the event
+  // was rescheduled — the organizer moved the date, so the attendee doesn't
+  // pay the fee). Otherwise the standard net wording.
   const amountLine =
     approved && typeof opts?.refundedCents === "number"
-      ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus our non-refundable 5% platform fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear. If a payment processing fee was added to your order at checkout, that fee is charged by Stripe and is non-refundable per Stripe&rsquo;s policy.</p>`
+      ? opts?.full
+        ? `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> — your full payment, including the platform fee — is being returned to your original payment method. It may take 5&ndash;10 business days to appear.</p>`
+        : `<p style="color:#475569"><strong>$${(opts.refundedCents / 100).toFixed(2)}</strong> (your ticket price minus our non-refundable 5% platform fee) is being returned to your original payment method. It may take 5&ndash;10 business days to appear. If a payment processing fee was added to your order at checkout, that fee is charged by Stripe and is non-refundable per Stripe&rsquo;s policy.</p>`
       : approved
         ? `<p style="color:#475569">Your refund is being processed back to your original payment method and may take 5&ndash;10 business days to appear.</p>`
         : "";
