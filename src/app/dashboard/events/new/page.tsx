@@ -6,6 +6,7 @@ import { requirePlanSelected } from "@/lib/plan-gate";
 import { createEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { EventWizard } from "@/components/EventWizard";
 import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, CapacityField, VendorSettingsFields } from "@/components/EventTierForm";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,8 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
   });
   const credits = org?.singleEventCredits ?? 0;
   const chargesEnabled = !!org?.stripeAccountChargesEnabled;
+  // First-timer intro: only when the org has never created an event.
+  const isFirstEvent = (await prisma.event.count({ where: { organizationId: session.orgId } })) === 0;
 
   // Default start = next Saturday 9am local, end = same day 5pm
   // Default to next Saturday. Build the datetime-local default as a literal
@@ -62,25 +65,38 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
         </div>
       </header>
 
-      <form action={createEventAction} className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+      <form action={createEventAction} className="mx-auto max-w-3xl px-4 py-8">
         {/* If we returned here after a successful Single Event credit purchase, pre-select
             the Single Event tier so the form is in the state the buyer expects. */}
         <EventTierProvider initialTier={searchParams?.bought === "SINGLE_EVENT" ? "single_event" : "free"}>
-        <ErrorBanner code={searchParams?.error} />
+        <div className="mb-6 space-y-4">
+          <ErrorBanner code={searchParams?.error} />
 
-        {searchParams?.bought === "SINGLE_EVENT" && (
-          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ Credit added — <strong>Single Event</strong> is selected below. Finish the form and save to apply it to this event.
-          </div>
-        )}
-        {searchParams?.canceled && (
-          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-            Checkout was canceled. No charge was made.
-          </div>
-        )}
+          {isFirstEvent && (
+            <div className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
+              <strong>👋 Let&rsquo;s create your first event.</strong> We&rsquo;ll walk you through it step by step —
+              fill in what you know and hit <strong>Next</strong>. Nothing goes live until the final step, and you can
+              <strong> Save as draft</strong> anytime to finish later.
+            </div>
+          )}
+          {searchParams?.bought === "SINGLE_EVENT" && (
+            <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+              ✓ Credit added — <strong>Single Event</strong> is selected in step 1. Finish the steps and save to apply it to this event.
+            </div>
+          )}
+          {searchParams?.canceled && (
+            <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+              Checkout was canceled. No charge was made.
+            </div>
+          )}
+        </div>
 
+        <EventWizard titles={["Type", "Basics", "Date & time", "Location", "Tickets", "Settings", "Review"]}>
+        <div className="space-y-6">
         <EventTypePicker credits={credits} />
+        </div>
 
+        <div className="space-y-6">
         <section className="card">
           <h2 className="text-lg font-semibold">Basics</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -112,7 +128,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
             </div>
           </div>
         </section>
+        </div>
 
+        <div className="space-y-6">
         <section className="card">
           <h2 className="text-lg font-semibold">When</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -132,7 +150,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
             </div>
           </div>
         </section>
+        </div>
 
+        <div className="space-y-6">
         <section className="card">
           <h2 className="text-lg font-semibold">Where</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -172,7 +192,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
             </div>
           </div>
         </section>
+        </div>
 
+        <div className="space-y-6">
         <section className="card">
           <h2 className="text-lg font-semibold">First ticket type</h2>
           <p className="mt-1 text-sm text-slate-500">You can add more after creating the event.</p>
@@ -189,7 +211,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
             </div>
           </div>
         </section>
+        </div>
 
+        <div className="space-y-6">
         <section className="card">
           <h2 className="text-lg font-semibold">Settings</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -215,14 +239,8 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
             <VendorSettingsFields />
           </div>
         </section>
-
-        <div className="flex items-center justify-between gap-3">
-          <Link href="/dashboard" className="btn-secondary">Cancel</Link>
-          <div className="flex gap-2">
-            <button type="submit" name="action" value="draft" className="btn-secondary">Save as draft</button>
-            <button type="submit" name="action" value="publish" className="btn-primary">Save & publish</button>
-          </div>
         </div>
+        </EventWizard>
         </EventTierProvider>
       </form>
     </main>
