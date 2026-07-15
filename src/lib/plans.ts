@@ -10,10 +10,10 @@
 
 export const STRIPE_PRICES = {
   SINGLE_EVENT: process.env.STRIPE_PRICE_SINGLE_EVENT ?? "price_1Thy3mGrTuPPvYuYlFzhMPOH", // $19 one-time
-  // Series credit has NO fallback price id — when the env var is unset the
+  // Recurring event credit has NO fallback price id — when the env var is unset the
   // billing checkout builds an inline price_data line item instead, so no
   // Stripe dashboard setup is required to sell it.
-  SERIES_CREDIT: process.env.STRIPE_PRICE_SERIES_CREDIT ?? null,
+  RECURRING_EVENT_CREDIT: process.env.STRIPE_PRICE_RECURRING_EVENT_CREDIT ?? null,
   STARTER:      process.env.STRIPE_PRICE_STARTER      ?? "price_1Thy4EGrTuPPvYuYf7xx0F0i", // $24.99/mo
   PRO:          process.env.STRIPE_PRICE_PRO          ?? "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
 };
@@ -31,8 +31,8 @@ export const FREE_EVENT_EMAIL_BROADCASTS = 1;
 export const PREMIUM_EVENT_EMAIL_BROADCASTS = 5;
 /** Price of one single-event credit (USD cents). Mirrors PLANS.SINGLE_EVENT. */
 export const SINGLE_EVENT_PRICE_CENTS = 1900;
-/** Price of one series credit (USD cents). Mirrors PLANS.SERIES_CREDIT. */
-export const SERIES_CREDIT_PRICE_CENTS = 3499;
+/** Price of one recurring event credit (USD cents). Mirrors PLANS.RECURRING_EVENT_CREDIT. */
+export const RECURRING_EVENT_CREDIT_PRICE_CENTS = 3499;
 
 export interface EventEntitlements {
   /** Max total registrations (tickets) for this event. null = unlimited. */
@@ -60,7 +60,7 @@ export function eventEntitlements(isPremium: boolean): EventEntitlements {
 export const PUBLIC_PLAN_KEYS = ["FREE", "SINGLE_EVENT"] as const;
 
 export interface PlanInfo {
-  key: "FREE" | "SINGLE_EVENT" | "SERIES_CREDIT" | "STARTER" | "PRO" | "ENTERPRISE";
+  key: "FREE" | "SINGLE_EVENT" | "RECURRING_EVENT_CREDIT" | "STARTER" | "PRO" | "ENTERPRISE";
   name: string;
   price: string;                  // human-readable
   priceCents: number;
@@ -126,14 +126,14 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
     },
     blurb: "Pay-as-you-go. One payment unlocks one full-featured event. No subscription.",
   },
-  SERIES_CREDIT: {
-    key: "SERIES_CREDIT",
+  RECURRING_EVENT_CREDIT: {
+    key: "RECURRING_EVENT_CREDIT",
     name: "Recurring event",
     price: "$34.99 per recurring event",
-    priceCents: SERIES_CREDIT_PRICE_CENTS,
+    priceCents: RECURRING_EVENT_CREDIT_PRICE_CENTS,
     cadence: "one_time",
-    stripePriceId: STRIPE_PRICES.SERIES_CREDIT,
-    monthlyEventLimit: null, // credit-based; controlled by seriesCredits
+    stripePriceId: STRIPE_PRICES.RECURRING_EVENT_CREDIT,
+    monthlyEventLimit: null, // credit-based; controlled by recurringEventCredits
     registrationLimitPerEvent: null,
     emailCampaignsPerEvent: 5,
     features: {

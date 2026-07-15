@@ -39,12 +39,12 @@ export function platformFeeCents(feeBaseCents: number): number {
  * toward the full-series bundle (a single 5% transaction). One-off events keep
  * the plain minimum.
  */
-export const SERIES_FEE_CAP_PERCENT = 10;
+export const RECURRING_FEE_CAP_PERCENT = 10;
 
-/** Application fee for a series-occurrence drop-in: 5%, min $1.25, capped at 10%. */
-export function seriesDropInFeeCents(feeBaseCents: number): number {
+/** Application fee for a recurring-event-occurrence drop-in: 5%, min $1.25, capped at 10%. */
+export function recurringDropInFeeCents(feeBaseCents: number): number {
   if (feeBaseCents <= 0) return 0;
-  const cap = Math.max(1, Math.round(feeBaseCents * (SERIES_FEE_CAP_PERCENT / 100)));
+  const cap = Math.max(1, Math.round(feeBaseCents * (RECURRING_FEE_CAP_PERCENT / 100)));
   return Math.min(platformFeeCents(feeBaseCents), cap);
 }
 

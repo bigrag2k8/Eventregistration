@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { computeTrustTier, TIER_LABEL } from "@/server/reviews";
-import { describeRecurrence } from "@/server/series-rule";
+import { describeRecurrence } from "@/server/recurring-rule";
 import { CalendarClock, Globe, Mail, Phone, Ticket, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -38,10 +38,10 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
         take: 8,
         include: { event: { select: { name: true, isPrivate: true } } },
       },
-      // Recurring series shown as ONE card each (their occurrences are filtered
+      // Recurring events shown as ONE card each (their occurrences are filtered
       // out of the individual event lists below). Includes the next upcoming
       // session so the card can show "next: <date>".
-      eventSeries: {
+      recurringEvents: {
         where: { status: { in: ["ACTIVE", "ENDED"] }, deletedAt: null },
         orderBy: { createdAt: "asc" },
         include: {
@@ -61,11 +61,11 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
   // Private events show on the org's OWN page by default (never on app-wide
   // discovery). The org can opt out via settings (showPrivateEvents=false), in
   // which case a private event is reachable only through its direct link.
-  // Occurrences of a recurring series (seriesId set) are collapsed into their
-  // series card below, so they're excluded from the individual event lists.
+  // Occurrences of a recurring event (recurringEventId set) are collapsed into their
+  // recurring-event card below, so they're excluded from the individual event lists.
   const visibleEvents = (org.showPrivateEvents ? org.events : org.events.filter((e) => !e.isPrivate))
-    .filter((e) => !e.seriesId);
-  const series = org.showPrivateEvents ? org.eventSeries : org.eventSeries.filter((s) => !s.isPrivate);
+    .filter((e) => !e.recurringEventId);
+  const recurringEvents = org.showPrivateEvents ? org.recurringEvents : org.recurringEvents.filter((s) => !s.isPrivate);
   const upcoming = visibleEvents.filter((e) => e.endAt >= now);
   const past = visibleEvents
     .filter((e) => e.endAt < now)
@@ -218,17 +218,17 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
       )}
 
       {/* Classes & recurring events — each recurring event collapses to one card */}
-      {series.length > 0 && (
+      {recurringEvents.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 pb-2 pt-4">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold">Classes &amp; recurring events</h2>
             <div className="h-px flex-1" style={{ background: "linear-gradient(to right, var(--org-brand), transparent)" }} />
           </div>
           <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {series.map((s) => {
+            {recurringEvents.map((s) => {
               const next = s.events[0];
               return (
-                <Link key={s.id} href={`/o/${org.slug}/series/${s.slug}`} className="card transition hover:-translate-y-0.5 hover:shadow-md">
+                <Link key={s.id} href={`/o/${org.slug}/recurring/${s.slug}`} className="card transition hover:-translate-y-0.5 hover:shadow-md">
                   {s.bannerUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={s.bannerUrl} alt={s.name} className="mb-3 aspect-video w-full rounded-lg object-cover" />

@@ -121,7 +121,7 @@ export async function POST(req: Request) {
       // Full-series bundle: one payment covers N per-session registrations.
       const bundleId = session.metadata?.bundlePurchaseId;
       if (bundleId) {
-        const { finalizeBundlePurchase } = await import("@/server/series-bundle");
+        const { finalizeBundlePurchase } = await import("@/server/recurring-pass");
         await finalizeBundlePurchase(bundleId, {
           paymentIntentId: (session.payment_intent as string | null) ?? null,
           amountCents: session.amount_total ?? null,
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
       // (each refund carries metadata.registrationId).
       const piPaymentCount = await prisma.payment.count({ where: { stripePaymentIntentId: intentId } });
       if (piPaymentCount > 1) {
-        const { reconcileBundleRefunds } = await import("@/server/series-bundle");
+        const { reconcileBundleRefunds } = await import("@/server/recurring-pass");
         await reconcileBundleRefunds(charge);
         break;
       }

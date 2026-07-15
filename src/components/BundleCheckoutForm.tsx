@@ -7,7 +7,7 @@ import { AlertTriangle } from "lucide-react";
  * "Buy the all-sessions pass" form on the public series page. Collects the minimum
  * (name/email/phone), then hands off to Stripe Checkout for the bundle total.
  */
-export function BundleCheckoutForm({ seriesId, brand }: { seriesId: string; brand?: string | null }) {
+export function BundleCheckoutForm({ recurringEventId, brand }: { recurringEventId: string; brand?: string | null }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,11 +17,11 @@ export function BundleCheckoutForm({ seriesId, brand }: { seriesId: string; bran
     setError(null);
     const fd = new FormData(e.currentTarget);
     try {
-      const res = await fetch("/api/series/bundle-checkout", {
+      const res = await fetch("/api/recurring/bundle-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          seriesId,
+          recurringEventId,
           firstName: fd.get("firstName"),
           lastName: fd.get("lastName"),
           email: fd.get("email"),

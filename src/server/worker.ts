@@ -13,7 +13,7 @@ import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail,
 import { audit } from "@/lib/audit";
 import { issueTickets, releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 import { recomputeOrgReputation } from "@/server/reviews";
-import { materializeOccurrences, computeOccurrences, ruleForSeries } from "@/server/series";
+import { materializeOccurrences, computeOccurrences, ruleForRecurringEvent } from "@/server/recurring-events";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const ONE_DAY = 24 * ONE_HOUR;
@@ -132,7 +132,7 @@ async function purgeAbandonedCarts() {
   // Bundle purchases whose Stripe session lapsed: their per-session PENDING
   // registrations were just purged above (each carries the same session id),
   // so close out the parent purchase row too.
-  await prisma.seriesBundlePurchase.updateMany({
+  await prisma.passPurchase.updateMany({
     where: { status: "PENDING", createdAt: { lt: cutoff } },
     data: { status: "CANCELLED" },
   });
@@ -497,41 +497,41 @@ async function recomputeReputationScores() {
   }
 }
 
-// ── Recurring series: rolling occurrence generation ─────────────────────────
-// Each ACTIVE series keeps ~SERIES_HORIZON_DAYS of future occurrences
+// ── Recurring events: rolling occurrence generation ─────────────────────────
+// Each ACTIVE recurring event keeps ~RECURRING_HORIZON_DAYS of future occurrences
 // materialized as real Event rows (so a weekly class always shows its next few
 // months without pre-creating hundreds of rows). Generation is idempotent, so
-// each tick just fills the newly-in-window dates. A bounded series (end date or
+// each tick just fills the newly-in-window dates. A bounded recurring event (end date or
 // occurrence cap) flips to ENDED once its final occurrence is in the past.
-const SERIES_HORIZON_DAYS = 90;
+const RECURRING_HORIZON_DAYS = 90;
 
-async function extendSeriesHorizon() {
-  const seriesList = await prisma.eventSeries.findMany({
+async function extendRecurringHorizon() {
+  const recurringEvents = await prisma.recurringEvent.findMany({
     where: { status: "ACTIVE", deletedAt: null },
     orderBy: { updatedAt: "asc" },
     take: 50,
   });
-  const horizon = new Date(Date.now() + SERIES_HORIZON_DAYS * ONE_DAY);
-  for (const s of seriesList) {
+  const horizon = new Date(Date.now() + RECURRING_HORIZON_DAYS * ONE_DAY);
+  for (const s of recurringEvents) {
     try {
       await materializeOccurrences(s.id, horizon);
-      // Only bounded series can end; open-ended ones roll forever (cancelling
+      // Only bounded recurring events can end; open-ended ones roll forever (cancelling
       // every current session there is temporary — the horizon generates more).
       if (s.seriesEnd || s.occurrenceCap != null) {
         const far = new Date(Date.now() + 5 * 365 * ONE_DAY);
-        const all = computeOccurrences(ruleForSeries(s), far);
+        const all = computeOccurrences(ruleForRecurringEvent(s), far);
         const last = all[all.length - 1];
         const lastDatePassed = !last || last.start.getTime() < Date.now();
 
-        // A bounded series is ALSO over when every session it will ever have is
+        // A bounded recurring event is ALSO over when every session it will ever have is
         // cancelled: no live session remains and every occurrence the rule can
         // produce already exists, so nothing new will ever generate. Without
-        // this the series sits at ACTIVE forever with nothing running — which
-        // reads as a live series to the organizer.
+        // this the recurring event sits at ACTIVE forever with nothing running — which
+        // reads as a live recurring event to the organizer.
         let noLiveSessionsLeft = false;
         if (!lastDatePassed) {
           const existing = await prisma.event.findMany({
-            where: { seriesId: s.id, deletedAt: null },
+            where: { recurringEventId: s.id, deletedAt: null },
             select: { occurrenceIndex: true, status: true, endAt: true },
           });
           const haveIdx = new Set(existing.map((e) => e.occurrenceIndex));
@@ -542,12 +542,12 @@ async function extendSeriesHorizon() {
         }
 
         if (lastDatePassed || noLiveSessionsLeft) {
-          await prisma.eventSeries.update({ where: { id: s.id }, data: { status: "ENDED" } });
+          await prisma.recurringEvent.update({ where: { id: s.id }, data: { status: "ENDED" } });
         }
       }
     } catch (e: any) {
-      console.error(`[worker] extendSeriesHorizon failed for series ${s.id}:`, e?.message);
-      Sentry.captureException(e, { tags: { job: "extendSeriesHorizon" }, extra: { seriesId: s.id } });
+      console.error(`[worker] extendRecurringHorizon failed for recurring event ${s.id}:`, e?.message);
+      Sentry.captureException(e, { tags: { job: "extendRecurringHorizon" }, extra: { recurringEventId: s.id } });
     }
   }
 }
@@ -587,7 +587,7 @@ async function tick() {
   try { await inviteEventReviews(); } catch (e) { console.error("[worker] inviteEventReviews error", e); Sentry.captureException(e, { tags: { job: "inviteEventReviews" } }); }
   try { await remindEventReviews(); } catch (e) { console.error("[worker] remindEventReviews error", e); Sentry.captureException(e, { tags: { job: "remindEventReviews" } }); }
   try { await recomputeReputationScores(); } catch (e) { console.error("[worker] recomputeReputationScores error", e); Sentry.captureException(e, { tags: { job: "recomputeReputationScores" } }); }
-  try { await extendSeriesHorizon(); } catch (e) { console.error("[worker] extendSeriesHorizon error", e); Sentry.captureException(e, { tags: { job: "extendSeriesHorizon" } }); }
+  try { await extendRecurringHorizon(); } catch (e) { console.error("[worker] extendRecurringHorizon error", e); Sentry.captureException(e, { tags: { job: "extendRecurringHorizon" } }); }
 }
 
 // Apply pending migrations BEFORE the first tick. Railway starts web and worker

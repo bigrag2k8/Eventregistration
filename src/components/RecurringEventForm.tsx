@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createSeriesAction } from "@/app/dashboard/series/actions";
+import { createRecurringEventAction } from "@/app/dashboard/recurring/actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { EventLocationFields } from "@/components/EventLocationFields";
@@ -12,7 +12,7 @@ const TIMEZONES = [
 ];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTimezone?: string }) {
+export function RecurringEventForm({ defaultTimezone = "America/New_York" }: { defaultTimezone?: string }) {
   const [frequency, setFrequency] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
   const [days, setDays] = useState<Set<number>>(new Set([1])); // default Monday
   const intervalUnit = frequency === "DAILY" ? "day(s)" : frequency === "WEEKLY" ? "week(s)" : "month(s)";
@@ -22,7 +22,7 @@ export function SeriesForm({ defaultTimezone = "America/New_York" }: { defaultTi
   }
 
   return (
-    <form action={createSeriesAction} className="space-y-6">
+    <form action={createRecurringEventAction} className="space-y-6">
       <section className="card">
         <h2 className="text-lg font-semibold">Basics</h2>
         <div className="mt-3 grid gap-4">

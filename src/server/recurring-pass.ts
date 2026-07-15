@@ -18,13 +18,13 @@ export async function finalizeBundlePurchase(
   info: { paymentIntentId: string | null; amountCents: number | null; currency: string | null; platformFeeCents: number },
 ): Promise<void> {
   const confirmedRegIds = await prisma.$transaction(async (tx) => {
-    const purchase = await tx.seriesBundlePurchase.findUnique({
+    const purchase = await tx.passPurchase.findUnique({
       where: { id: bundleId },
       include: { registrations: { where: { status: "PENDING" }, orderBy: { createdAt: "asc" } } },
     });
     if (!purchase || purchase.status !== "PENDING") return [] as string[];
 
-    await tx.seriesBundlePurchase.update({
+    await tx.passPurchase.update({
       where: { id: bundleId },
       data: {
         status: "CONFIRMED",

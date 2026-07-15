@@ -5,13 +5,13 @@ import { getSession, orgScope } from "@/lib/auth";
 import { formatInTimeZone } from "date-fns-tz";
 import { KycBanner } from "@/components/KycBanner";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
-import { SeriesGroup } from "@/components/SeriesGroup";
+import { RecurringEventGroup } from "@/components/RecurringEventGroup";
 import { money } from "@/lib/format";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { describeRecurrence } from "@/server/series-rule";
-import { deleteSeriesAction } from "./series/actions";
+import { describeRecurrence } from "@/server/recurring-rule";
+import { deleteRecurringEventAction } from "./recurring/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,12 +41,12 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
     : null;
   const eventScope = orgScope(session); // {} for SUPERADMIN, {organizationId} otherwise
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [events, seriesList, totalRevenue, totalRegs, checkInRate, publishedCount, totalEventCount] = await Promise.all([
+  const [events, recurringEvents, totalRevenue, totalRegs, checkInRate, publishedCount, totalEventCount] = await Promise.all([
     prisma.event.findMany({
-      // Series occurrences are listed UNDER their series (SeriesGroup), so keep
+      // Recurring-event occurrences are listed UNDER their recurring event (RecurringEventGroup), so keep
       // them out of the one-off events table — otherwise every session shows up
       // here as its own row and drowns the real events.
-      where: { ...eventScope, deletedAt: null, seriesId: null },
+      where: { ...eventScope, deletedAt: null, recurringEventId: null },
       orderBy: { startAt: "desc" },
       take: 12,
       include: {
@@ -55,7 +55,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         organization: { select: { name: true, slug: true } },
       },
     }),
-    prisma.eventSeries.findMany({
+    prisma.recurringEvent.findMany({
       where: { ...eventScope, deletedAt: null },
       orderBy: { createdAt: "desc" },
       include: {
@@ -173,16 +173,16 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
       </div>
 
       {/* This section always renders — it owns the "create a recurring event"
-          button, so gating it on seriesList.length would leave an org with no
-          series unable to make their first one. */}
+          button, so gating it on recurringEvents.length would leave an org with no
+          recurring events unable to make their first one. */}
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your recurring events</h2>
         {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-          <Link href="/dashboard/series/new" className="btn-primary">+ Recurring events</Link>
+          <Link href="/dashboard/recurring/new" className="btn-primary">+ Recurring events</Link>
         )}
       </div>
 
-      {seriesList.length === 0 ? (
+      {recurringEvents.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
           No recurring events yet — create one for a class, weekly meetup, or anything that repeats.
         </p>
@@ -199,12 +199,12 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              {seriesList.map((s) => {
+              {recurringEvents.map((s) => {
                 const canManage = session.role !== "STAFF" && session.role !== "VOLUNTEER";
                 return (
-                  <SeriesGroup
+                  <RecurringEventGroup
                     key={s.id}
-                    seriesId={s.id}
+                    recurringEventId={s.id}
                     name={s.name}
                     schedule={describeRecurrence(s)}
                     status={s.status}
@@ -220,12 +220,12 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                     }))}
                     actions={
                       <div className="flex items-center justify-end gap-3">
-                        <Link href={`/o/${s.organization.slug}/series/${s.slug}`} target="_blank" className="text-xs text-brand-700 hover:underline">
+                        <Link href={`/o/${s.organization.slug}/recurring/${s.slug}`} target="_blank" className="text-xs text-brand-700 hover:underline">
                           View ↗
                         </Link>
                         {canManage && (
-                          <form action={deleteSeriesAction}>
-                            <input type="hidden" name="seriesId" value={s.id} />
+                          <form action={deleteRecurringEventAction}>
+                            <input type="hidden" name="recurringEventId" value={s.id} />
                             <ConfirmButton
                               label="Delete"
                               confirmText={`Delete "${s.name}"? Upcoming sessions with no registrations are removed and no new sessions will be generated. Sessions that already have ticket holders block this — cancel those sessions first.`}

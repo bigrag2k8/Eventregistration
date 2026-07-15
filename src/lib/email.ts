@@ -323,10 +323,10 @@ function renderConfirmation(reg: any) {
  * single confirmation email). Sent once by the webhook after payment.
  */
 export async function sendBundleConfirmationEmail(bundlePurchaseId: string) {
-  const purchase = await prisma.seriesBundlePurchase.findUnique({
+  const purchase = await prisma.passPurchase.findUnique({
     where: { id: bundlePurchaseId },
     include: {
-      series: { include: { organization: true } },
+      recurringEvent: { include: { organization: true } },
       registrations: {
         where: { status: "CONFIRMED" },
         orderBy: { createdAt: "asc" },
@@ -336,7 +336,7 @@ export async function sendBundleConfirmationEmail(bundlePurchaseId: string) {
   });
   if (!purchase || purchase.registrations.length === 0) return;
 
-  const org: any = purchase.series.organization ?? {};
+  const org: any = purchase.recurringEvent.organization ?? {};
   const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor)) ? org.brandColor : "#1F3A8A";
   const orgName = esc(org.name ?? "");
   const logo = org.logoUrl
@@ -387,14 +387,14 @@ export async function sendBundleConfirmationEmail(bundlePurchaseId: string) {
       </td></tr>`);
   }
 
-  const subject = `You're in: ${purchase.series.name} — all ${regsByDate.length} sessions`;
+  const subject = `You're in: ${purchase.recurringEvent.name} — all ${regsByDate.length} sessions`;
   const html = `
 <!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
   <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
     <tr><td>
       ${logo}
       <h1 style="margin:0 0 8px;color:${brand}">You're in — the whole series 🎉</h1>
-      <p style="color:#475569">Hi ${esc(purchase.firstName)}, your all-sessions pass for <strong>${esc(purchase.series.name)}</strong>${orgName ? ` with ${orgName}` : ""} is confirmed. Total paid: <strong>$${(purchase.totalCents / 100).toFixed(2)}</strong> for ${regsByDate.length} sessions.</p>
+      <p style="color:#475569">Hi ${esc(purchase.firstName)}, your all-sessions pass for <strong>${esc(purchase.recurringEvent.name)}</strong>${orgName ? ` with ${orgName}` : ""} is confirmed. Total paid: <strong>$${(purchase.totalCents / 100).toFixed(2)}</strong> for ${regsByDate.length} sessions.</p>
       <p style="color:#475569">Each session has its own QR ticket below — show the matching QR at the door.</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">${sessionBlocks.join("")}</table>
       <p style="color:#94a3b8;font-size:12px;margin-top:24px">Can't make a session? Reply to this email to reach the organizer.</p>

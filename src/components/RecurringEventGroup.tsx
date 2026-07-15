@@ -15,7 +15,7 @@ export interface SessionRow {
 }
 
 interface Props {
-  seriesId: string;
+  recurringEventId: string;
   name: string;
   schedule: string;
   status: string;
@@ -35,7 +35,7 @@ interface Props {
  * Sessions are grouped upcoming-first; past sessions stay behind a toggle so
  * they're still reachable (the main events table filters occurrences out).
  */
-export function SeriesGroup({ seriesId, name, schedule, status, totalRegs, sessions, canManage, actions }: Props) {
+export function RecurringEventGroup({ recurringEventId, name, schedule, status, totalRegs, sessions, canManage, actions }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const [showPast, setShowPast] = useState(false);
@@ -45,15 +45,15 @@ export function SeriesGroup({ seriesId, name, schedule, status, totalRegs, sessi
   // render match — reading localStorage inline would hydration-mismatch.
   useEffect(() => {
     try {
-      if (localStorage.getItem(`series-exp:${seriesId}`) === "1") setExpanded(true);
+      if (localStorage.getItem(`series-exp:${recurringEventId}`) === "1") setExpanded(true);
     } catch {}
-  }, [seriesId]);
+  }, [recurringEventId]);
 
   function toggle() {
     setExpanded((v) => {
       const next = !v;
       try {
-        localStorage.setItem(`series-exp:${seriesId}`, next ? "1" : "0");
+        localStorage.setItem(`series-exp:${recurringEventId}`, next ? "1" : "0");
       } catch {}
       return next;
     });

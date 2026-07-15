@@ -9,7 +9,7 @@ import { reserveSeats } from "@/server/tickets";
 
 /**
  * All-sessions bundle checkout: one payment buys a seat in EVERY remaining
- * session of a bounded series. Creates one SeriesBundlePurchase + one PENDING
+ * session of a bounded recurring event. Creates one PassPurchase + one PENDING
  * Registration per session (each carrying its per-session share of the price —
  * remainder cents land on the first session so the shares sum exactly), then a
  * single Stripe Checkout session for the total. The webhook confirms all of
@@ -19,7 +19,7 @@ import { reserveSeats } from "@/server/tickets";
  * per-session refunds and the per-event payout-hold release work unchanged.
  */
 const schema = z.object({
-  seriesId: z.string().min(1),
+  recurringEventId: z.string().min(1),
   firstName: z.string().min(1).max(80),
   lastName: z.string().min(1).max(80),
   email: z.string().email().max(200),
@@ -35,22 +35,22 @@ export async function POST(req: Request) {
   const input = parsed.data;
   const email = input.email.trim().toLowerCase();
 
-  const series = await prisma.eventSeries.findFirst({
-    where: { id: input.seriesId, deletedAt: null, status: "ACTIVE" },
+  const recurringEvent = await prisma.recurringEvent.findFirst({
+    where: { id: input.recurringEventId, deletedAt: null, status: "ACTIVE" },
     include: { organization: true },
   });
-  if (!series) return NextResponse.json({ error: "This series is no longer available." }, { status: 410 });
-  if (!series.bundlePriceCents || series.bundlePriceCents <= 0) {
+  if (!recurringEvent) return NextResponse.json({ error: "This series is no longer available." }, { status: 410 });
+  if (!recurringEvent.bundlePriceCents || recurringEvent.bundlePriceCents <= 0) {
     return NextResponse.json({ error: "This series doesn't offer a all-sessions pass." }, { status: 400 });
   }
-  // Bundles only exist on bounded series — "every remaining session" must be a
-  // finite, fully-materialized set. (occurrenceCap/seriesEnd series are always
+  // Bundles only exist on bounded recurring events — "every remaining session" must be a
+  // finite, fully-materialized set. (occurrenceCap/seriesEnd recurring events are always
   // fully generated once inside the worker horizon.)
-  if (!series.seriesEnd && series.occurrenceCap == null) {
+  if (!recurringEvent.seriesEnd && recurringEvent.occurrenceCap == null) {
     return NextResponse.json({ error: "This series doesn't offer a all-sessions pass." }, { status: 400 });
   }
 
-  const org = series.organization;
+  const org = recurringEvent.organization;
   if (!org || org.deletedAt || !canAcceptPayments(org)) {
     return NextResponse.json({ error: "This organizer hasn't finished setting up payments yet." }, { status: 503 });
   }
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
   const now = new Date();
   const sessions = await prisma.event.findMany({
-    where: { seriesId: series.id, deletedAt: null, status: "PUBLISHED", startAt: { gte: now } },
+    where: { recurringEventId: recurringEvent.id, deletedAt: null, status: "PUBLISHED", startAt: { gte: now } },
     orderBy: { startAt: "asc" },
     include: { ticketTypes: { where: { isVendorTier: false }, orderBy: { sortOrder: "asc" }, take: 1 } },
   });
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
 
   // Per-session share: divide the bundle across sessions, remainder cents on
   // the first so the shares sum exactly to the bundle price.
-  const total = series.bundlePriceCents;
+  const total = recurringEvent.bundlePriceCents;
   const n = sessions.length;
   const baseShare = Math.floor(total / n);
   const shares = sessions.map((_, i) => (i === 0 ? total - baseShare * (n - 1) : baseShare));
@@ -93,10 +93,10 @@ export async function POST(req: Request) {
   let purchaseId: string;
   try {
     purchaseId = await prisma.$transaction(async (tx) => {
-      const purchase = await tx.seriesBundlePurchase.create({
+      const purchase = await tx.passPurchase.create({
         data: {
-          seriesId: series.id,
-          organizationId: series.organizationId,
+          recurringEventId: recurringEvent.id,
+          organizationId: recurringEvent.organizationId,
           firstName: input.firstName,
           lastName: input.lastName,
           email,
@@ -144,8 +144,8 @@ export async function POST(req: Request) {
   const appFee = platformFeeCents(total);
   const connect = connectChargeParams(org, total);
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
-  const successUrl = `${base}/o/${org.slug}/series/${series.slug}?purchased=1`;
-  const cancelUrl = `${base}/o/${org.slug}/series/${series.slug}`;
+  const successUrl = `${base}/o/${org.slug}/recurring/${recurringEvent.slug}?purchased=1`;
+  const cancelUrl = `${base}/o/${org.slug}/recurring/${recurringEvent.slug}`;
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -157,7 +157,7 @@ export async function POST(req: Request) {
           currency: "usd",
           unit_amount: total,
           product_data: {
-            name: `${series.name} — full series (${n} sessions)`,
+            name: `${recurringEvent.name} — full series (${n} sessions)`,
             description: `One seat in every remaining session · Bundle ${purchaseId}`,
           },
         },
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
       cancel_url: cancelUrl,
       metadata: {
         bundlePurchaseId: purchaseId,
-        seriesId: series.id,
+        recurringEventId: recurringEvent.id,
         organizationId: org.id,
         platformFeePercent: String(PLATFORM_FEE_PERCENT),
         platformFeeCents: String(appFee),
@@ -181,7 +181,7 @@ export async function POST(req: Request) {
 
     // Stamp the session on the purchase AND every registration so the existing
     // abandoned-cart purge can expire/release them exactly like normal regs.
-    await prisma.seriesBundlePurchase.update({ where: { id: purchaseId }, data: { stripeSessionId: session.id } });
+    await prisma.passPurchase.update({ where: { id: purchaseId }, data: { stripeSessionId: session.id } });
     await prisma.registration.updateMany({ where: { bundlePurchaseId: purchaseId }, data: { stripeSessionId: session.id } });
 
     return NextResponse.json({ url: session.url });

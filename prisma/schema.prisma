@@ -115,7 +115,7 @@ enum MonthlyMode {
   NTH_WEEKDAY
 }
 
-enum SeriesStatus {
+enum RecurringEventStatus {
   DRAFT
   ACTIVE
   ENDED
@@ -243,10 +243,10 @@ model Organization {
   subscriptionCancelAtPeriodEnd Boolean @default(false)
   /// Number of "single event" credits remaining (incremented per one-time purchase, decremented when an event is published)
   singleEventCredits          Int      @default(0)
-  /// Number of "series" credits remaining ($34.99 one-time each). Spending one
-  /// makes a recurring series PREMIUM: full-series bundle enabled, unlimited
+  /// Number of "recurring event" credits remaining ($34.99 one-time each). Spending one
+  /// makes a recurring event PREMIUM: full-series bundle enabled, unlimited
   /// registrations per session, custom branding, 5 blasts/session.
-  seriesCredits               Int      @default(0)
+  recurringEventCredits       Int      @default(0)
   /// false = org just signed up and hasn't picked a plan yet. While false, the dashboard locks them to /dashboard/billing.
   planSelected                Boolean  @default(true)
   /// Per-org plan limit overrides set by a SUPERADMIN (see effectivePlan / applyOverrides in src/lib/plans.ts).
@@ -266,7 +266,7 @@ model Organization {
   billingInvoices BillingInvoice[]
   disputes        Dispute[]
   reviews         Review[]
-  eventSeries     EventSeries[]
+  recurringEvents RecurringEvent[]
 
   @@map("organizations")
 }
@@ -459,18 +459,18 @@ model Event {
   pendingInvites     PendingInvite[]
   reviews            Review[]
 
-  /// When set, this event is one generated occurrence of a recurring series.
+  /// When set, this event is one generated occurrence of a recurring event.
   /// It's a normal, fully-independent Event (own tickets, registrations,
-  /// check-in, payouts) — the series only owns the template + recurrence rule.
-  seriesId           String?
-  series             EventSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  /// 1-based position within the series (by date); used for display + dedup.
+  /// check-in, payouts) — the recurring event only owns the template + recurrence rule.
+  recurringEventId   String?
+  recurringEvent     RecurringEvent? @relation(fields: [recurringEventId], references: [id], onDelete: SetNull)
+  /// 1-based position within the recurring event (by date); used for display + dedup.
   occurrenceIndex    Int?
 
   @@unique([organizationId, slug])
   @@index([organizationId, startAt])
   @@index([status, startAt])
-  @@index([seriesId])
+  @@index([recurringEventId])
   @@map("events")
 }
 
@@ -620,7 +620,7 @@ model Registration {
   /// and refunds for it must be amount-limited (same Stripe PaymentIntent is
   /// shared by all the bundle's registrations).
   bundlePurchaseId  String?
-  bundlePurchase    SeriesBundlePurchase? @relation(fields: [bundlePurchaseId], references: [id], onDelete: SetNull)
+  bundlePurchase    PassPurchase? @relation(fields: [bundlePurchaseId], references: [id], onDelete: SetNull)
 
   status            RegistrationStatus @default(PENDING)
   confirmedAt       DateTime?
@@ -739,19 +739,19 @@ model Review {
   @@map("reviews")
 }
 
-/// A recurring event series (Phase 1). Owns the shared template + recurrence
+/// A recurring event (Phase 1). Owns the shared template + recurrence
 /// rule; each occurrence is materialized as a full independent Event (see
-/// Event.seriesId). The worker rolls a generation horizon forward so a weekly
+/// Event.recurringEventId). The worker rolls a generation horizon forward so a weekly
 /// class always has the next few months of occurrences without pre-creating
 /// hundreds of rows. Drop-in only in Phase 1 — attendees buy a ticket per
 /// occurrence via the normal registration flow.
-model EventSeries {
+model RecurringEvent {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   name           String
-  slug           String       // unique per org → /o/[slug]/series/[series-slug]
+  slug           String       // unique per org → /o/[slug]/recurring/[recurring-slug]
   description    String       @db.Text
   category       String?
   bannerUrl      String?
@@ -804,10 +804,10 @@ model EventSeries {
   /// at a time, 50 regs/session, drop-in only.
   isPremium      Boolean      @default(false)
 
-  status         SeriesStatus @default(DRAFT)
+  status         RecurringEventStatus @default(DRAFT)
 
   events         Event[]
-  bundlePurchases SeriesBundlePurchase[]
+  bundlePurchases PassPurchase[]
 
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -815,7 +815,7 @@ model EventSeries {
 
   @@unique([organizationId, slug])
   @@index([status])
-  @@map("event_series")
+  @@map("recurring_events")
 }
 
 /// One "buy the whole series" checkout. Creates a PENDING Registration on
@@ -823,10 +823,10 @@ model EventSeries {
 /// as its own Payment row once paid), so per-session refunds, payout release,
 /// tickets, and check-in all reuse the per-event machinery. Confirmed by the
 /// Stripe webhook (metadata.bundlePurchaseId).
-model SeriesBundlePurchase {
+model PassPurchase {
   id             String      @id @default(cuid())
-  seriesId       String
-  series         EventSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  recurringEventId String
+  recurringEvent   RecurringEvent @relation(fields: [recurringEventId], references: [id], onDelete: Cascade)
   organizationId String
 
   firstName      String
@@ -850,9 +850,9 @@ model SeriesBundlePurchase {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  @@index([seriesId, status])
+  @@index([recurringEventId, status])
   @@index([email])
-  @@map("series_bundle_purchases")
+  @@map("pass_purchases")
 }
 
 model Ticket {

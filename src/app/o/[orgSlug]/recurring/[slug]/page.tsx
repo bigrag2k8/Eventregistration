@@ -4,12 +4,12 @@ import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { BundleCheckoutForm } from "@/components/BundleCheckoutForm";
-import { describeRecurrence } from "@/server/series-rule";
+import { describeRecurrence } from "@/server/recurring-rule";
 import { CalendarClock, ArrowRight, PartyPopper, Ticket } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function SeriesPublicPage({
+export default async function RecurringEventPublicPage({
   params,
   searchParams,
 }: {
@@ -22,20 +22,20 @@ export default async function SeriesPublicPage({
   });
   if (!org) return notFound();
 
-  const series = await prisma.eventSeries.findFirst({
+  const recurringEvent = await prisma.recurringEvent.findFirst({
     where: { organizationId: org.id, slug: params.slug, deletedAt: null, status: { in: ["ACTIVE", "ENDED"] } },
   });
-  if (!series) return notFound();
+  if (!recurringEvent) return notFound();
 
   const now = new Date();
   const upcoming = await prisma.event.findMany({
-    where: { seriesId: series.id, deletedAt: null, status: "PUBLISHED", endAt: { gte: now } },
+    where: { recurringEventId: recurringEvent.id, deletedAt: null, status: "PUBLISHED", endAt: { gte: now } },
     orderBy: { startAt: "asc" },
     take: 30,
     include: { ticketTypes: { select: { priceCents: true } } },
   });
 
-  const brand = series.bannerUrl ? undefined : "linear-gradient(135deg, var(--org-brand), #0f172a)";
+  const brand = recurringEvent.bannerUrl ? undefined : "linear-gradient(135deg, var(--org-brand), #0f172a)";
   const minPriceOf = (e: (typeof upcoming)[number]) =>
     e.ticketTypes.length ? Math.min(...e.ticketTypes.map((t) => t.priceCents)) : 0;
 
@@ -58,10 +58,10 @@ export default async function SeriesPublicPage({
 
       {/* Hero */}
       <div className="relative bg-slate-900">
-        {series.bannerUrl ? (
+        {recurringEvent.bannerUrl ? (
           <div className="aspect-[16/5] w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={series.bannerUrl} alt="" className="h-full w-full object-cover" />
+            <img src={recurringEvent.bannerUrl} alt="" className="h-full w-full object-cover" />
           </div>
         ) : (
           <div className="aspect-[16/6] w-full sm:aspect-[16/4]" style={{ background: brand }} />
@@ -73,9 +73,9 @@ export default async function SeriesPublicPage({
               <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Recurring series
             </span>
             <h1 className="mt-2 truncate text-3xl font-bold tracking-tight text-white drop-shadow-md sm:text-4xl">
-              {series.name}
+              {recurringEvent.name}
             </h1>
-            <p className="mt-1 text-white/90 drop-shadow">{describeRecurrence(series)}</p>
+            <p className="mt-1 text-white/90 drop-shadow">{describeRecurrence(recurringEvent)}</p>
           </div>
         </div>
       </div>
@@ -93,18 +93,18 @@ export default async function SeriesPublicPage({
           </div>
         )}
 
-        {series.description && series.description !== series.name && (
-          <p className="max-w-3xl whitespace-pre-line leading-relaxed text-slate-700">{series.description}</p>
+        {recurringEvent.description && recurringEvent.description !== recurringEvent.name && (
+          <p className="max-w-3xl whitespace-pre-line leading-relaxed text-slate-700">{recurringEvent.description}</p>
         )}
 
-        {/* All-sessions pass — only on bounded, active series with 2+ sessions left */}
-        {series.status === "ACTIVE" &&
-          series.bundlePriceCents != null &&
-          series.bundlePriceCents > 0 &&
-          (series.seriesEnd || series.occurrenceCap != null) &&
+        {/* All-sessions pass — only on bounded, active recurring events with 2+ sessions left */}
+        {recurringEvent.status === "ACTIVE" &&
+          recurringEvent.bundlePriceCents != null &&
+          recurringEvent.bundlePriceCents > 0 &&
+          (recurringEvent.seriesEnd || recurringEvent.occurrenceCap != null) &&
           upcoming.length >= 2 && (() => {
             const dropInTotal = upcoming.reduce((a, e) => a + minPriceOf(e), 0);
-            const savings = dropInTotal - series.bundlePriceCents!;
+            const savings = dropInTotal - recurringEvent.bundlePriceCents!;
             return (
               <section className="mt-8 rounded-2xl bg-white p-5" style={{ boxShadow: "0 0 0 2px var(--org-brand)" }}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -113,7 +113,7 @@ export default async function SeriesPublicPage({
                     All-sessions pass
                   </h2>
                   <div className="text-right">
-                    <span className="text-2xl font-bold">${(series.bundlePriceCents / 100).toFixed(2)}</span>
+                    <span className="text-2xl font-bold">${(recurringEvent.bundlePriceCents / 100).toFixed(2)}</span>
                     <span className="ml-2 text-sm text-slate-500">for all {upcoming.length} remaining sessions</span>
                   </div>
                 </div>
@@ -125,7 +125,7 @@ export default async function SeriesPublicPage({
                     </span>
                   )}
                 </p>
-                <BundleCheckoutForm seriesId={series.id} />
+                <BundleCheckoutForm recurringEventId={recurringEvent.id} />
               </section>
             );
           })()}

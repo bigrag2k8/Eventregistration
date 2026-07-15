@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatInTimeZone } from "date-fns-tz";
-import { computeOccurrences, type OccurrenceRule } from "@/server/series-rule";
+import { computeOccurrences, type OccurrenceRule } from "@/server/recurring-rule";
 
 const NY = "America/New_York";
 

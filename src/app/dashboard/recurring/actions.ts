@@ -7,7 +7,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { materializeOccurrences } from "@/server/series";
+import { materializeOccurrences } from "@/server/recurring-events";
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
@@ -47,31 +47,31 @@ function slugify(s: string): string {
     "series"
   );
 }
-async function uniqueSeriesSlug(organizationId: string, base: string): Promise<string> {
+async function uniqueRecurringSlug(organizationId: string, base: string): Promise<string> {
   let slug = base;
   let n = 1;
   // Bounded loop — a handful of collisions at most in practice.
-  while (await prisma.eventSeries.findFirst({ where: { organizationId, slug }, select: { id: true } })) {
+  while (await prisma.recurringEvent.findFirst({ where: { organizationId, slug }, select: { id: true } })) {
     slug = `${base}-${++n}`;
     if (n > 50) { slug = `${base}-${Date.now()}`; break; }
   }
   return slug;
 }
 
-export async function createSeriesAction(formData: FormData) {
+export async function createRecurringEventAction(formData: FormData) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
   if (!session.orgId) throw new Error("No organization linked");
 
   const raw = Object.fromEntries(formData.entries());
   const parsed = schema.safeParse(raw);
-  if (!parsed.success) redirect("/dashboard/series/new?error=validation");
+  if (!parsed.success) redirect("/dashboard/recurring/new?error=validation");
   const d = parsed.data;
 
   const byWeekday =
     d.frequency === "WEEKLY"
       ? formData.getAll("byWeekday").map((v) => Number(v)).filter((n) => n >= 0 && n <= 6)
       : [];
-  if (d.frequency === "WEEKLY" && byWeekday.length === 0) redirect("/dashboard/series/new?error=weekday_required");
+  if (d.frequency === "WEEKLY" && byWeekday.length === 0) redirect("/dashboard/recurring/new?error=weekday_required");
 
   const [hh, mm] = d.startTime.split(":").map(Number);
   const startTimeMinutes = hh * 60 + mm;
@@ -83,10 +83,10 @@ export async function createSeriesAction(formData: FormData) {
 
   const org = await prisma.organization.findUnique({
     where: { id: session.orgId },
-    select: { slug: true, seriesCredits: true },
+    select: { slug: true, recurringEventCredits: true },
   });
   if (!org) throw new Error("Organization not found");
-  const slug = await uniqueSeriesSlug(session.orgId, slugify(d.name));
+  const slug = await uniqueRecurringSlug(session.orgId, slugify(d.name));
 
   // ── Free vs premium gate ────────────────────────────────────────────────
   // Free tier: ONE active free series at a time (occurrences get the free-event
@@ -94,25 +94,25 @@ export async function createSeriesAction(formData: FormData) {
   // that — a second concurrent series, or wanting the full-series bundle —
   // requires spending a $34.99 series credit, which makes the series PREMIUM.
   const wantsBundle = !!d.bundlePriceDollars;
-  const activeFreeSeries = await prisma.eventSeries.count({
+  const activeFreeRecurring = await prisma.recurringEvent.count({
     where: { organizationId: session.orgId, status: "ACTIVE", isPremium: false, deletedAt: null },
   });
-  const needsCredit = wantsBundle || activeFreeSeries >= 1;
+  const needsCredit = wantsBundle || activeFreeRecurring >= 1;
   const isPremium = needsCredit;
 
-  // Credit spend + series create in ONE transaction, so a failed create can
+  // Credit spend + recurring-event create in ONE transaction, so a failed create can
   // never consume a credit (and a race on the last credit can't double-spend).
-  let series;
+  let recurringEvent;
   try {
-    series = await prisma.$transaction(async (tx) => {
+    recurringEvent = await prisma.$transaction(async (tx) => {
       if (needsCredit) {
         const spent = await tx.organization.updateMany({
-          where: { id: session.orgId!, seriesCredits: { gt: 0 } },
-          data: { seriesCredits: { decrement: 1 } },
+          where: { id: session.orgId!, recurringEventCredits: { gt: 0 } },
+          data: { recurringEventCredits: { decrement: 1 } },
         });
         if (spent.count === 0) throw new Error("NO_CREDIT");
       }
-      return tx.eventSeries.create({
+      return tx.recurringEvent.create({
         data: {
           organizationId: session.orgId!,
           name: d.name,
@@ -155,23 +155,23 @@ export async function createSeriesAction(formData: FormData) {
       });
     });
   } catch (e: any) {
-    if (e?.message === "NO_CREDIT") redirect("/dashboard/series/new?error=series_credit_required");
+    if (e?.message === "NO_CREDIT") redirect("/dashboard/recurring/new?error=recurring_credit_required");
     throw e;
   }
 
   // Generate the first horizon now so the organizer sees occurrences right away
   // (the worker keeps rolling it forward every tick).
   const horizon = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-  const created = await materializeOccurrences(series.id, horizon).catch(() => 0);
+  const created = await materializeOccurrences(recurringEvent.id, horizon).catch(() => 0);
 
   await audit({
     organizationId: session.orgId, userId: session.sub,
-    action: "series.create", targetType: "EventSeries", targetId: series.id,
+    action: "series.create", targetType: "EventSeries", targetId: recurringEvent.id,
     metadata: { name: d.name, frequency: d.frequency, firstBatch: created },
   });
 
   revalidatePath(`/o/${org.slug}`);
-  redirect(`/o/${org.slug}/series/${slug}`);
+  redirect(`/o/${org.slug}/recurring/${slug}`);
 }
 
 /**
@@ -184,45 +184,45 @@ export async function createSeriesAction(formData: FormData) {
  *   - soft-delete the series itself so generation stops and the public
  *     card/page disappear. PAST occurrences are kept untouched as history.
  */
-export async function deleteSeriesAction(formData: FormData) {
+export async function deleteRecurringEventAction(formData: FormData) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
-  const seriesId = String(formData.get("seriesId"));
-  const series = await prisma.eventSeries.findFirst({
+  const recurringEventId = String(formData.get("recurringEventId"));
+  const recurringEvent = await prisma.recurringEvent.findFirst({
     where: {
-      id: seriesId,
+      id: recurringEventId,
       deletedAt: null,
       ...(session.role === "SUPERADMIN" ? {} : { organizationId: session.orgId ?? "__none__" }),
     },
     select: { id: true, name: true, organizationId: true, slug: true },
   });
-  if (!series) redirect("/dashboard?error=not_found");
+  if (!recurringEvent) redirect("/dashboard?error=not_found");
 
   const now = new Date();
   const futureWithRegs = await prisma.event.count({
     where: {
-      seriesId: series.id,
+      recurringEventId: recurringEvent.id,
       deletedAt: null,
       endAt: { gte: now },
       registrations: { some: { status: "CONFIRMED" } },
     },
   });
-  if (futureWithRegs > 0) redirect("/dashboard?error=series_has_registrations");
+  if (futureWithRegs > 0) redirect("/dashboard?error=recurring_has_registrations");
 
   await prisma.event.updateMany({
-    where: { seriesId: series.id, deletedAt: null, endAt: { gte: now } },
+    where: { recurringEventId: recurringEvent.id, deletedAt: null, endAt: { gte: now } },
     data: { deletedAt: now, status: "CANCELLED" },
   });
-  await prisma.eventSeries.update({
-    where: { id: series.id },
+  await prisma.recurringEvent.update({
+    where: { id: recurringEvent.id },
     data: { deletedAt: now, status: "ENDED" },
   });
   await audit({
-    organizationId: series.organizationId, userId: session.sub,
-    action: "series.delete", targetType: "EventSeries", targetId: series.id,
-    metadata: { name: series.name, slug: series.slug },
+    organizationId: recurringEvent.organizationId, userId: session.sub,
+    action: "series.delete", targetType: "EventSeries", targetId: recurringEvent.id,
+    metadata: { name: recurringEvent.name, slug: recurringEvent.slug },
   });
 
-  const org = await prisma.organization.findUnique({ where: { id: series.organizationId }, select: { slug: true } });
+  const org = await prisma.organization.findUnique({ where: { id: recurringEvent.organizationId }, select: { slug: true } });
   if (org) revalidatePath(`/o/${org.slug}`);
   revalidatePath("/dashboard");
   redirect("/dashboard?saved=1");

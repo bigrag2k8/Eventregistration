@@ -31,16 +31,16 @@ export async function handleBillingCheckoutCompleted(
     }).catch(() => {});
   }
 
-  if (kind === "series_credit" || planKey === "SERIES_CREDIT") {
-    // One-time series credit — increments the counter; spent by
-    // createSeriesAction to make a series premium (bundle + unlimited regs +
+  if (kind === "recurring_event_credit" || planKey === "RECURRING_EVENT_CREDIT") {
+    // One-time recurring event credit — increments the counter; spent by
+    // createRecurringEventAction to make a recurring event premium (bundle + unlimited regs +
     // branding). Recorded as platform revenue like the single-event credit.
     await prisma.organization.update({
       where: { id: organizationId },
-      data: { seriesCredits: { increment: 1 }, planSelected: true },
+      data: { recurringEventCredits: { increment: 1 }, planSelected: true },
     });
-    await recordCreditPurchase(organizationId, session, "SERIES_CREDIT").catch((e) =>
-      console.error("[billing] failed to record series-credit purchase revenue", e),
+    await recordCreditPurchase(organizationId, session, "RECURRING_EVENT_CREDIT").catch((e) =>
+      console.error("[billing] failed to record recurring-event-credit purchase revenue", e),
     );
     return;
   }
@@ -88,11 +88,11 @@ export async function recordSingleEventPurchase(organizationId: string | null, s
   return recordCreditPurchase(organizationId, session, "SINGLE_EVENT");
 }
 
-/** Shared invoice-recording for one-time credit purchases (single event / series). */
+/** Shared invoice-recording for one-time credit purchases (single event / recurring event). */
 export async function recordCreditPurchase(
   organizationId: string | null,
   session: any,
-  planKey: "SINGLE_EVENT" | "SERIES_CREDIT",
+  planKey: "SINGLE_EVENT" | "RECURRING_EVENT_CREDIT",
 ) {
   const piId =
     typeof session.payment_intent === "string"

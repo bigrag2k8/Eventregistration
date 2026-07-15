@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/plans";
-import { PLATFORM_FEE_PERCENT, MIN_PLATFORM_FEE_CENTS, SERIES_FEE_CAP_PERCENT } from "@/lib/connect";
+import { PLATFORM_FEE_PERCENT, MIN_PLATFORM_FEE_CENTS, RECURRING_FEE_CAP_PERCENT } from "@/lib/connect";
 
 // Stripe's standard US card rate, mirrored from PROCESSING_FEE_PCT /
 // PROCESSING_FEE_FIXED_CENTS in src/server/pricing.ts.
@@ -40,14 +40,14 @@ const TIERS = [
     featured: true,
   },
   {
-    plan: PLANS.SERIES_CREDIT,
+    plan: PLANS.RECURRING_EVENT_CREDIT,
     tagline: "Turn a class or course into one page that runs itself.",
     features: [
       "Every session auto-scheduled on one page",
       "Sell drop-ins or a all-sessions pass",
       "Unlimited registrations + your branding",
       "Cancel or reschedule any single session",
-      `Class drop-in fees capped at ${SERIES_FEE_CAP_PERCENT}%`,
+      `Class drop-in fees capped at ${RECURRING_FEE_CAP_PERCENT}%`,
     ],
     cta: { label: "Start a recurring event", href: "/signup" },
     featured: false,
@@ -128,13 +128,13 @@ export default function PricingPage() {
               <div className="text-2xl font-bold">
                 {PLATFORM_FEE_PERCENT}%
                 <span className="ml-1 text-base font-normal text-slate-500">
-                  (never over {SERIES_FEE_CAP_PERCENT}%)
+                  (never over {RECURRING_FEE_CAP_PERCENT}%)
                 </span>
               </div>
               <div className="mt-1 font-medium">Class drop-in fee</div>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 On recurring class sessions, the ${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} minimum
-                is capped at {SERIES_FEE_CAP_PERCENT}% of the ticket. A $5 drop-in costs you $0.50,
+                is capped at {RECURRING_FEE_CAP_PERCENT}% of the ticket. A $5 drop-in costs you $0.50,
                 not ${(MIN_PLATFORM_FEE_CENTS / 100).toFixed(2)} — so cheap classes stay cheap. Sell
                 the all-sessions pass and it&apos;s a flat {PLATFORM_FEE_PERCENT}%.
               </p>

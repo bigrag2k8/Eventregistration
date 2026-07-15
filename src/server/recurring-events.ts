@@ -1,19 +1,19 @@
 import { prisma } from "@/lib/db";
-import { computeOccurrences, ruleForSeries, occurrenceSlug } from "@/server/series-rule";
+import { computeOccurrences, ruleForRecurringEvent, occurrenceSlug } from "@/server/recurring-rule";
 
-export * from "@/server/series-rule";
+export * from "@/server/recurring-rule";
 
 /**
- * Materialize a series' occurrences up to `throughInstant` as real Event rows
+ * Materialize a recurring event's occurrences up to `throughInstant` as real Event rows
  * (each with one drop-in TicketType). Idempotent: occurrences already present
- * (matched by seriesId + startAt) are skipped, so re-running only fills gaps.
+ * (matched by recurringEventId + startAt) are skipped, so re-running only fills gaps.
  * Returns the number of new occurrences created.
  */
-export async function materializeOccurrences(seriesId: string, throughInstant: Date): Promise<number> {
-  const s = await prisma.eventSeries.findUnique({ where: { id: seriesId } });
+export async function materializeOccurrences(recurringEventId: string, throughInstant: Date): Promise<number> {
+  const s = await prisma.recurringEvent.findUnique({ where: { id: recurringEventId } });
   if (!s || s.deletedAt || s.status === "DRAFT") return 0;
 
-  const occ = computeOccurrences(ruleForSeries(s), throughInstant);
+  const occ = computeOccurrences(ruleForRecurringEvent(s), throughInstant);
   if (occ.length === 0) return 0;
 
   // Location template: copy the series' venue/address (or virtual link) onto
@@ -52,7 +52,7 @@ export async function materializeOccurrences(seriesId: string, throughInstant: D
   // the slug the rescheduled event still holds → unique(orgId, slug) failure
   // every tick. Index is immutable across reschedules, so this can't recur.
   const existing = await prisma.event.findMany({
-    where: { seriesId, deletedAt: null },
+    where: { recurringEventId, deletedAt: null },
     select: { occurrenceIndex: true },
   });
   const seen = new Set(existing.map((e) => e.occurrenceIndex));
@@ -65,7 +65,7 @@ export async function materializeOccurrences(seriesId: string, throughInstant: D
       await prisma.event.create({
         data: {
           organizationId: s.organizationId,
-          seriesId: s.id,
+          recurringEventId: s.id,
           occurrenceIndex: o.index,
           name: s.name,
           slug: occurrenceSlug(s.slug, o.start, s.timezone),

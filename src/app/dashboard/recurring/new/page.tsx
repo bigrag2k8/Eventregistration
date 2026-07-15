@@ -4,26 +4,26 @@ import { prisma } from "@/lib/db";
 import { requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { SeriesForm } from "@/components/SeriesForm";
+import { RecurringEventForm } from "@/components/RecurringEventForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewSeriesPage({ searchParams }: { searchParams: { error?: string; bought?: string } }) {
+export default async function NewRecurringEventPage({ searchParams }: { searchParams: { error?: string; bought?: string } }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   if (!session.orgId) redirect("/dashboard");
   await requirePlanSelected(session);
 
   const org = await prisma.organization.findUnique({
     where: { id: session.orgId },
-    select: { seriesCredits: true },
+    select: { recurringEventCredits: true },
   });
-  const activeFreeSeries = await prisma.eventSeries.count({
+  const activeFreeRecurring = await prisma.recurringEvent.count({
     where: { organizationId: session.orgId, status: "ACTIVE", isPremium: false, deletedAt: null },
   });
-  const credits = org?.seriesCredits ?? 0;
-  // Mirrors the createSeriesAction gate: a credit is needed to sell a bundle,
-  // or once the single free-series slot is already taken.
-  const freeSlotOpen = activeFreeSeries === 0;
+  const credits = org?.recurringEventCredits ?? 0;
+  // Mirrors the createRecurringEventAction gate: a credit is needed to sell a bundle,
+  // or once the single free-recurring-event slot is already taken.
+  const freeSlotOpen = activeFreeRecurring === 0;
 
   return (
     <main>
@@ -40,7 +40,7 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
 
       <div className="mx-auto max-w-3xl px-4 py-8">
         <ErrorBanner code={searchParams?.error} />
-        {searchParams?.bought === "SERIES_CREDIT" && (
+        {searchParams?.bought === "RECURRING_EVENT_CREDIT" && (
           <div className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             ✓ Recurring event credit added — you now have <strong>{credits}</strong> credit{credits === 1 ? "" : "s"}.
             Finish setting up your recurring event below (you can include the all-sessions pass).
@@ -62,13 +62,13 @@ export default async function NewSeriesPage({ searchParams }: { searchParams: { 
             </span>
           </div>
           <form action="/api/billing/checkout" method="POST">
-            <input type="hidden" name="planKey" value="SERIES_CREDIT" />
-            <input type="hidden" name="returnTo" value="/dashboard/series/new" />
+            <input type="hidden" name="planKey" value="RECURRING_EVENT_CREDIT" />
+            <input type="hidden" name="returnTo" value="/dashboard/recurring/new" />
             <button type="submit" className="btn-secondary whitespace-nowrap">Buy recurring event credit — $34.99</button>
           </form>
         </div>
 
-        <SeriesForm />
+        <RecurringEventForm />
       </div>
     </main>
   );

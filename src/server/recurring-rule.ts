@@ -148,8 +148,8 @@ export function computeOccurrences(rule: OccurrenceRule, throughInstant: Date): 
   return out;
 }
 
-/** Build the OccurrenceRule for a stored series (derives local dates in its tz). */
-export function ruleForSeries(s: {
+/** Build the OccurrenceRule for a stored recurring event (derives local dates in its tz). */
+export function ruleForRecurringEvent(s: {
   frequency: SeriesFrequency; interval: number; byWeekday: number[];
   monthlyMode: MonthlyMode | null; timezone: string; seriesStart: Date;
   startTimeMinutes: number; seriesEnd: Date | null; occurrenceCap: number | null;
@@ -167,8 +167,8 @@ export function ruleForSeries(s: {
   };
 }
 
-export function occurrenceSlug(seriesSlug: string, start: Date, tz: string): string {
-  return `${seriesSlug}-${formatInTimeZone(start, tz, "yyyy-MM-dd")}`;
+export function occurrenceSlug(recurringSlug: string, start: Date, tz: string): string {
+  return `${recurringSlug}-${formatInTimeZone(start, tz, "yyyy-MM-dd")}`;
 }
 
 const WEEKDAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

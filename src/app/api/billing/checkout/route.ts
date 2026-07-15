@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     ? `${appUrl}${safeReturnTo}${safeReturnTo.includes("?") ? "&" : "?"}canceled=1`
     : `${appUrl}/dashboard/billing?canceled=1`;
 
-  const creditKind = plan.key === "SERIES_CREDIT" ? "series_credit" : "single_event_credit";
+  const creditKind = plan.key === "RECURRING_EVENT_CREDIT" ? "recurring_event_credit" : "single_event_credit";
   const buildParams = (cid: string) => ({
     customer: cid,
     mode: (plan.cadence === "one_time" ? "payment" : "subscription") as "payment" | "subscription",
