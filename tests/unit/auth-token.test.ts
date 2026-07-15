@@ -7,7 +7,11 @@ vi.mock("next/headers", () => ({
   cookies: () => ({ get: () => undefined, set: () => {}, delete: () => {} }),
 }));
 
-import { signSession, verifySession, signTicketToken, verifyTicketToken } from "@/lib/auth";
+import { SignJWT } from "jose";
+import {
+  signSession, verifySession, signTicketToken, verifyTicketToken,
+  signReviewToken, verifyReviewTokenResult,
+} from "@/lib/auth";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -60,5 +64,52 @@ describe("QR ticket tokens — expiry (NEW-01) and isolation (SEC-02)", () => {
     // A ticket token must not validate as a session, nor vice versa.
     expect(await verifySession(ticketTok)).toBeNull();
     expect(await verifyTicketToken(session)).toBeNull();
+  });
+});
+
+describe("review tokens — expired vs invalid must be distinguishable", () => {
+  it("round-trips a valid review token", async () => {
+    const token = await signReviewToken({ registrationId: "reg_1" });
+    const { claim, reason } = await verifyReviewTokenResult(token);
+    expect(claim).toEqual({ registrationId: "reg_1" });
+    expect(reason).toBeUndefined();
+  });
+
+  it("reports a WRONG-KEY signature as invalid, NOT expired", async () => {
+    // The real incident: the worker signed with a different secret than the web
+    // verified with, and the catch-all reported it as "expired" — so a signing
+    // mismatch looked like routine housekeeping for its entire lifetime.
+    const foreign = new TextEncoder().encode("a-totally-different-signing-key-32bytes!");
+    const forged = await new SignJWT({ registrationId: "reg_1", typ: "review" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setIssuer("eventflow-review")
+      .setExpirationTime("60d")
+      .sign(foreign);
+
+    const { claim, reason } = await verifyReviewTokenResult(forged);
+    expect(claim).toBeNull();
+    expect(reason).toBe("invalid");
+    expect(reason).not.toBe("expired");
+  });
+
+  it("reports a genuinely lapsed token as expired", async () => {
+    const token = await signReviewToken({ registrationId: "reg_1" }); // 60d ttl
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(Date.now() + 61 * DAY));
+      const { claim, reason } = await verifyReviewTokenResult(token);
+      expect(claim).toBeNull();
+      expect(reason).toBe("expired");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects a session token presented as a review token (wrong typ/issuer)", async () => {
+    const session = await signSession({ sub: "u1", role: "ATTENDEE", email: "a@b.com" });
+    const { claim, reason } = await verifyReviewTokenResult(session);
+    expect(claim).toBeNull();
+    expect(reason).toBe("invalid");
   });
 });

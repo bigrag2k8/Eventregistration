@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { prisma } from "@/lib/db";
-import { verifyReviewToken } from "@/lib/auth";
+import { verifyReviewTokenResult } from "@/lib/auth";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { ReviewForm } from "@/components/ReviewForm";
 import { PartyPopper, Ticket } from "lucide-react";
@@ -33,14 +33,25 @@ export default async function ReviewPage({
   params: { token: string };
   searchParams: { rating?: string; submitted?: string; error?: string };
 }) {
-  const claim = await verifyReviewToken(params.token);
+  const { claim, reason } = await verifyReviewTokenResult(params.token);
   if (!claim) {
-    return (
+    // "Expired" is only shown for a REAL exp lapse. Anything else is an invalid
+    // link, and saying "expired" there hid a signing-key mismatch for its whole
+    // lifetime — the message looked like normal housekeeping.
+    return reason === "expired" ? (
       <Shell>
         <h1 className="text-xl font-semibold">This review link has expired</h1>
         <p className="mt-2 text-slate-600">
           Review links stay valid for 60 days after an event. If yours has lapsed, no worries — thanks
           for coming out.
+        </p>
+      </Shell>
+    ) : (
+      <Shell>
+        <h1 className="text-xl font-semibold">This review link isn&rsquo;t valid</h1>
+        <p className="mt-2 text-slate-600">
+          The link may have been copied incompletely — try clicking it straight from the email instead of
+          pasting it. If it still doesn&rsquo;t work, reply to that email and the organizer can sort it out.
         </p>
       </Shell>
     );

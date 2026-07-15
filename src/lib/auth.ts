@@ -28,20 +28,36 @@ if (JWT_SECRET && JWT_SECRET.length < 32) {
   console.warn("[auth] JWT_SECRET is shorter than 32 chars — consider a longer, random secret.");
 }
 
-// SEC-02: QR ticket tokens are signed with a SEPARATE key (QR_SECRET) so a leak
-// of one secret doesn't compromise both surfaces (sessions AND ticket check-in).
-// QR_SECRET defaults to JWT_SECRET when unset, so deploying this code changes
-// nothing until an operator sets a distinct QR_SECRET. NOTE: setting a NEW
-// distinct QR_SECRET invalidates already-issued QR tickets (they were signed
-// with the old key) — do the cutover between events.
+// SEC-02: QR ticket + review tokens are signed with a SEPARATE key (QR_SECRET),
+// so leaking one secret doesn't compromise both surfaces (sessions AND check-in).
+//
+// This THROWS rather than warns when unset in production, because the old
+// silent "fall back to JWT_SECRET" behaviour caused a real outage: QR_SECRET was
+// set on the web service but never on the worker, so the worker signed review
+// links and reissued QR tickets with JWT_SECRET while the web verified them with
+// QR_SECRET. Every such token failed verification — invisibly, because nothing
+// logs a signature mismatch and the review page rendered the failure as
+// "expired". An unscannable ticket is otherwise only discovered at the door.
+//
+// A per-process fallback cannot be safe for a signing key: it only means
+// anything if every signer and every verifier agree, and no process can see
+// another's env. Refusing to boot is what makes a disagreement surface
+// immediately instead of at a customer.
+// NOTE: changing QR_SECRET's VALUE still invalidates already-issued tokens — do
+// that cutover between events, then use the per-event "Reissue tickets".
 if (IS_PROD_RUNTIME) {
-  if (QR_SECRET_ENV && QR_SECRET_ENV === DEV_FALLBACK_QR_SECRET) {
+  if (!QR_SECRET_ENV) {
+    throw new Error(
+      "QR_SECRET is not set. Every service that signs or verifies QR tickets and review links " +
+        "(web AND worker) must share the same QR_SECRET — a per-process fallback silently breaks " +
+        "tickets and review links across services. Set QR_SECRET on this service, referencing the " +
+        "web service's value so the two can never drift.",
+    );
+  }
+  if (QR_SECRET_ENV === DEV_FALLBACK_QR_SECRET) {
     throw new Error("QR_SECRET is set to the public dev fallback. Set a strong, distinct value.");
   }
-  if (!QR_SECRET_ENV) {
-    // eslint-disable-next-line no-console
-    console.warn("[auth] QR_SECRET not set — QR ticket tokens share JWT_SECRET. Set a distinct QR_SECRET to isolate ticket-token compromise from session compromise (SEC-02).");
-  } else if (QR_SECRET_ENV === JWT_SECRET) {
+  if (QR_SECRET_ENV === JWT_SECRET) {
     // eslint-disable-next-line no-console
     console.warn("[auth] QR_SECRET equals JWT_SECRET — use a distinct value to isolate the QR-token blast radius (SEC-02).");
   }
@@ -327,11 +343,31 @@ export async function signReviewToken(payload: { registrationId: string }) {
 }
 
 export async function verifyReviewToken(token: string): Promise<{ registrationId: string } | null> {
+  return (await verifyReviewTokenResult(token)).claim;
+}
+
+/**
+ * Like verifyReviewToken, but says WHY it failed. The old catch-all reported
+ * every failure as "expired", which hid a live signature mismatch (the worker
+ * signed with a different key than the web verified with) behind a friendly
+ * "your link lapsed" page for its entire lifetime. A bad signature is an
+ * incident; a genuinely expired link is routine. They must not look the same.
+ */
+export async function verifyReviewTokenResult(
+  token: string,
+): Promise<{ claim: { registrationId: string } | null; reason?: "expired" | "invalid" }> {
   try {
     const { payload } = await jwtVerify(token, QR_SECRET, { issuer: "eventflow-review" });
-    if (payload.typ !== "review" || typeof payload.registrationId !== "string") return null;
-    return { registrationId: payload.registrationId };
-  } catch {
-    return null;
+    if (payload.typ !== "review" || typeof payload.registrationId !== "string") {
+      return { claim: null, reason: "invalid" };
+    }
+    return { claim: { registrationId: payload.registrationId } };
+  } catch (e: any) {
+    // jose sets code ERR_JWT_EXPIRED only for a real exp lapse; anything else
+    // (signature, issuer, malformed) is an invalid token, not an expired one.
+    if (e?.code === "ERR_JWT_EXPIRED") return { claim: null, reason: "expired" };
+    // eslint-disable-next-line no-console
+    console.error("[auth] review token rejected as INVALID (not expired):", e?.code ?? e?.message);
+    return { claim: null, reason: "invalid" };
   }
 }
