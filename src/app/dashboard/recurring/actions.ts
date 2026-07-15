@@ -136,6 +136,154 @@ export async function endRecurringEventAction(formData: FormData) {
   redirect(`/dashboard/recurring/${re.id}/edit?ended=1`);
 }
 
+const patternSchema = z.object({
+  recurringEventId: z.string().min(1),
+  frequency: z.enum(["DAILY", "WEEKLY", "MONTHLY"]),
+  interval: z.coerce.number().int().min(1).max(52),
+  monthlyMode: z.enum(["DAY_OF_MONTH", "NTH_WEEKDAY"]).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(HHMM),
+  durationMinutes: z.coerce.number().int().min(5).max(1440),
+});
+
+/**
+ * Change the repeat PATTERN itself (frequency / interval / weekdays / monthly
+ * mode / time of day / length) and rebuild the upcoming schedule from it.
+ *
+ * This is the one operation that can't just edit a column, because occurrences
+ * are keyed to the rule by `occurrenceIndex`. Two things bite if you skip them:
+ *
+ *  1. EXISTING SESSIONS MUST BE DETACHED (occurrenceIndex → null). They hold
+ *     indexes 0..M against the OLD dates. The new rule also emits indexes 0..N,
+ *     and materializeOccurrences skips any index it already sees — so without
+ *     detaching, the new pattern's first M sessions would silently never
+ *     generate. Detached sessions keep their date, tickets and attendees, and
+ *     stay listed under the recurring event; the rule simply no longer owns them.
+ *
+ *  2. seriesStart MUST MOVE to the new start date. The rule generates FROM
+ *     seriesStart, so leaving it in the past would backfill history (weekly →
+ *     daily on a 6-month-old run = ~180 past-dated sessions). Re-anchoring makes
+ *     the change mean "from this date on, it runs like this".
+ *
+ * Sessions with registrations are commitments: they are kept exactly as they
+ * are (detached), so attendees keep the date they bought. Upcoming sessions
+ * with nobody registered are pure generated data and are hard-deleted so the new
+ * pattern can own their dates (hard, not soft — a soft-deleted row keeps its
+ * unique slug and would block regeneration on that date).
+ *
+ * BLOCKED while any all-sessions pass is live: that pass promises a seat in
+ * every session, and a new pattern creates sessions its holders never bought.
+ * The organizer has to refund those first — the alternative is silently selling
+ * someone a pass that no longer covers the schedule.
+ */
+export async function changeRecurringPatternAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const id = String(formData.get("recurringEventId") ?? "");
+  const byWeekday = formData
+    .getAll("byWeekday")
+    .map((v) => Number(v))
+    .filter((n) => n >= 0 && n <= 6);
+
+  const parsed = patternSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/recurring/${id}/pattern?error=validation`);
+  const d = parsed.data;
+  if (d.frequency === "WEEKLY" && byWeekday.length === 0) {
+    redirect(`/dashboard/recurring/${id}/pattern?error=weekday_required`);
+  }
+
+  const re = await prisma.recurringEvent.findFirst({
+    where: { id: d.recurringEventId, ...orgScope(session), deletedAt: null },
+  });
+  if (!re) redirect("/dashboard?error=not_found");
+
+  const passHolders = await prisma.passPurchase.count({
+    where: { recurringEventId: re.id, status: "CONFIRMED" },
+  });
+  if (passHolders > 0) redirect(`/dashboard/recurring/${re.id}/pattern?error=pattern_pass_holders`);
+
+  const [hh, mm] = d.startTime.split(":").map(Number);
+  const startTimeMinutes = hh * 60 + mm;
+  // Local noon, like create: the rule reads only the date, and noon is
+  // unambiguous across every DST transition.
+  const seriesStart = fromZonedTime(`${d.startDate} 12:00:00`, re.timezone);
+  const now = new Date();
+
+  // Upcoming sessions nobody has registered for — the rule will lay these dates
+  // out again, so remove them first (hard: frees the date's unique slug).
+  const emptyUpcoming = await prisma.event.findMany({
+    where: { recurringEventId: re.id, deletedAt: null, endAt: { gte: now }, registrations: { none: {} } },
+    select: { id: true },
+  });
+  for (const ev of emptyUpcoming) {
+    await prisma.event.delete({ where: { id: ev.id } });
+  }
+
+  // Everything that survives (history + committed upcoming sessions) leaves the
+  // rule's index space so the new pattern can generate cleanly from 0.
+  const detached = await prisma.event.updateMany({
+    where: { recurringEventId: re.id, occurrenceIndex: { not: null } },
+    data: { occurrenceIndex: null },
+  });
+
+  await prisma.recurringEvent.update({
+    where: { id: re.id },
+    data: {
+      frequency: d.frequency,
+      interval: d.interval,
+      byWeekday,
+      monthlyMode: d.frequency === "MONTHLY" ? (d.monthlyMode ?? "DAY_OF_MONTH") : null,
+      startTimeMinutes,
+      durationMinutes: d.durationMinutes,
+      seriesStart,
+    },
+  });
+
+  // Only an ACTIVE run generates; an ENDED one keeps its new pattern for
+  // whenever it's reactivated.
+  const created =
+    re.status === "ACTIVE"
+      ? await materializeOccurrences(re.id, new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)).catch(() => 0)
+      : 0;
+
+  await audit({
+    organizationId: re.organizationId,
+    userId: session.sub,
+    action: "recurring.pattern_change",
+    targetType: "RecurringEvent",
+    targetId: re.id,
+    metadata: {
+      name: re.name,
+      before: {
+        frequency: re.frequency,
+        interval: re.interval,
+        byWeekday: re.byWeekday,
+        startTimeMinutes: re.startTimeMinutes,
+        durationMinutes: re.durationMinutes,
+        seriesStart: re.seriesStart.toISOString(),
+      },
+      after: {
+        frequency: d.frequency,
+        interval: d.interval,
+        byWeekday,
+        startTimeMinutes,
+        durationMinutes: d.durationMinutes,
+        seriesStart: seriesStart.toISOString(),
+      },
+      removedEmptyUpcoming: emptyUpcoming.length,
+      detachedFromRule: detached.count,
+      generated: created,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  const q = new URLSearchParams({
+    patterned: "1",
+    removed: String(emptyUpcoming.length),
+    generated: String(created),
+  });
+  redirect(`/dashboard/recurring/${re.id}/edit?${q.toString()}`);
+}
+
 /** Undo an End: generation resumes on the next worker tick. */
 export async function reactivateRecurringEventAction(formData: FormData) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());

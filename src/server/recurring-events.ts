@@ -4,6 +4,29 @@ import { computeOccurrences, ruleForRecurringEvent, occurrenceSlug } from "@/ser
 export * from "@/server/recurring-rule";
 
 /**
+ * An occurrence's slug is date-only (`my-class-2026-07-16`), so two sessions on
+ * the same DATE collide on the unique (organizationId, slug). That happens after
+ * a pattern change: a session that already has attendees keeps its old date and
+ * the new pattern may land on that date too. Suffix the newcomer instead of
+ * letting the create fail — a bare P2002 gets swallowed by the skip below, so
+ * the rule's index would never materialize, it would retry on every worker tick
+ * forever, and a bounded run could never satisfy "everything generated" and
+ * auto-END.
+ */
+async function uniqueEventSlug(organizationId: string, base: string): Promise<string> {
+  let slug = base;
+  let n = 1;
+  while (await prisma.event.findFirst({ where: { organizationId, slug }, select: { id: true } })) {
+    slug = `${base}-${++n}`;
+    if (n > 20) {
+      slug = `${base}-${Math.random().toString(36).slice(2, 7)}`;
+      break;
+    }
+  }
+  return slug;
+}
+
+/**
  * Materialize a recurring event's occurrences up to `throughInstant` as real Event rows
  * (each with one drop-in TicketType). Idempotent: occurrences already present
  * (matched by recurringEventId + startAt) are skipped, so re-running only fills gaps.
@@ -68,7 +91,7 @@ export async function materializeOccurrences(recurringEventId: string, throughIn
           recurringEventId: s.id,
           occurrenceIndex: o.index,
           name: s.name,
-          slug: occurrenceSlug(s.slug, o.start, s.timezone),
+          slug: await uniqueEventSlug(s.organizationId, occurrenceSlug(s.slug, o.start, s.timezone)),
           description: s.description,
           category: s.category,
           bannerUrl: s.bannerUrl,

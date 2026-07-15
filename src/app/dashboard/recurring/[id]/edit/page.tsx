@@ -22,6 +22,7 @@ export default async function EditRecurringEventPage({
   searchParams: {
     error?: string; saved?: string; updated?: string; skipped?: string;
     removed?: string; added?: string; kept?: string; ended?: string; reactivated?: string;
+    patterned?: string; generated?: string;
   };
 }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
@@ -107,6 +108,15 @@ export default async function EditRecurringEventPage({
           </div>
         )}
 
+        {searchParams?.patterned && (
+          <div className="mb-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Repeat pattern changed — now <strong>{describeRecurrence(re)}</strong>.{" "}
+            {removedN > 0 && <>{removedN} empty session{removedN === 1 ? "" : "s"} replaced. </>}
+            {Number(searchParams.generated ?? 0) > 0 && (
+              <>{searchParams.generated} session{Number(searchParams.generated) === 1 ? "" : "s"} generated on the new pattern.</>
+            )}
+          </div>
+        )}
         {searchParams?.ended && (
           <div className="mb-6 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 ring-1 ring-slate-200">
             ✓ Ended — no new sessions will be generated. Sessions already scheduled stay live and can still sell tickets.
@@ -245,8 +255,11 @@ export default async function EditRecurringEventPage({
           <section className="card">
             <h2 className="text-lg font-semibold">How long it runs</h2>
             <p className="mt-1 text-sm text-slate-500">
-              The pattern itself ({describeRecurrence(re)}) can&rsquo;t change here — but you can extend or shorten the run.
-              Extending generates the new dates immediately; shortening removes sessions past the new end.
+              Currently <strong>{describeRecurrence(re)}</strong>. Extend or shorten the run here — extending generates the
+              new dates immediately, shortening removes sessions past the new end.{" "}
+              <Link href={`/dashboard/recurring/${re.id}/pattern`} className="font-medium text-brand-700 hover:underline">
+                Change the repeat pattern →
+              </Link>
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <div>
