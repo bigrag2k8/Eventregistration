@@ -371,3 +371,32 @@ export async function verifyReviewTokenResult(
     return { claim: null, reason: "invalid" };
   }
 }
+
+/**
+ * Marketing unsubscribe token — identifies (org, email) so a one-click link can
+ * suppress that recipient. Deliberately has NO expiry: CAN-SPAM requires the
+ * opt-out mechanism to keep working, and a stale email's unsubscribe link must
+ * never "expire" into being unremovable. Signed with QR_SECRET like the other
+ * public tokens.
+ */
+export async function signUnsubscribeToken(payload: { organizationId: string; email: string }) {
+  return new SignJWT({ organizationId: payload.organizationId, email: payload.email, typ: "unsub" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setIssuer("eventflow-unsub")
+    .sign(QR_SECRET);
+}
+
+export async function verifyUnsubscribeToken(
+  token: string,
+): Promise<{ organizationId: string; email: string } | null> {
+  try {
+    const { payload } = await jwtVerify(token, QR_SECRET, { issuer: "eventflow-unsub" });
+    if (payload.typ !== "unsub" || typeof payload.organizationId !== "string" || typeof payload.email !== "string") {
+      return null;
+    }
+    return { organizationId: payload.organizationId, email: payload.email };
+  } catch {
+    return null;
+  }
+}

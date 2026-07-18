@@ -267,8 +267,45 @@ model Organization {
   disputes        Dispute[]
   reviews         Review[]
   recurringEvents RecurringEvent[]
+  marketingCampaigns    MarketingCampaign[]
+  marketingUnsubscribes MarketingUnsubscribe[]
 
   @@map("organizations")
+}
+
+/// A post-event marketing blast to an org's whole attendee audience (across
+/// events), as opposed to EmailCampaign which is scoped to one event's
+/// registrants. History/audit only — the actual sends are EmailLog rows.
+model MarketingCampaign {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subject         String
+  bodyHtml        String   @db.Text
+  bodyText        String   @db.Text
+  /// Optional upcoming event this blast promoted (drives the CTA button).
+  promotedEventId String?
+  recipientsCount Int      @default(0)
+  sentAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId])
+  @@map("marketing_campaigns")
+}
+
+/// A recipient who opted out of ONE org's marketing email. Suppression is
+/// per-org (unsubscribing from org A never silences org B), and NEVER blocks
+/// transactional mail (confirmations, reminders, refunds) — only marketing.
+model MarketingUnsubscribe {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@map("marketing_unsubscribes")
 }
 
 model User {
