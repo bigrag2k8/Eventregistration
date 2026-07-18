@@ -5,7 +5,8 @@ import { requireRolePage, orgScope } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { SubmitButton } from "@/components/SubmitButton";
-import { sendMarketingCampaignAction, marketingAudience } from "./actions";
+import { sendMarketingCampaignAction } from "./actions";
+import { marketingAudience } from "./audience";
 
 export const dynamic = "force-dynamic";
 

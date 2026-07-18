@@ -9,6 +9,7 @@ import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { signUnsubscribeToken } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { esc } from "@/lib/email";
+import { marketingAudience } from "./audience";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
 const SITE = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.yourevents.app").replace(/\/+$/, "");
@@ -23,29 +24,6 @@ function resend(): Resend | null {
   if (!key) return null;
   _resend = new Resend(key);
   return _resend;
-}
-
-/**
- * The org's marketing audience: every distinct email that has a CONFIRMED
- * registration for any of the org's events, MINUS anyone who unsubscribed from
- * this org's marketing. Case-insensitive dedup on email.
- */
-export async function marketingAudience(organizationId: string): Promise<{ email: string; firstName: string | null }[]> {
-  const [regs, unsubs] = await Promise.all([
-    prisma.registration.findMany({
-      where: { status: "CONFIRMED", event: { organizationId, deletedAt: null } },
-      select: { email: true, firstName: true },
-    }),
-    prisma.marketingUnsubscribe.findMany({ where: { organizationId }, select: { email: true } }),
-  ]);
-  const blocked = new Set(unsubs.map((u) => u.email.toLowerCase()));
-  const byEmail = new Map<string, { email: string; firstName: string | null }>();
-  for (const r of regs) {
-    const key = r.email.toLowerCase();
-    if (blocked.has(key) || byEmail.has(key)) continue;
-    byEmail.set(key, { email: r.email, firstName: r.firstName });
-  }
-  return [...byEmail.values()];
 }
 
 const schema = z.object({
