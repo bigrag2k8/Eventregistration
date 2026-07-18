@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
     "seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
@@ -43,6 +44,7 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.12",
     "@types/qrcode": "^1.5.5",
