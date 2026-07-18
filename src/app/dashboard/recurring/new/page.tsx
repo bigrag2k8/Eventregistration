@@ -69,7 +69,7 @@ export default async function NewRecurringEventPage({ searchParams }: { searchPa
           </form>
         </div>
 
-        <RecurringEventForm />
+        <RecurringEventForm canOfferPass={credits > 0} />
       </div>
     </main>
   );

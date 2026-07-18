@@ -13,7 +13,14 @@ const TIMEZONES = [
 ];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function RecurringEventForm({ defaultTimezone = "America/New_York" }: { defaultTimezone?: string }) {
+export function RecurringEventForm({
+  defaultTimezone = "America/New_York",
+  canOfferPass = false,
+}: {
+  defaultTimezone?: string;
+  /** The all-sessions pass is premium-only; disabled until the org holds a credit. */
+  canOfferPass?: boolean;
+}) {
   const [frequency, setFrequency] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
   const [days, setDays] = useState<Set<number>>(new Set([1])); // default Monday
   const intervalUnit = frequency === "DAILY" ? "day(s)" : frequency === "WEEKLY" ? "week(s)" : "month(s)";
@@ -186,12 +193,31 @@ export function RecurringEventForm({ defaultTimezone = "America/New_York" }: { d
           </div>
         </div>
         <div className="mt-4 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-100">
-          <label className="label" htmlFor="s-bundle">All-sessions pass price (USD, optional)</label>
-          <input id="s-bundle" name="bundlePriceDollars" type="number" min={0.5} step="0.01" className="input max-w-xs" placeholder="e.g. 100.00" />
+          <label className={`label ${canOfferPass ? "" : "opacity-60"}`} htmlFor="s-bundle">All-sessions pass price (USD, optional)</label>
+          <input
+            id="s-bundle"
+            name="bundlePriceDollars"
+            type="number"
+            min={0.5}
+            step="0.01"
+            disabled={!canOfferPass}
+            className={`input max-w-xs ${canOfferPass ? "" : "opacity-60"}`}
+            placeholder="e.g. 100.00"
+          />
           <p className="mt-1 text-xs text-slate-500">
-            One checkout buys a seat in every remaining session — price it below the drop-in total so the discount shows.
-            Requires a <strong>recurring event credit ($19)</strong> and an end date or session cap. Premium recurring events
-            also get unlimited registrations per session and your custom branding.
+            {canOfferPass ? (
+              <>
+                One checkout buys a seat in every remaining session — price it below the drop-in total so the discount
+                shows. Needs an end date or session cap. Premium recurring events also get unlimited registrations per
+                session and your custom branding.
+              </>
+            ) : (
+              <>
+                The all-sessions pass is a <strong>premium</strong> feature. Buy a{" "}
+                <strong>recurring event credit ($19)</strong> above to unlock it, plus unlimited registrations per session
+                and your custom branding.
+              </>
+            )}
           </p>
         </div>
       </section>
