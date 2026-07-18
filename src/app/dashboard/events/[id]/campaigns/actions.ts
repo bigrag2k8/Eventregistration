@@ -5,12 +5,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole, orgScope } from "@/lib/auth";
+import { getSession, requireRole, orgScope, signUnsubscribeToken } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { esc } from "@/lib/email";
 import { eventEntitlements } from "@/lib/plans";
 
 const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Your Events App <events@yourevents.app>";
+const SITE = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.yourevents.app").replace(/\/+$/, "");
 
 // All mail sends from the single verified platform sender (EMAIL_FROM). Per-org
 // custom senders were removed — see the note in src/lib/email.ts buildFrom.
@@ -65,8 +66,17 @@ export async function sendCampaignAction(formData: FormData) {
     where: { eventId: event.id, status: "CONFIRMED" },
     select: { email: true, firstName: true, lastName: true },
   });
+  // An organizer blast is a broadcast the organizer composes — same channel as
+  // org-wide marketing — so it honours the org's marketing unsubscribe list.
+  // (Automated transactional mail — confirmations, reminders, cancellations — is
+  // NOT suppressed; those still reach opted-out attendees.)
+  const unsubs = await prisma.marketingUnsubscribe.findMany({
+    where: { organizationId: org.id },
+    select: { email: true },
+  });
+  const blocked = new Set(unsubs.map((u) => u.email.toLowerCase()));
   const recipients = Array.from(
-    new Map(regs.map((r) => [r.email.toLowerCase(), r])).values()
+    new Map(regs.filter((r) => !blocked.has(r.email.toLowerCase())).map((r) => [r.email.toLowerCase(), r])).values()
   );
 
   if (recipients.length === 0) {
@@ -88,7 +98,10 @@ export async function sendCampaignAction(formData: FormData) {
   let sent = 0; let failed = 0;
 
   for (const r of recipients) {
-    const personalized = htmlBody(data.body, event, org, r.firstName ?? undefined);
+    const token = await signUnsubscribeToken({ organizationId: org.id, email: r.email });
+    const unsubUrl = `${SITE}/unsubscribe/${token}`;
+    const oneClickUrl = `${SITE}/api/unsubscribe/${token}`;
+    const personalized = htmlBody(data.body, event, org, r.firstName ?? undefined, unsubUrl);
     try {
       if (client) {
         const res = await client.emails.send({
@@ -96,6 +109,10 @@ export async function sendCampaignAction(formData: FormData) {
           to: r.email,
           subject: data.subject,
           html: personalized,
+          headers: {
+            "List-Unsubscribe": `<${oneClickUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         });
         await prisma.emailLog.create({
           data: {
@@ -155,7 +172,7 @@ export async function sendCampaignAction(formData: FormData) {
   // counter increments, and the audit log records sent / failed counts.
 }
 
-function htmlBody(body: string, event: any, org: any, firstName?: string) {
+function htmlBody(body: string, event: any, org: any, firstName?: string, unsubUrl?: string) {
   // Custom branding (org logo + brand color) is a premium-event feature; free
   // events fall back to the default brand color and no logo.
   const premium = !!event.isPremium;
@@ -191,9 +208,10 @@ function htmlBody(body: string, event: any, org: any, firstName?: string) {
         </p>
       </td></tr>
     </table>
-    <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px">
+    <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:16px;line-height:1.6">
       Sent by ${esc(org.name)} via Your Events App.<br>
-      You received this because you registered for <em>${esc(event.name)}</em>.
+      You received this because you registered for <em>${esc(event.name)}</em>.<br>
+      ${unsubUrl ? `<a href="${unsubUrl}" style="color:#94a3b8;text-decoration:underline">Unsubscribe from ${esc(org.name)}</a>` : ""}
     </p>
   </body></html>`;
 }
