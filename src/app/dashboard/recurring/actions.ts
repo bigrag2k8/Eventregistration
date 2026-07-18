@@ -7,8 +7,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { FREE_RECURRING_EVENTS } from "@/lib/plans";
-import { materializeOccurrences, computeOccurrences, ruleForRecurringEvent } from "@/server/recurring-events";
+import { materializeOccurrences, computeOccurrences, ruleForRecurringEvent, FREE_RECURRING_SESSIONS } from "@/server/recurring-events";
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
@@ -557,15 +556,37 @@ export async function createRecurringEventAction(formData: FormData) {
   const slug = await uniqueRecurringSlug(session.orgId, slugify(d.name));
 
   // ── Free vs premium gate ────────────────────────────────────────────────
-  // Free tier: ONE active free series at a time (occurrences get the free-event
-  // entitlements: 50 regs/session, no branding, drop-in only). Anything beyond
-  // that — a second concurrent series, or wanting the full-series bundle —
-  // requires spending a $19 series credit, which makes the series PREMIUM.
+  // The number of recurring events an org runs is unlimited. The gate is per
+  // event, on SESSION COUNT: a free recurring event runs at most
+  // FREE_RECURRING_SESSIONS (2) sessions. Asking for more than that — or for the
+  // full-series bundle — requires spending a $19 credit, which makes the event
+  // PREMIUM (session ceiling rises to 12, plus unlimited regs / branding).
+  const requestedCap = d.occurrenceCap ? Number(d.occurrenceCap) : null;
   const wantsBundle = !!d.bundlePriceDollars;
-  const activeFreeRecurring = await prisma.recurringEvent.count({
-    where: { organizationId: session.orgId, status: "ACTIVE", isPremium: false, deletedAt: null },
-  });
-  const needsCredit = wantsBundle || activeFreeRecurring >= FREE_RECURRING_EVENTS;
+  // A credit is required only when the organizer EXPLICITLY asks for more than
+  // the free allowance — via a cap / end date that yields more than 2 sessions,
+  // or the all-sessions bundle. An open-ended run (no cap, no end) stays free
+  // and the materializer clamps it to the free ceiling, so blank never walls.
+  const bounded = !!(seriesEnd || requestedCap);
+  const far = new Date(Date.now() + 5 * 365 * 24 * 60 * 60 * 1000);
+  const requestedSessions = bounded
+    ? computeOccurrences(
+        ruleForRecurringEvent({
+          frequency: d.frequency,
+          interval: d.interval,
+          byWeekday,
+          monthlyMode: d.monthlyMode ?? null,
+          timezone: d.timezone,
+          seriesStart,
+          startTimeMinutes,
+          seriesEnd,
+          occurrenceCap: requestedCap,
+          isPremium: true, // measure the true requested size, not the free clamp
+        }),
+        far,
+      ).length
+    : FREE_RECURRING_SESSIONS;
+  const needsCredit = wantsBundle || requestedSessions > FREE_RECURRING_SESSIONS;
   const isPremium = needsCredit;
 
   // Credit spend + recurring-event create in ONE transaction, so a failed create can

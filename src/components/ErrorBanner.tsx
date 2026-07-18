@@ -48,7 +48,7 @@ const MESSAGES: Record<string, string> = {
   delete_has_registrations: "This event has registrations and can't be deleted. Cancel it (which refunds attendees) or Reschedule it instead.",
   weekday_required: "Pick at least one day of the week for a weekly recurring event.",
   recurring_has_registrations: "Some upcoming sessions in this recurring event have confirmed registrations. Cancel those sessions first (which refunds attendees), then delete it.",
-  recurring_credit_required: "This needs a recurring event credit ($19) — the free plan includes two active drop-in recurring events. Use the “Buy recurring event credit” button above; after checkout you'll come right back here to finish.",
+  recurring_credit_required: "This needs a recurring event credit ($19) — a free recurring event runs up to 2 sessions; more than that (up to 12) or an all-sessions pass needs a credit. Use the “Buy recurring event credit” button above; after checkout you'll come right back here to finish.",
   session_no_upgrade: "This is a session of a recurring event — premium comes from the recurring event's credit, not per-session upgrades.",
   marketing_cooldown: "You already sent a marketing email in the last 24 hours. You can send another one tomorrow.",
   review_not_confirmed: "Only a confirmed registration can be sent a review invite.",

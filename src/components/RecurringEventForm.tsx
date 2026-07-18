@@ -24,6 +24,8 @@ export function RecurringEventForm({
   const [frequency, setFrequency] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
   const [days, setDays] = useState<Set<number>>(new Set([1])); // default Monday
   const intervalUnit = frequency === "DAILY" ? "day(s)" : frequency === "WEEKLY" ? "week(s)" : "month(s)";
+  // Free events run up to 2 sessions; a $19 credit (canOfferPass) raises it to 12.
+  const maxSessions = canOfferPass ? 12 : 2;
 
   function toggleDay(n: number) {
     setDays((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
@@ -137,11 +139,30 @@ export function RecurringEventForm({
               <input id="s-end" name="endDate" type="date" className="input" />
             </div>
             <div>
-              <label className="label" htmlFor="s-cap">…or after this many sessions (max 12)</label>
-              <input id="s-cap" name="occurrenceCap" type="number" min={1} max={12} className="input" placeholder="e.g. 12" />
+              <label className="label" htmlFor="s-cap">…or after this many sessions (max {maxSessions})</label>
+              <input
+                id="s-cap"
+                name="occurrenceCap"
+                type="number"
+                min={1}
+                max={maxSessions}
+                defaultValue={canOfferPass ? undefined : 2}
+                className="input"
+                placeholder={`e.g. ${maxSessions}`}
+              />
             </div>
           </div>
-          <p className="text-xs text-slate-500">A recurring event runs for up to 12 sessions. Leave both blank to generate the full 12, or set an end date / cap to stop sooner.</p>
+          {canOfferPass ? (
+            <p className="text-xs text-slate-500">
+              Your credit lets you schedule <strong>up to 12 sessions</strong>. Set an end date or a session count to say
+              how many; leave both blank for a short 2-session run.
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">
+              A free recurring event runs <strong>up to 2 sessions</strong>. Want more? Buy a{" "}
+              <strong>$19 credit</strong> above to schedule up to 12.
+            </p>
+          )}
         </div>
       </section>
 

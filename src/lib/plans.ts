@@ -35,11 +35,11 @@ export const PREMIUM_EVENT_EMAIL_BROADCASTS = 5;
 export const SINGLE_EVENT_PRICE_CENTS = 1900;
 /** Price of one recurring event credit (USD cents). Mirrors PLANS.RECURRING_EVENT_CREDIT. */
 export const RECURRING_EVENT_CREDIT_PRICE_CENTS = 1900;
-/** Max total sessions a single recurring event may generate (fits a 12-week
- *  course; also stops abuse — a $19 credit can't mint thousands of events). */
+/** Max total sessions a single recurring event may generate with a credit (fits
+ *  a 12-week course; also stops abuse — a $19 credit can't mint thousands). A
+ *  FREE recurring event is capped much lower — see FREE_RECURRING_SESSIONS in
+ *  src/server/recurring-rule.ts. The number of recurring events is unlimited. */
 export const MAX_RECURRING_OCCURRENCES = 12;
-/** Free plan: number of ACTIVE drop-in recurring events allowed at once. */
-export const FREE_RECURRING_EVENTS = 2;
 
 export interface EventEntitlements {
   /** Max total registrations (tickets) for this event. null = unlimited. */

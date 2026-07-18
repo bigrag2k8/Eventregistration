@@ -144,7 +144,7 @@ describe("computeOccurrences — DST correctness", () => {
   });
 });
 
-describe("ruleForRecurringEvent — 12-session cap", () => {
+describe("ruleForRecurringEvent — tiered session caps", () => {
   const base = {
     frequency: "DAILY" as const,
     interval: 1,
@@ -154,22 +154,42 @@ describe("ruleForRecurringEvent — 12-session cap", () => {
     seriesStart: new Date("2026-08-01T16:00:00.000Z"),
     startTimeMinutes: 12 * 60,
   };
+  const H = new Date("2027-08-01T00:00:00.000Z"); // horizon wider than any cap
 
-  it("clamps an open-ended run (no end, no cap) to 12 occurrences", () => {
-    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: null });
+  // ── Premium (a $19 credit was spent): ceiling is 12 ──────────────────────
+  it("premium: clamps an open-ended run (no end, no cap) to 12", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: null, isPremium: true });
     expect(rule.occurrenceCap).toBe(12);
-    const occ = computeOccurrences(rule, new Date("2027-08-01T00:00:00.000Z"));
-    expect(occ.length).toBe(12);
+    expect(computeOccurrences(rule, H).length).toBe(12);
   });
 
-  it("clamps an explicit cap above 12 down to 12", () => {
-    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 100 });
+  it("premium: clamps an explicit cap above 12 down to 12", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 100, isPremium: true });
     expect(rule.occurrenceCap).toBe(12);
   });
 
-  it("honors a smaller explicit cap", () => {
-    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 4 });
+  it("premium: honors a smaller explicit cap", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 4, isPremium: true });
     expect(rule.occurrenceCap).toBe(4);
-    expect(computeOccurrences(rule, new Date("2027-01-01T00:00:00.000Z")).length).toBe(4);
+    expect(computeOccurrences(rule, H).length).toBe(4);
+  });
+
+  // ── Free (default): ceiling is 2 sessions ────────────────────────────────
+  it("free: clamps an open-ended run to 2 sessions", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: null });
+    expect(rule.occurrenceCap).toBe(2);
+    expect(computeOccurrences(rule, H).length).toBe(2);
+  });
+
+  it("free: clamps a cap above 2 down to 2", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 10, isPremium: false });
+    expect(rule.occurrenceCap).toBe(2);
+    expect(computeOccurrences(rule, H).length).toBe(2);
+  });
+
+  it("free: honors a cap of 1", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 1 });
+    expect(rule.occurrenceCap).toBe(1);
+    expect(computeOccurrences(rule, H).length).toBe(1);
   });
 });

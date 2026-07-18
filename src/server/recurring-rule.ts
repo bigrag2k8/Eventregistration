@@ -149,20 +149,26 @@ export function computeOccurrences(rule: OccurrenceRule, throughInstant: Date): 
 }
 
 /** Build the OccurrenceRule for a stored recurring event (derives local dates in its tz). */
-/** Platform ceiling on total sessions per recurring event (fits a 12-week
- *  course; blocks abuse). Enforced here so EVERY consumer of the rule —
- *  materializer, pattern editor, worker end-check — respects it, even an
- *  open-ended run (no end date / no cap) which is clamped to this. */
+/** Session ceilings per recurring event. A FREE recurring event runs at most
+ *  {@link FREE_RECURRING_SESSIONS} sessions; spending a $19 credit makes it
+ *  premium and raises the ceiling to {@link MAX_RECURRING_OCCURRENCES} (fits a
+ *  12-week course; also blocks abuse). Enforced HERE so EVERY consumer of the
+ *  rule — materializer, pattern editor, worker end-check — respects it, even an
+ *  open-ended run (no end date / no cap) which is clamped to the ceiling. */
 export const MAX_RECURRING_OCCURRENCES = 12;
+export const FREE_RECURRING_SESSIONS = 2;
 
 export function ruleForRecurringEvent(s: {
   frequency: SeriesFrequency; interval: number; byWeekday: number[];
   monthlyMode: MonthlyMode | null; timezone: string; seriesStart: Date;
   startTimeMinutes: number; seriesEnd: Date | null; occurrenceCap: number | null;
+  isPremium?: boolean;
 }): OccurrenceRule {
-  // Clamp to the platform max: an explicit cap can't exceed it, and an
-  // open-ended run (null) is treated as the max rather than generating forever.
-  const cappedOccurrences = Math.min(s.occurrenceCap ?? MAX_RECURRING_OCCURRENCES, MAX_RECURRING_OCCURRENCES);
+  // Clamp to the ceiling for this tier: an explicit cap can't exceed it, and an
+  // open-ended run (null) is treated as the ceiling rather than generating
+  // forever. Free = 2 sessions; a purchased credit lifts it to the platform max.
+  const ceiling = s.isPremium ? MAX_RECURRING_OCCURRENCES : FREE_RECURRING_SESSIONS;
+  const cappedOccurrences = Math.min(s.occurrenceCap ?? ceiling, ceiling);
   return {
     frequency: s.frequency,
     interval: s.interval,

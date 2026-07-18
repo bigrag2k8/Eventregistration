@@ -51,6 +51,8 @@ export default async function EditRecurringEventPage({
   ]);
 
   const bounded = !!(re.seriesEnd || re.occurrenceCap);
+  // Free events run up to 2 sessions; premium (a $19 credit was spent at create) up to 12.
+  const maxSessions = re.isPremium ? 12 : 2;
   const updatedN = Number(searchParams?.updated ?? 0);
   const skippedN = Number(searchParams?.skipped ?? 0);
   const removedN = Number(searchParams?.removed ?? 0);
@@ -254,14 +256,16 @@ export default async function EditRecurringEventPage({
                 <input id="e-enddate" name="endDate" type="date" defaultValue={endDateValue} className="input" />
               </div>
               <div>
-                <label className="label" htmlFor="e-cap">…or after this many sessions (max 12)</label>
-                <input id="e-cap" name="occurrenceCap" type="number" min={1} max={12} defaultValue={re.occurrenceCap ?? ""} placeholder="e.g. 12" className="input" />
+                <label className="label" htmlFor="e-cap">…or after this many sessions (max {maxSessions})</label>
+                <input id="e-cap" name="occurrenceCap" type="number" min={1} max={maxSessions} defaultValue={re.occurrenceCap ?? ""} placeholder={`e.g. ${maxSessions}`} className="input" />
               </div>
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              A recurring event runs for up to 12 sessions; blank generates the full 12. Sessions past a new, earlier end
-              are removed only when they have no registrations — any with attendees are reported so you can cancel and
-              refund them.
+              {re.isPremium
+                ? "This recurring event runs up to 12 sessions; blank generates the full 12."
+                : "A free recurring event runs up to 2 sessions."}{" "}
+              Sessions past a new, earlier end are removed only when they have no registrations — any with attendees are
+              reported so you can cancel and refund them.
             </p>
           </section>
 
