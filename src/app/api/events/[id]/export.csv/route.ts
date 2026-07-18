@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { reportTenantViolation } from "@/lib/tenant-violation";
 
 /**
  * Quote-escape AND neutralize CSV formula injection: a field starting with
@@ -20,6 +21,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
   const event = await prisma.event.findUnique({ where: { id: params.id }, include: { customQuestions: true } });
   if (!event || event.organizationId !== session.orgId) {
+    // Event exists but belongs to another org → a real cross-tenant attempt
+    // (as opposed to a nonexistent id). Record + alert, then deny.
+    if (event && event.organizationId !== session.orgId) {
+      await reportTenantViolation({
+        session, resourceType: "Event", resourceId: params.id,
+        ownerOrgId: event.organizationId, route: "api/events/[id]/export.csv",
+      });
+    }
     return new NextResponse("Forbidden", { status: 403 });
   }
 

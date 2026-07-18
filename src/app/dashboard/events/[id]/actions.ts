@@ -7,6 +7,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { reportTenantViolation } from "@/lib/tenant-violation";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 import { sendConfirmationEmail, sendReviewRequestEmail } from "@/lib/email";
@@ -16,7 +17,20 @@ async function authorizeEvent(eventId: string) {
   const event = await prisma.event.findFirst({
     where: { id: eventId, ...orgScope(session), deletedAt: null },
   });
-  if (!event) throw new Error("Forbidden");
+  if (!event) {
+    // Deny path only. Distinguish a real cross-tenant attempt (event exists,
+    // belongs to another org) from a stale/typo/deleted id (no such event), so
+    // we alert on the former without noise from the latter. The extra lookup
+    // never runs on the hot path (a valid, in-scope event returned above).
+    const foreign = await prisma.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
+    if (foreign && foreign.organizationId !== session.orgId) {
+      await reportTenantViolation({
+        session, resourceType: "Event", resourceId: eventId,
+        ownerOrgId: foreign.organizationId, route: "dashboard/events/[id] server action",
+      });
+    }
+    throw new Error("Forbidden");
+  }
   return { session, event };
 }
 
