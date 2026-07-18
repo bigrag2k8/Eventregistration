@@ -80,7 +80,10 @@ async function promoteWaitlist() {
       try {
         await sendWaitlistPromotionEmail(w.id);
       } catch (e: any) {
+        // A promoted attendee who never gets the email silently loses their
+        // 24h window — capture, don't just log (matches every sibling job).
         console.error(`[worker] waitlist promotion email failed for ${w.id}:`, e?.message);
+        Sentry.captureException(e, { tags: { job: "promoteWaitlist" }, extra: { waitlistId: w.id, eventId: w.eventId } });
       }
     }
   }
@@ -672,7 +675,10 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   require("child_process").execSync("npx prisma migrate deploy", { stdio: "inherit" });
 } catch (e: any) {
+  // We start anyway (web is the primary migrator), but a failure here means the
+  // worker may be running against a stale schema — capture it, don't just log.
   console.error("[worker-boot] migrate deploy failed — starting anyway:", e?.message);
+  Sentry.captureException(e, { level: "warning", tags: { job: "worker-boot", step: "migrate-deploy" } });
 }
 
 console.log("Your Events App worker started");

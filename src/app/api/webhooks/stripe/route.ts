@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { issueTickets, releaseSeats, releasePromoUse } from "@/server/tickets";
@@ -33,6 +34,15 @@ async function refundOrphanSession(session: any, regId: string, paymentIntentId:
     // "already refunded" error here is expected on event redelivery.
     console.error("[webhook] FAILED to auto-refund orphan session — manual reconciliation may be needed", {
       sessionId: session.id, registrationId: regId, paymentIntent: paymentIntentId, error: e?.message,
+    });
+    // Money captured with nothing delivered and the auto-refund failed — this is
+    // the highest-signal failure in the whole webhook. Capture to Sentry (the
+    // catch swallows the error, so nextjs auto-instrumentation never sees it)
+    // AND page ops below. Both are non-throwing so they can't worsen the failure.
+    Sentry.captureException(e, {
+      level: "error",
+      tags: { area: "webhook", reason: "orphan_refund_failed" },
+      extra: { sessionId: session.id, registrationId: regId, paymentIntent: paymentIntentId },
     });
     // Page the platform team — a stuck charge needs a human, and a console line
     // in a webhook is easy to miss. Non-throwing, so it can't worsen the failure.
