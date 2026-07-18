@@ -130,11 +130,11 @@ export function RecurringEventForm({ defaultTimezone = "America/New_York" }: { d
               <input id="s-end" name="endDate" type="date" className="input" />
             </div>
             <div>
-              <label className="label" htmlFor="s-cap">…or after this many sessions</label>
-              <input id="s-cap" name="occurrenceCap" type="number" min={1} max={400} className="input" placeholder="e.g. 12" />
+              <label className="label" htmlFor="s-cap">…or after this many sessions (max 12)</label>
+              <input id="s-cap" name="occurrenceCap" type="number" min={1} max={12} className="input" placeholder="e.g. 12" />
             </div>
           </div>
-          <p className="text-xs text-slate-500">Leave both blank for an open-ended recurring event that keeps generating new sessions automatically.</p>
+          <p className="text-xs text-slate-500">A recurring event runs for up to 12 sessions. Leave both blank to generate the full 12, or set an end date / cap to stop sooner.</p>
         </div>
       </section>
 
@@ -190,7 +190,7 @@ export function RecurringEventForm({ defaultTimezone = "America/New_York" }: { d
           <input id="s-bundle" name="bundlePriceDollars" type="number" min={0.5} step="0.01" className="input max-w-xs" placeholder="e.g. 100.00" />
           <p className="mt-1 text-xs text-slate-500">
             One checkout buys a seat in every remaining session — price it below the drop-in total so the discount shows.
-            Requires a <strong>recurring event credit ($34.99)</strong> and an end date or session cap. Premium recurring events
+            Requires a <strong>recurring event credit ($19)</strong> and an end date or session cap. Premium recurring events
             also get unlimited registrations per session and your custom branding.
           </p>
         </div>

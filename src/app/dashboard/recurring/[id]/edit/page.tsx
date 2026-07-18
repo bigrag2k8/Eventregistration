@@ -244,7 +244,7 @@ export default async function EditRecurringEventPage({
               />
               <p className="mt-1 text-xs text-slate-500">
                 {!re.isPremium
-                  ? "Requires a recurring event credit ($34.99) — this one is on the free tier, so the pass can't be offered."
+                  ? "Requires a recurring event credit ($19) — this one is on the free tier, so the pass can't be offered."
                   : !bounded
                     ? "Only available on a bounded recurring event (one with an end date or a session cap)."
                     : "One checkout buys a seat in every remaining session. Clear the field to stop offering it."}
@@ -267,13 +267,14 @@ export default async function EditRecurringEventPage({
                 <input id="e-enddate" name="endDate" type="date" defaultValue={endDateValue} className="input" />
               </div>
               <div>
-                <label className="label" htmlFor="e-cap">…or after this many sessions</label>
-                <input id="e-cap" name="occurrenceCap" type="number" min={1} max={400} defaultValue={re.occurrenceCap ?? ""} placeholder="e.g. 12" className="input" />
+                <label className="label" htmlFor="e-cap">…or after this many sessions (max 12)</label>
+                <input id="e-cap" name="occurrenceCap" type="number" min={1} max={12} defaultValue={re.occurrenceCap ?? ""} placeholder="e.g. 12" className="input" />
               </div>
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              Leave both blank for an open-ended run that keeps generating. Sessions past a new, earlier end are removed
-              only when they have no registrations — any with attendees are reported so you can cancel and refund them.
+              A recurring event runs for up to 12 sessions; blank generates the full 12. Sessions past a new, earlier end
+              are removed only when they have no registrations — any with attendees are reported so you can cancel and
+              refund them.
             </p>
           </section>
 

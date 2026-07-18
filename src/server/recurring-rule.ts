@@ -149,11 +149,20 @@ export function computeOccurrences(rule: OccurrenceRule, throughInstant: Date): 
 }
 
 /** Build the OccurrenceRule for a stored recurring event (derives local dates in its tz). */
+/** Platform ceiling on total sessions per recurring event (fits a 12-week
+ *  course; blocks abuse). Enforced here so EVERY consumer of the rule —
+ *  materializer, pattern editor, worker end-check — respects it, even an
+ *  open-ended run (no end date / no cap) which is clamped to this. */
+export const MAX_RECURRING_OCCURRENCES = 12;
+
 export function ruleForRecurringEvent(s: {
   frequency: SeriesFrequency; interval: number; byWeekday: number[];
   monthlyMode: MonthlyMode | null; timezone: string; seriesStart: Date;
   startTimeMinutes: number; seriesEnd: Date | null; occurrenceCap: number | null;
 }): OccurrenceRule {
+  // Clamp to the platform max: an explicit cap can't exceed it, and an
+  // open-ended run (null) is treated as the max rather than generating forever.
+  const cappedOccurrences = Math.min(s.occurrenceCap ?? MAX_RECURRING_OCCURRENCES, MAX_RECURRING_OCCURRENCES);
   return {
     frequency: s.frequency,
     interval: s.interval,
@@ -163,7 +172,7 @@ export function ruleForRecurringEvent(s: {
     startDate: formatInTimeZone(s.seriesStart, s.timezone, "yyyy-MM-dd"),
     startTimeMinutes: s.startTimeMinutes,
     endDate: s.seriesEnd ? formatInTimeZone(s.seriesEnd, s.timezone, "yyyy-MM-dd") : null,
-    occurrenceCap: s.occurrenceCap,
+    occurrenceCap: cappedOccurrences,
   };
 }
 

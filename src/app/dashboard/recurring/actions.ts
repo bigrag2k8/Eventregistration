@@ -7,6 +7,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, orgScope } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { FREE_RECURRING_EVENTS } from "@/lib/plans";
 import { materializeOccurrences, computeOccurrences, ruleForRecurringEvent } from "@/server/recurring-events";
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
@@ -24,7 +25,7 @@ const schema = z.object({
   startTime: z.string().regex(HHMM),
   durationMinutes: z.coerce.number().int().min(5).max(1440),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
-  occurrenceCap: z.coerce.number().int().min(1).max(400).optional().or(z.literal("")),
+  occurrenceCap: z.coerce.number().int().min(1).max(12).optional().or(z.literal("")),
   ticketName: z.string().min(1).max(80),
   priceDollars: z.coerce.number().min(0).max(100000),
   capacity: z.coerce.number().int().min(1).max(1000000).optional().or(z.literal("")),
@@ -70,7 +71,7 @@ const editSchema = z.object({
   // Run length. Extending is free (new indexes just get materialized);
   // shortening drops the now-out-of-range tail (see pruneOutOfRange).
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
-  occurrenceCap: z.coerce.number().int().min(1).max(400).optional().or(z.literal("")),
+  occurrenceCap: z.coerce.number().int().min(1).max(12).optional().or(z.literal("")),
 });
 
 /**
@@ -559,12 +560,12 @@ export async function createRecurringEventAction(formData: FormData) {
   // Free tier: ONE active free series at a time (occurrences get the free-event
   // entitlements: 50 regs/session, no branding, drop-in only). Anything beyond
   // that — a second concurrent series, or wanting the full-series bundle —
-  // requires spending a $34.99 series credit, which makes the series PREMIUM.
+  // requires spending a $19 series credit, which makes the series PREMIUM.
   const wantsBundle = !!d.bundlePriceDollars;
   const activeFreeRecurring = await prisma.recurringEvent.count({
     where: { organizationId: session.orgId, status: "ACTIVE", isPremium: false, deletedAt: null },
   });
-  const needsCredit = wantsBundle || activeFreeRecurring >= 1;
+  const needsCredit = wantsBundle || activeFreeRecurring >= FREE_RECURRING_EVENTS;
   const isPremium = needsCredit;
 
   // Credit spend + recurring-event create in ONE transaction, so a failed create can

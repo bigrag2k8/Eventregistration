@@ -128,7 +128,7 @@ export default async function EventManagePage({ params, searchParams }: { params
 
         {/* Event type / upgrade. Sessions of a recurring event NEVER get the $19
             single-event upgrade — premium is inherited from the recurring event
-            (its $34.99 credit), not bought per session. */}
+            (its $19 credit), not bought per session. */}
         {event.recurringEvent ? (
           <section className="card flex flex-wrap items-center justify-between gap-3">
             <div>

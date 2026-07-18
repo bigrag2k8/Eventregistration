@@ -158,7 +158,7 @@ export async function upgradeEventAction(formData: FormData) {
   const { session, event } = await authorizeEvent(eventId);
   if (event.isPremium) redirect(`/dashboard/events/${event.id}?saved=1`);
   // Sessions of a recurring event inherit premium from the recurring event's
-  // $34.99 credit — the $19 single-event upgrade must not apply to them. The
+  // $19 credit — the $19 single-event upgrade must not apply to them. The
   // UI hides the button; this guards a direct/crafted submit.
   if (event.recurringEventId) redirect(`/dashboard/events/${event.id}?error=session_no_upgrade`);
 

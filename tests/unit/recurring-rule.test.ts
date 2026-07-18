@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatInTimeZone } from "date-fns-tz";
-import { computeOccurrences, type OccurrenceRule } from "@/server/recurring-rule";
+import { computeOccurrences, ruleForRecurringEvent, type OccurrenceRule } from "@/server/recurring-rule";
 
 const NY = "America/New_York";
 
@@ -141,5 +141,35 @@ describe("computeOccurrences — DST correctness", () => {
       "2026-03-08T22:00:00.000Z",
       "2026-03-15T22:00:00.000Z",
     ]);
+  });
+});
+
+describe("ruleForRecurringEvent — 12-session cap", () => {
+  const base = {
+    frequency: "DAILY" as const,
+    interval: 1,
+    byWeekday: [] as number[],
+    monthlyMode: null,
+    timezone: "America/New_York",
+    seriesStart: new Date("2026-08-01T16:00:00.000Z"),
+    startTimeMinutes: 12 * 60,
+  };
+
+  it("clamps an open-ended run (no end, no cap) to 12 occurrences", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: null });
+    expect(rule.occurrenceCap).toBe(12);
+    const occ = computeOccurrences(rule, new Date("2027-08-01T00:00:00.000Z"));
+    expect(occ.length).toBe(12);
+  });
+
+  it("clamps an explicit cap above 12 down to 12", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 100 });
+    expect(rule.occurrenceCap).toBe(12);
+  });
+
+  it("honors a smaller explicit cap", () => {
+    const rule = ruleForRecurringEvent({ ...base, seriesEnd: null, occurrenceCap: 4 });
+    expect(rule.occurrenceCap).toBe(4);
+    expect(computeOccurrences(rule, new Date("2027-01-01T00:00:00.000Z")).length).toBe(4);
   });
 });

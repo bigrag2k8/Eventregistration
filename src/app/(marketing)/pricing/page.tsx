@@ -9,7 +9,7 @@ const STRIPE_FEE_LABEL = "2.9% + $0.30";
 export const metadata = {
   title: "Pricing — Your Events App",
   description:
-    "Free to start. $19 unlocks a full-featured event; $34.99 unlocks a whole recurring series. Flat 5% on sales — never over 10% on class drop-ins. No subscription.",
+    "Free to start. $19 unlocks a full-featured event, or a whole recurring event — up to 12 sessions. Flat 5% on sales — never over 10% on class drop-ins. No subscription.",
 };
 
 const TIERS = [

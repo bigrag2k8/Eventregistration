@@ -10,10 +10,12 @@
 
 export const STRIPE_PRICES = {
   SINGLE_EVENT: process.env.STRIPE_PRICE_SINGLE_EVENT ?? "price_1Thy3mGrTuPPvYuYlFzhMPOH", // $19 one-time
-  // Recurring event credit has NO fallback price id — when the env var is unset the
-  // billing checkout builds an inline price_data line item instead, so no
-  // Stripe dashboard setup is required to sell it.
-  RECURRING_EVENT_CREDIT: process.env.STRIPE_PRICE_RECURRING_EVENT_CREDIT ?? null,
+  // Recurring event credit is ALWAYS billed inline (price_data) at
+  // RECURRING_EVENT_CREDIT_PRICE_CENTS — hardcoded null so the price is
+  // controlled entirely from code, not a Stripe Price object. NOTE: the old
+  // STRIPE_PRICE_RECURRING_EVENT_CREDIT env var (a $34.99 Price) is intentionally
+  // ignored; delete it from the host to avoid confusion.
+  RECURRING_EVENT_CREDIT: null as string | null,
   STARTER:      process.env.STRIPE_PRICE_STARTER      ?? "price_1Thy4EGrTuPPvYuYf7xx0F0i", // $24.99/mo
   PRO:          process.env.STRIPE_PRICE_PRO          ?? "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
 };
@@ -32,7 +34,12 @@ export const PREMIUM_EVENT_EMAIL_BROADCASTS = 5;
 /** Price of one single-event credit (USD cents). Mirrors PLANS.SINGLE_EVENT. */
 export const SINGLE_EVENT_PRICE_CENTS = 1900;
 /** Price of one recurring event credit (USD cents). Mirrors PLANS.RECURRING_EVENT_CREDIT. */
-export const RECURRING_EVENT_CREDIT_PRICE_CENTS = 3499;
+export const RECURRING_EVENT_CREDIT_PRICE_CENTS = 1900;
+/** Max total sessions a single recurring event may generate (fits a 12-week
+ *  course; also stops abuse — a $19 credit can't mint thousands of events). */
+export const MAX_RECURRING_OCCURRENCES = 12;
+/** Free plan: number of ACTIVE drop-in recurring events allowed at once. */
+export const FREE_RECURRING_EVENTS = 2;
 
 export interface EventEntitlements {
   /** Max total registrations (tickets) for this event. null = unlimited. */
@@ -129,7 +136,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
   RECURRING_EVENT_CREDIT: {
     key: "RECURRING_EVENT_CREDIT",
     name: "Recurring event",
-    price: "$34.99 per recurring event",
+    price: "$19 per recurring event",
     priceCents: RECURRING_EVENT_CREDIT_PRICE_CENTS,
     cadence: "one_time",
     stripePriceId: STRIPE_PRICES.RECURRING_EVENT_CREDIT,

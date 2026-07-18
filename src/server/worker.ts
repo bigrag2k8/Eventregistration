@@ -515,9 +515,10 @@ async function extendRecurringHorizon() {
   for (const s of recurringEvents) {
     try {
       await materializeOccurrences(s.id, horizon);
-      // Only bounded recurring events can end; open-ended ones roll forever (cancelling
-      // every current session there is temporary — the horizon generates more).
-      if (s.seriesEnd || s.occurrenceCap != null) {
+      // Every recurring event is now bounded — the rule caps total sessions at
+      // MAX_RECURRING_OCCURRENCES (12), so even a run with no end date / cap set
+      // generates a finite number and can auto-END once they're all done.
+      {
         const far = new Date(Date.now() + 5 * 365 * ONE_DAY);
         const all = computeOccurrences(ruleForRecurringEvent(s), far);
         const last = all[all.length - 1];

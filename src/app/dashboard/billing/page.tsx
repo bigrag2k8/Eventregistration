@@ -137,7 +137,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
           </div>
           <form action="/api/billing/checkout" method="POST">
             <input type="hidden" name="planKey" value="RECURRING_EVENT_CREDIT" />
-            <button type="submit" className="btn-primary">Buy recurring event credit — $34.99</button>
+            <button type="submit" className="btn-primary">Buy recurring event credit — $19</button>
           </form>
         </section>
 

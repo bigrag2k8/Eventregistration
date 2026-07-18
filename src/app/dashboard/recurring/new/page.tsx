@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { FREE_RECURRING_EVENTS } from "@/lib/plans";
 import { RecurringEventForm } from "@/components/RecurringEventForm";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +22,9 @@ export default async function NewRecurringEventPage({ searchParams }: { searchPa
     where: { organizationId: session.orgId, status: "ACTIVE", isPremium: false, deletedAt: null },
   });
   const credits = org?.recurringEventCredits ?? 0;
-  // Mirrors the createRecurringEventAction gate: a credit is needed to sell a bundle,
-  // or once the single free-recurring-event slot is already taken.
-  const freeSlotOpen = activeFreeRecurring === 0;
+  // Mirrors the createRecurringEventAction gate: a credit is needed to sell a
+  // bundle, or once both free-recurring-event slots are already taken.
+  const freeSlotOpen = activeFreeRecurring < FREE_RECURRING_EVENTS;
 
   return (
     <main>
@@ -57,14 +58,14 @@ export default async function NewRecurringEventPage({ searchParams }: { searchPa
             <span className="font-medium">Recurring event credits: {credits}</span>
             <span className="ml-2 text-slate-500">
               {freeSlotOpen
-                ? "Your free recurring-event slot is open — drop-in only, 50 registrations per session. A credit unlocks the all-sessions pass, unlimited registrations, and your branding."
-                : "Your free recurring-event slot is in use — creating another one needs a credit ($34.99)."}
+                ? "Free recurring events are drop-in only — up to 12 sessions, 50 registrations per session. A credit unlocks the all-sessions pass, unlimited registrations, and your branding."
+                : "You've used both free recurring events — creating another needs a credit ($19)."}
             </span>
           </div>
           <form action="/api/billing/checkout" method="POST">
             <input type="hidden" name="planKey" value="RECURRING_EVENT_CREDIT" />
             <input type="hidden" name="returnTo" value="/dashboard/recurring/new" />
-            <button type="submit" className="btn-secondary whitespace-nowrap">Buy recurring event credit — $34.99</button>
+            <button type="submit" className="btn-secondary whitespace-nowrap">Buy recurring event credit — $19</button>
           </form>
         </div>
 
