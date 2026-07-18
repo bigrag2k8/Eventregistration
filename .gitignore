@@ -26,3 +26,7 @@ tsconfig.tsbuildinfo
 /blob-report/
 /playwright/.cache/
 /tests/e2e/.auth/
+
+# Local-only dev artifacts (audit zips, old scripts, promo media) — kept on disk
+# for convenience but never part of the shippable/sellable product.
+/_archive/
