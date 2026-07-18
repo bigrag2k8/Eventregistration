@@ -54,6 +54,18 @@ export async function handleBillingCheckoutCompleted(
         planSelected: true,
       },
     });
+    // Consume a referral coupon if this checkout carried one (50%-off already
+    // applied to the price). Marked redeemed only now, on completion, so a
+    // cancelled checkout never burns the coupon. Guarded to this org + unredeemed.
+    const rewardId = session?.metadata?.referralRewardId;
+    if (typeof rewardId === "string" && rewardId) {
+      await prisma.referralReward
+        .updateMany({
+          where: { id: rewardId, referrerOrgId: organizationId, redeemedAt: null },
+          data: { redeemedAt: new Date() },
+        })
+        .catch((e) => console.error("[billing] failed to mark referral reward redeemed", e));
+    }
     // One-time Checkout (mode: payment) never creates a Stripe invoice, so
     // invoice.paid (which feeds platform "subscription/product" revenue) never
     // fires for it. Record the purchase here or it stays invisible in financials.

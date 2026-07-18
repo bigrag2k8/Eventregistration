@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, signSession, attachSessionCookie } from "@/lib/auth";
@@ -24,7 +25,18 @@ const schema = z.object({
   state: z.string().min(1, "State / province is required").max(100),
   zipCode: z.string().min(1, "ZIP / postal code is required").max(20),
   country: z.string().min(1, "Country is required").max(100),
+  ref: z.string().max(40).optional(),
 });
+
+/** Generate a unique referral code for a new org (retry on the rare collision). */
+async function newReferralCode(): Promise<string> {
+  for (let i = 0; i < 6; i++) {
+    const code = crypto.randomBytes(6).toString("hex").slice(0, 10);
+    const taken = await prisma.organization.findUnique({ where: { referralCode: code }, select: { id: true } });
+    if (!taken) return code;
+  }
+  return crypto.randomBytes(10).toString("hex");
+}
 
 export async function POST(req: Request) {
   const ip = clientIp(req);
@@ -39,7 +51,7 @@ export async function POST(req: Request) {
   }
   const {
     email, password, firstName, lastName, orgName, orgSlug,
-    contactPhone, addressLine1, addressLine2, city, state, zipCode, country,
+    contactPhone, addressLine1, addressLine2, city, state, zipCode, country, ref,
   } = parsed.data;
 
   if (RESERVED_SLUGS.has(orgSlug)) {
@@ -52,6 +64,13 @@ export async function POST(req: Request) {
   ]);
   if (existingUser) return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
   if (existingOrg) return NextResponse.json({ error: `The URL slug "${orgSlug}" is already taken. Try another.` }, { status: 409 });
+
+  // Resolve the referral code (if any) to the referring org. Self-reference is
+  // impossible here — this org doesn't exist yet. An unknown code is ignored.
+  const referrer = ref
+    ? await prisma.organization.findUnique({ where: { referralCode: ref }, select: { id: true } })
+    : null;
+  const referralCode = await newReferralCode();
 
   let user, org;
   try {
@@ -71,6 +90,8 @@ export async function POST(req: Request) {
           planSelected: false, // Locks dashboard until they pick a plan
           subscriptionPlan: "FREE",
           subscriptionStatus: "NONE",
+          referralCode,
+          referredByOrgId: referrer?.id ?? null,
         },
       });
       const user = await tx.user.create({

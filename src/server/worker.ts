@@ -588,6 +588,73 @@ async function tick() {
   try { await remindEventReviews(); } catch (e) { console.error("[worker] remindEventReviews error", e); Sentry.captureException(e, { tags: { job: "remindEventReviews" } }); }
   try { await recomputeReputationScores(); } catch (e) { console.error("[worker] recomputeReputationScores error", e); Sentry.captureException(e, { tags: { job: "recomputeReputationScores" } }); }
   try { await extendRecurringHorizon(); } catch (e) { console.error("[worker] extendRecurringHorizon error", e); Sentry.captureException(e, { tags: { job: "extendRecurringHorizon" } }); }
+  try { await grantReferralRewards(); } catch (e) { console.error("[worker] grantReferralRewards error", e); Sentry.captureException(e, { tags: { job: "grantReferralRewards" } }); }
+}
+
+// ── Referral rewards ─────────────────────────────────────────────────────────
+// A referred org earns its referrer a "50% off next single-event credit" coupon
+// once the referred org runs its FIRST event that (a) has ended and (b) sold at
+// least one paid ticket. Gating on a PAID, ENDED event is what makes this
+// un-gameable — a fake org that signs up and never sells anything never fires.
+// referralRewardedAt on the referred org guarantees at-most-once.
+const REFERRAL_COUPON_DAYS = 90;
+
+async function grantReferralRewards() {
+  const candidates = await prisma.organization.findMany({
+    where: { referredByOrgId: { not: null }, referralRewardedAt: null, deletedAt: null },
+    select: { id: true, referredByOrgId: true },
+    take: 100,
+  });
+  const now = new Date();
+  for (const org of candidates) {
+    // Qualifying activity: a SUCCEEDED payment on one of this org's events that
+    // has already ended.
+    const paid = await prisma.payment.findFirst({
+      where: {
+        status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] },
+        registration: {
+          event: { organizationId: org.id, endAt: { lt: now }, deletedAt: null, status: { not: "CANCELLED" } },
+        },
+      },
+      select: { id: true },
+    });
+    if (!paid) continue;
+
+    const referrerId = org.referredByOrgId!;
+    // Referrer must still exist and not be this org (self-referral guard).
+    if (referrerId === org.id) {
+      await prisma.organization.update({ where: { id: org.id }, data: { referralRewardedAt: now } });
+      continue;
+    }
+    const referrer = await prisma.organization.findFirst({
+      where: { id: referrerId, deletedAt: null },
+      select: { id: true },
+    });
+
+    // Stamp first (at-most-once), then mint the coupon. The reward's unique
+    // referredOrgId also backstops a double-create under a racing tick.
+    await prisma.organization.update({ where: { id: org.id }, data: { referralRewardedAt: now } });
+    if (!referrer) continue;
+    try {
+      await prisma.referralReward.create({
+        data: {
+          referrerOrgId: referrer.id,
+          referredOrgId: org.id,
+          earnedAt: now,
+          expiresAt: new Date(now.getTime() + REFERRAL_COUPON_DAYS * ONE_DAY),
+        },
+      });
+      await audit({
+        organizationId: referrer.id,
+        action: "referral.reward_earned",
+        targetType: "Organization",
+        targetId: org.id,
+        metadata: { referredOrgId: org.id, expiresInDays: REFERRAL_COUPON_DAYS },
+      });
+    } catch (e: any) {
+      if (e?.code !== "P2002") throw e; // already minted by a concurrent tick
+    }
+  }
 }
 
 // Apply pending migrations BEFORE the first tick. Railway starts web and worker

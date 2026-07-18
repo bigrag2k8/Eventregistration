@@ -265,12 +265,41 @@ model Organization {
   pendingInvites  PendingInvite[]
   billingInvoices BillingInvoice[]
   disputes        Dispute[]
+  // ── Referrals (invite-an-organizer) ──────────────────────────────────────
+  /// This org's own shareable referral code — /signup?ref=<code>. Unique;
+  /// generated at signup (and backfilled for existing orgs).
+  referralCode       String?  @unique
+  /// The org whose referral link this org signed up through (null = organic).
+  referredByOrgId    String?
+  /// Set once when THIS org triggers its referrer's reward (first ended event
+  /// with a paid ticket). Prevents a referred org rewarding its referrer twice.
+  referralRewardedAt DateTime?
+
   reviews         Review[]
   recurringEvents RecurringEvent[]
   marketingCampaigns    MarketingCampaign[]
   marketingUnsubscribes MarketingUnsubscribe[]
+  referralRewardsEarned ReferralReward[] @relation("ReferralRewardsEarned")
 
   @@map("organizations")
+}
+
+/// A "50% off your next single-event credit" coupon earned by REFERRING an
+/// organizer who then ran a paid event. One per referred org, ever; expires 3
+/// months after it's earned; consumed at the referrer's next credit checkout.
+model ReferralReward {
+  id            String   @id @default(cuid())
+  referrerOrgId String
+  referrerOrg   Organization @relation("ReferralRewardsEarned", fields: [referrerOrgId], references: [id], onDelete: Cascade)
+  /// The org whose activity earned this reward. Unique → one reward per referral.
+  referredOrgId String   @unique
+  earnedAt      DateTime @default(now())
+  expiresAt     DateTime
+  redeemedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([referrerOrgId])
+  @@map("referral_rewards")
 }
 
 /// A post-event marketing blast to an org's whole attendee audience (across

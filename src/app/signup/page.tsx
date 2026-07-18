@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { OrgNameSlugFields } from "@/components/OrgNameSlugFields";
 import { AddressFields } from "@/components/AddressFields";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const ref = useSearchParams().get("ref") ?? undefined;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slugValid, setSlugValid] = useState(false);
@@ -33,6 +34,7 @@ export default function SignUpPage() {
           state: fd.get("state"),
           zipCode: fd.get("zipCode"),
           country: fd.get("country"),
+          ref,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -57,6 +59,12 @@ export default function SignUpPage() {
         Already have an account?{" "}
         <Link href="/signin" className="text-brand-700 hover:underline">Sign in</Link>.
       </p>
+
+      {ref && (
+        <div className="mt-4 rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-900 ring-1 ring-brand-200">
+          🎉 You were invited by another organizer — welcome aboard.
+        </div>
+      )}
 
       <form onSubmit={submit} className="mt-6 space-y-5">
         {error && (

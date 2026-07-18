@@ -36,6 +36,19 @@ export async function POST(req: Request) {
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) return back("/dashboard");
 
+  // Referral coupon: a "50% off next single-event credit" reward the org earned
+  // by referring an organizer. Applies to SINGLE_EVENT only. Not consumed here —
+  // the id rides in checkout metadata and is marked redeemed by the webhook when
+  // the purchase actually completes, so a cancelled checkout keeps the coupon.
+  const referralReward =
+    plan.key === "SINGLE_EVENT"
+      ? await prisma.referralReward.findFirst({
+          where: { referrerOrgId: org.id, redeemedAt: null, expiresAt: { gt: new Date() } },
+          orderBy: { expiresAt: "asc" },
+          select: { id: true },
+        })
+      : null;
+
   // One live subscription per org: starting a second Checkout while one exists
   // double-bills (Stripe happily creates both; our webhook just overwrites
   // with whichever event lands last). Plan changes go through the Billing
@@ -99,30 +112,38 @@ export async function POST(req: Request) {
     : `${appUrl}/dashboard/billing?canceled=1`;
 
   const creditKind = plan.key === "RECURRING_EVENT_CREDIT" ? "recurring_event_credit" : "single_event_credit";
+  // A referral coupon is a per-org 50%-off; there's no Stripe Price for the
+  // discounted amount, so build an inline price_data line item at half price and
+  // bypass the configured Price ID.
+  const discounted = referralReward ? Math.round(plan.priceCents / 2) : null;
+  const lineItem =
+    plan.stripePriceId && discounted === null
+      ? { price: plan.stripePriceId, quantity: 1 }
+      : {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: discounted ?? plan.priceCents,
+            product_data: {
+              name: discounted !== null ? `${plan.name} credit (referral: 50% off)` : `${plan.name} credit`,
+              description: plan.blurb,
+            },
+          },
+        };
+  const baseMeta = { organizationId: org.id, planKey: plan.key, ...(referralReward ? { referralRewardId: referralReward.id } : {}) };
   const buildParams = (cid: string) => ({
     customer: cid,
     mode: (plan.cadence === "one_time" ? "payment" : "subscription") as "payment" | "subscription",
-    line_items: [
-      plan.stripePriceId
-        ? { price: plan.stripePriceId, quantity: 1 }
-        : {
-            quantity: 1,
-            price_data: {
-              currency: "usd",
-              unit_amount: plan.priceCents,
-              product_data: { name: `${plan.name} credit`, description: plan.blurb },
-            },
-          },
-    ],
+    line_items: [lineItem],
     success_url: successUrl,
     cancel_url: cancelUrl,
-    metadata: { organizationId: org.id, planKey: plan.key },
+    metadata: baseMeta,
     ...(plan.cadence !== "one_time" && {
       subscription_data: { metadata: { organizationId: org.id, planKey: plan.key } },
     }),
     ...(plan.cadence === "one_time" && {
       payment_intent_data: {
-        metadata: { organizationId: org.id, planKey: plan.key, kind: creditKind },
+        metadata: { ...baseMeta, kind: creditKind },
       },
     }),
   });
