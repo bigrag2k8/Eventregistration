@@ -45,23 +45,13 @@ export default async function ChangePatternPage({
   const todayLocal = formatInTimeZone(now, re.timezone, "yyyy-MM-dd");
 
   return (
-    <main>
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-bold text-brand-700">
-              <img src="/logo.png" alt="Your Events App" className="h-9 w-auto" />
-            </Link>
-            <span className="text-slate-300">/</span>
-            <span className="font-semibold">Change repeat pattern</span>
-          </div>
-          <Link href={`/dashboard/recurring/${re.id}/edit`} className="text-sm text-slate-600 hover:text-slate-900">
-            ◀ Back to edit
-          </Link>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-3xl px-4 py-8">
+    <main className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-xs uppercase tracking-wide text-slate-400">Change repeat pattern</p>
+        <Link href={`/dashboard/recurring/${re.id}/edit`} className="text-sm text-brand-700 hover:underline">
+          ◀ Back to edit
+        </Link>
+      </div>
         <ErrorBanner code={searchParams?.error} />
 
         <div className="mb-6">
@@ -144,7 +134,6 @@ export default async function ChangePatternPage({
             </form>
           </>
         )}
-      </div>
     </main>
   );
 }
