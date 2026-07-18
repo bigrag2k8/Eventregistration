@@ -1,13 +1,39 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDateRange } from "@/lib/format";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
+import { JsonLd } from "@/components/JsonLd";
+import { absoluteUrl, metaDescription, organizationJsonLd } from "@/lib/seo";
 import { computeTrustTier, TIER_LABEL } from "@/server/reviews";
 import { describeRecurrence } from "@/server/recurring-rule";
 import { CalendarClock, Globe, Mail, Phone, Ticket, Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: { orgSlug: string } }): Promise<Metadata> {
+  const org = await prisma.organization.findFirst({
+    where: { slug: params.orgSlug, deletedAt: null },
+    select: { name: true, tagline: true, aboutBlurb: true, logoUrl: true, bannerUrl: true },
+  });
+  if (!org) return { title: "Organizer not found" };
+
+  const canonical = absoluteUrl(`/o/${params.orgSlug}`);
+  const title = org.tagline ? `${org.name} — ${org.tagline}` : `${org.name} — events & tickets`;
+  const description = metaDescription(
+    org.aboutBlurb || org.tagline,
+    `See upcoming events from ${org.name} and register on YourEvents.`,
+  );
+  const image = org.bannerUrl || org.logoUrl || undefined;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { type: "website", url: canonical, title, description, images: image ? [{ url: image }] : undefined },
+    twitter: { card: image ? "summary_large_image" : "summary", title, description, images: image ? [image] : undefined },
+  };
+}
 
 export default async function OrgPublicPage({ params }: { params: { orgSlug: string } }) {
   const org = await prisma.organization.findFirst({
@@ -80,8 +106,20 @@ export default async function OrgPublicPage({ params }: { params: { orgSlug: str
   const tier = computeTrustTier(org);
   const tierLabel = TIER_LABEL[tier];
 
+  const orgJsonLd = organizationJsonLd({
+    name: org.name,
+    slug: org.slug,
+    tagline: org.tagline,
+    aboutBlurb: org.aboutBlurb,
+    logoUrl: org.logoUrl,
+    website: org.website,
+    ratingAvg,
+    reviewCount,
+  });
+
   return (
     <main>
+      <JsonLd data={orgJsonLd} />
       <OrgBrandStyle color={org.brandColor} />
 
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">

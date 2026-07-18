@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
@@ -7,11 +8,58 @@ import { ShareBar } from "@/components/ShareBar";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
 import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { WaitlistForm } from "@/components/WaitlistForm";
+import { JsonLd } from "@/components/JsonLd";
+import { absoluteUrl, metaDescription, eventJsonLd } from "@/lib/seo";
 import { Calendar, MapPin, PartyPopper } from "lucide-react";
 
 interface Props { params: { orgSlug: string; slug: string } }
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const event = await prisma.event.findFirst({
+    where: {
+      slug: params.slug,
+      organization: { slug: params.orgSlug, deletedAt: null },
+      status: { in: ["PUBLISHED", "CANCELLED"] },
+      deletedAt: null,
+    },
+    select: {
+      name: true, shortDescription: true, description: true, bannerUrl: true,
+      startAt: true, timezone: true, isPrivate: true,
+      organization: { select: { name: true } },
+    },
+  });
+  if (!event) return { title: "Event not found" };
+
+  const canonical = absoluteUrl(`/o/${params.orgSlug}/events/${params.slug}`);
+  const when = formatInTimeZone(event.startAt, event.timezone, "EEE, MMM d, yyyy");
+  const title = `${event.name} · ${when}`;
+  const description = metaDescription(
+    event.shortDescription || event.description,
+    `${event.name} hosted by ${event.organization.name} on ${when}. Register on YourEvents.`,
+  );
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    // Private events are reachable by link but must never be indexed.
+    robots: event.isPrivate ? { index: false, follow: false } : undefined,
+    openGraph: {
+      type: "website",
+      url: canonical,
+      title,
+      description,
+      images: event.bannerUrl ? [{ url: event.bannerUrl }] : undefined,
+    },
+    twitter: {
+      card: event.bannerUrl ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: event.bannerUrl ? [event.bannerUrl] : undefined,
+    },
+  };
+}
 
 export default async function EventLandingPage({ params }: Props) {
   const event = await prisma.event.findFirst({
@@ -84,8 +132,29 @@ export default async function EventLandingPage({ params }: Props) {
         )}`
     : null;
 
+  // schema.org Event rich-result data — public events only (never leak a private
+  // event to search). soldOut mirrors the on-page state.
+  const jsonLd = event.isPrivate
+    ? null
+    : eventJsonLd({
+        name: event.name,
+        slug: event.slug,
+        description: event.description,
+        shortDescription: event.shortDescription,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        timezone: event.timezone,
+        status: event.status,
+        bannerUrl: event.bannerUrl,
+        location: event.location,
+        organization: { name: event.organization.name, slug: event.organization.slug },
+        minPriceCents: minPrice,
+        soldOut: eventSoldOut,
+      });
+
   return (
     <main>
+      {jsonLd && <JsonLd data={jsonLd} />}
       {/* Custom branding (logo + brand color) is a premium-event feature. */}
       <OrgBrandStyle color={event.isPremium ? event.organization.brandColor : null} />
 
