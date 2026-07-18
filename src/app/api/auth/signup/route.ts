@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, signSession, attachSessionCookie } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { notifyNewOrganization } from "@/lib/alert";
 
 const RESERVED_SLUGS = new Set([
   "admin", "api", "app", "auth", "checkin", "dashboard", "events",
@@ -120,6 +122,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 409 });
     }
     throw e;
+  }
+
+  // FYI email to the platform owner so they can eyeball every new org. Awaited
+  // (Railway keeps the process alive, but awaiting guarantees the send) inside a
+  // guard so a mail hiccup can never fail an otherwise-successful signup.
+  try {
+    await notifyNewOrganization({
+      orgId: org.id,
+      orgName: org.name,
+      orgSlug: org.slug,
+      contactEmail: org.contactEmail ?? email,
+      contactPhone: org.contactPhone,
+      addressLine1: org.addressLine1,
+      addressLine2: org.addressLine2,
+      city: org.city,
+      state: org.state,
+      zipCode: org.zipCode,
+      country: org.country,
+      organizerFirstName: user.firstName ?? "",
+      organizerLastName: user.lastName ?? "",
+      organizerEmail: user.email,
+      organizerPhone: user.phone,
+      referredByOrgId: org.referredByOrgId,
+      ip,
+    });
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: "signup", step: "new-org-alert" }, extra: { orgId: org.id } });
   }
 
   const token = await signSession({ sub: user.id, role: user.role, email: user.email, orgId: org.id, ver: user.sessionVersion });
