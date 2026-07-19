@@ -10,6 +10,7 @@ import { eventEntitlements } from "@/lib/plans";
 import { canAcceptPayments } from "@/lib/connect";
 import { getSession } from "@/lib/auth";
 import { maintenanceGuard } from "@/lib/maintenance";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 /** Thrown inside the reservation transaction when seats can't be claimed. */
 class SoldOutError extends Error {
@@ -70,6 +71,21 @@ export async function POST(req: Request) {
   // Maintenance window: block new registrations for non-SUPERADMINs.
   const block = await maintenanceGuard(await getSession());
   if (block) return block;
+
+  // F-08: throttle registration creation per source IP. Without it, a script
+  // can spam PENDING registrations to reserve — and starve — an event's seats,
+  // which stay held until the hold TTL / orphan sweep releases them. The limit
+  // is generous so a shared venue/NAT IP registering many real attendees isn't
+  // blocked; the seat reservation itself is atomic. Rightmost-XFF IP is
+  // proxy-trusted (SEC-06). Kept in step with the checkout-session limiter.
+  const rl = await rateLimit(`reg-create:${clientIp(req)}`, 30, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Please wait a moment and try again." },
+      { status: 429, headers: { "Retry-After": String(Math.max(1, rl.resetAt - Math.floor(Date.now() / 1000))) } },
+    );
+  }
+
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     const flat = parsed.error.flatten();
