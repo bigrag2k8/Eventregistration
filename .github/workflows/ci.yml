@@ -1,6 +1,20 @@
-# QUAL-01: CI gate — typecheck + tests on every push/PR to main.
-#  - test:        fast unit tests (no database)
-#  - integration: DB-backed tests against a throwaway Postgres service
+# QUAL-01 / F-10: CI gate on every push/PR to main.
+#   test:        fast unit tests (no database) + typecheck
+#   integration: DB-backed tests against a throwaway Postgres service
+#   e2e:         Playwright smoke over the core money/identity flows
+#   lint:        next lint (ESLint)
+#   audit:       npm audit — blocks on CRITICAL today; see note in the job
+#   secret-scan: gitleaks — fail if a secret is committed
+#   codeql:      GitHub CodeQL static analysis (JS/TS)
+#
+# Actions are pinned to commit SHAs (supply-chain hardening — a moved tag can't
+# swap the action out from under us); the trailing comment is the human-readable
+# version. Default token permission is least-privilege (contents: read); jobs
+# that need more request it explicitly.
+#
+# DEPLOY GATE: Railway must be set to "Wait for CI" (service Settings → deploy
+# triggers) so a red run here blocks the deploy. Without that toggle Railway
+# deploys on push regardless of this workflow — the repo can't enforce it alone.
 name: CI
 
 on:
@@ -9,12 +23,15 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -26,6 +43,68 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      # Blocking gate. Set to CRITICAL for now because the current backlog
+      # (F-11) has HIGH findings reaching the tree via @sentry/nextjs ->
+      # @sentry/webpack-plugin -> uuid; gating on high would be red until that
+      # major upgrade lands. There are 0 criticals, so this passes today and
+      # still fails the build the moment a critical is introduced.
+      # TODO(F-11): after the @sentry/nextjs v10 upgrade, tighten to `high`.
+      - name: npm audit (blocking — critical)
+        run: npm audit --audit-level=critical
+      # Full report for visibility; never fails the build.
+      - name: npm audit (report — all levels)
+        if: ${{ !cancelled() }}
+        run: npm audit || true
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+        with:
+          fetch-depth: 0 # full history so gitleaks scans every commit
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b7351df727350dca84cb9d725d57dcf5bc82ba26 # v3
+        with:
+          languages: javascript-typescript
+      - name: Analyze
+        uses: github/codeql-action/analyze@b7351df727350dca84cb9d725d57dcf5bc82ba26 # v3
 
   integration:
     runs-on: ubuntu-latest
@@ -45,8 +124,8 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/eventflow_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -86,8 +165,8 @@ jobs:
       QR_SECRET: ci-e2e-qr-secret-not-a-real-key-98765432100
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -106,7 +185,7 @@ jobs:
       - name: Run e2e smoke tests
         run: npm run test:e2e
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
           name: playwright-report

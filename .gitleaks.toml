@@ -1,0 +1,21 @@
+# gitleaks config for the CI secret-scan job (F-10).
+# Default ruleset + an allowlist for strings the 2026-07-18 audit verified are
+# NOT real secrets: in-repo placeholders and dev/CI fallbacks. Real credentials
+# live only in Railway env vars, never in the tree.
+title = "eventflow gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders and dev/CI fallbacks — not real secrets"
+regexes = [
+  '''sk_test_placeholder''',
+  '''dev-secret-change-me-please-32-bytes!''',
+  '''dev-qr-secret-change-me-please-32-bytes!''',
+  '''ci-e2e-jwt-secret-not-a-real-key-0123456789''',
+  '''ci-e2e-qr-secret-not-a-real-key-98765432100''',
+]
+paths = [
+  '''\.env\.example$''',
+]
