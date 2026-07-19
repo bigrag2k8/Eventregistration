@@ -23,16 +23,20 @@ export async function POST(req: Request) {
   const rl = await rateLimit(`checkin:${session.sub}:${ip}`, 120, 60);
   if (!rl.allowed) return NextResponse.json({ error: "Too many scans" }, { status: 429 });
 
-  // For STAFF/VOLUNTEER with explicit assignments, verify they're assigned to this event
+  // F-06 (least-privilege): STAFF/VOLUNTEER may only check in at events they're
+  // explicitly assigned to. Previously a staffer with ZERO assignments fell
+  // through and could scan org-wide; now no assignment to THIS event — whether
+  // they have none, or only other events' — is denied. ORGANIZER/ADMIN/
+  // SUPERADMIN remain org-wide by role.
   if (session.role === "STAFF" || session.role === "VOLUNTEER") {
-    const body = await req.clone().json().catch(() => null);
-    const eventId = body?.eventId;
+    const peek = await req.clone().json().catch(() => null);
+    const eventId = peek?.eventId;
     if (eventId) {
-      const assignments = await prisma.eventAssignment.findMany({
-        where: { userId: session.sub },
-        select: { eventId: true },
+      const assigned = await prisma.eventAssignment.findFirst({
+        where: { userId: session.sub, eventId },
+        select: { id: true },
       });
-      if (assignments.length > 0 && !assignments.some((a) => a.eventId === eventId)) {
+      if (!assigned) {
         return NextResponse.json({ status: "INVALID", reason: "not_assigned_to_event" }, { status: 403 });
       }
     }

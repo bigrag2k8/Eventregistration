@@ -35,13 +35,15 @@ export async function POST(req: Request) {
   });
   if (!event) return NextResponse.json({ status: "INVALID", reason: "forbidden" }, { status: 403 });
 
-  // STAFF/VOLUNTEER with explicit assignments must be assigned to this event
+  // F-06 (least-privilege): STAFF/VOLUNTEER may only check in at events they're
+  // explicitly assigned to — including staff with ZERO assignments, who used to
+  // fall through and check in org-wide. Mirrors the QR scan route.
   if (session.role === "STAFF" || session.role === "VOLUNTEER") {
-    const assignments = await prisma.eventAssignment.findMany({
-      where: { userId: session.sub },
-      select: { eventId: true },
+    const assigned = await prisma.eventAssignment.findFirst({
+      where: { userId: session.sub, eventId: event.id },
+      select: { id: true },
     });
-    if (assignments.length > 0 && !assignments.some((a) => a.eventId === event.id)) {
+    if (!assigned) {
       return NextResponse.json({ status: "INVALID", reason: "not_assigned_to_event" }, { status: 403 });
     }
   }

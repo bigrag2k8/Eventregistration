@@ -9,12 +9,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   });
   if (!reg) return new NextResponse("Not found", { status: 404 });
 
-  // Require the registration's access key. Legacy rows without a token are
-  // allowed through (ICS leaks only event info, and their email links lack a
-  // key) — every new registration gets one and is enforced.
-  if (reg.accessToken) {
-    const key = new URL(req.url).searchParams.get("key");
-    if (key !== reg.accessToken) return new NextResponse("Not found", { status: 404 });
+  // F-05: require the registration's access key UNCONDITIONALLY. Legacy rows
+  // without a token used to be served by id alone (IDOR); migration
+  // 20260719000000_backfill_registration_access_tokens backfilled a token onto
+  // every existing row, so all registrations now have one to check against.
+  // Fail closed if a token is somehow still absent.
+  const key = new URL(req.url).searchParams.get("key");
+  if (!reg.accessToken || key !== reg.accessToken) {
+    return new NextResponse("Not found", { status: 404 });
   }
 
   const { event: e } = reg;
