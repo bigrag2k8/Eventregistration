@@ -173,7 +173,7 @@ If any step fails, run the matching suite below to isolate it.
 
 | ID | What | How | Expected |
 |----|------|-----|----------|
-| F1 | Organizer net refund | Registrations → Refund (net) | Attendee refunded ticket price minus 4.5%; status REFUNDED; seat released |
+| F1 | Organizer net refund | Registrations → Refund (net) | Attendee refunded ticket price minus 5%; status REFUNDED; seat released |
 | F2 | SUPERADMIN full refund | As SUPERADMIN, Refund → Full (100%) | Full amount incl. fee returned |
 | F3 | Organizer can't full-refund | As ORGANIZER, attempt full refund | Forbidden (server-enforced); only net available |
 | F4 | Bulk refund | Select multiple regs → Refund selected | Each processed; result banner with counts |
@@ -238,7 +238,7 @@ If any step fails, run the matching suite below to isolate it.
 | J6 | Sentry capture | Trigger a server error | Event appears in Sentry (note: stack traces minified until `SENTRY_AUTH_TOKEN` set) |
 | J7 | Three login doors | Homepage header | "Attendee sign in", "Organizer & staff", "Sign up — host events" all route correctly |
 | J8 | **Footer links resolve** | Footer (homepage + any marketing page) → click each link | How it works / Pricing / Help / Contact / Status / About / Security / Terms / Privacy all load (no 404) |
-| J9 | **Pricing & fees page** | Visit `/pricing` | Free + $19 plans; "Fees on paid ticket sales & vendors" shows 4.5% + 2.9% + $0.30; free/$0 fee-free |
+| J9 | **Pricing & fees page** | Visit `/pricing` | Free + $19 plans; "Fees on paid ticket sales & vendors" shows 5% + 2.9% + $0.30; free/$0 fee-free |
 | J10 | **Security page** | Visit `/security` | "Security & compliance" page lists TLS, PCI via Stripe, MFA, signed QR, etc. |
 
 ---
