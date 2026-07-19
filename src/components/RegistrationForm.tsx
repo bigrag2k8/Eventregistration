@@ -154,7 +154,7 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       } else {
         const c = await fetch("/api/checkout/session", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ registrationId: data.id }),
+          body: JSON.stringify({ registrationId: data.id, key: data.key }),
         });
         const cData = await c.json().catch(() => ({}));
         if (!c.ok || !cData.url) {

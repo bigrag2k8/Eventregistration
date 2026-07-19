@@ -3,10 +3,29 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { connectChargeParams, canAcceptPayments, recurringDropInFeeCents, PLATFORM_FEE_PERCENT } from "@/lib/connect";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
-const schema = z.object({ registrationId: z.string() });
+// F-02: `key` is the registration's secret accessToken. Checkout runs before
+// any login (the buyer may have no account), so ownership is proven by this
+// per-registration token — the same one the confirmation/ICS/success links use
+// — rather than a session. Without it the endpoint let anyone create a Stripe
+// session for, and clobber the stripeSessionId of, any PENDING registration id.
+const schema = z.object({ registrationId: z.string(), key: z.string().min(1) });
 
 export async function POST(req: Request) {
+  // F-02: throttle per source IP BEFORE any DB/Stripe work, so probing ids or
+  // hammering session-create can't run up load. Generous limit so a shared
+  // venue/NAT IP registering many attendees isn't falsely blocked; the token
+  // check above is the real ownership gate. Rightmost-XFF IP is proxy-trusted.
+  const ip = clientIp(req);
+  const rl = await rateLimit(`checkout-session:${ip}`, 30, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many checkout attempts. Please wait a moment and try again." },
+      { status: 429, headers: { "Retry-After": String(Math.max(1, rl.resetAt - Math.floor(Date.now() / 1000))) } },
+    );
+  }
+
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Bad payload" }, { status: 400 });
 
@@ -14,7 +33,14 @@ export async function POST(req: Request) {
     where: { id: parsed.data.registrationId },
     include: { event: { include: { organization: true } }, ticketType: true },
   });
-  if (!reg || reg.status !== "PENDING") {
+  // Prove ownership via the accessToken before anything else. Fail closed on a
+  // missing/blank token and answer 404 (not 403) so an attacker can't use this
+  // to confirm which registration ids exist. Placed before the status check so
+  // pending-vs-not isn't leakable either.
+  if (!reg || !reg.accessToken || parsed.data.key !== reg.accessToken) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (reg.status !== "PENDING") {
     return NextResponse.json({ error: "Registration not pending" }, { status: 400 });
   }
   // Don't take payment for an event the organizer has cancelled/deleted or an
