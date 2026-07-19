@@ -21,7 +21,7 @@ Community & small-to-mid organizers Eventbrite has priced out and bureaucratized
 1. **Keep more of your revenue.** Flat 5% (min $1.25), charged to the organizer — never a surcharge on the attendee. On a $20 ticket the attendee pays $20, not $23.11. *This is the headline. It's true, it's provable, and holds don't touch it.*
 2. **Your brand and your data — not ours.** Custom URL, logo, color, banner; you own the attendee relationship and list. On Eventbrite the buyer sees Eventbrite and Eventbrite keeps the data.
 3. **One dashboard, including vendors.** Tickets + **vendor application/booth flow** + QR check-in + refunds + promo/waitlist in one place. The vendor flow is a genuine gap in Eventbrite for market/festival/expo organizers.
-4. **Pay per event, not a subscription.** Free events free forever; premium is a one-time **$19** per event, or **$34.99** to unlock a whole recurring **series** (every session premium + the full-series pass). No monthly bill whether you run events or not.
+4. **Pay per event, not a subscription.** Free events free forever; premium is a one-time **$19** per event, or **$19** to unlock a whole recurring **series** (every session premium + the full-series pass). No monthly bill whether you run events or not.
 5. **Buyer protection + payouts you earn.** Funds are held safely until the event happens, so **if an event is cancelled, attendee refunds are guaranteed.** Organizers who build a track record graduate to fast payouts. Trust that cuts both ways.
 
 > Pillar 5 is the **reframe of the payout hold**: what was a "we never hold your money" boast becomes a *buyer-protection* feature (a positive to advertise to attendees) plus an *earned reward* (a positive to organizers). Eventbrite holds everyone forever with no upside story; you turn the hold into trust + a loyalty ladder.
@@ -33,7 +33,7 @@ Weekly classes, multi-week courses, and monthly meetups. NOTE: Eventbrite *does*
 - **Drop-in** per session — and the $1.25 minimum is **capped at 10%** of the ticket, so a $5 class costs the organizer $0.50, not $1.25. Direct answer to the min-fee pain that crushes cheap recurring tickets elsewhere.
 - **Full-series pass** — one checkout buys every session at a flat **5%** (no minimum distortion). Priced below the drop-in total so the saving is visible.
 
-Pricing: Free plan includes **one** drop-in series; a **$34.99 series credit** unlocks premium (bundle pass, unlimited registrations, branding). Marketing line: *"Built for recurring, not just one-offs — flat 5%, never over 10% on class drop-ins."*
+Pricing: Free plan includes **one** drop-in series; a **$19 series credit** unlocks premium (bundle pass, unlimited registrations, branding). Marketing line: *"Built for recurring, not just one-offs — flat 5%, never over 10% on class drop-ins."*
 
 ## Messaging do's & don'ts
 - ✅ Lead with **revenue kept** and **brand/data ownership**.
@@ -75,4 +75,4 @@ Data-driven from `PLANS`, so numbers are safe. Add one trust line near the plans
 ---
 
 ## The elevator pitch (for decks, bios, cold outreach)
-> YourEvents is event ticketing for the organizers Eventbrite forgot — markets, festivals, fundraisers, community events, and recurring classes. You keep more of every dollar (flat 5%, no attendee surcharges), you run tickets *and* vendors *and* check-in *and* recurring class series from one dashboard, and your event carries *your* brand, not ours. Buyers are protected — funds are held until the event happens — and organizers who deliver earn instant payouts. Pay $19 per event or $34.99 per series, or nothing at all for free events.
+> YourEvents is event ticketing for the organizers Eventbrite forgot — markets, festivals, fundraisers, community events, and recurring classes. You keep more of every dollar (flat 5%, no attendee surcharges), you run tickets *and* vendors *and* check-in *and* recurring class series from one dashboard, and your event carries *your* brand, not ours. Buyers are protected — funds are held until the event happens — and organizers who deliver earn instant payouts. Pay $19 per event or $19 per series, or nothing at all for free events.

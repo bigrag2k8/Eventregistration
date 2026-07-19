@@ -190,7 +190,7 @@ A pays → CONFIRMED
 
 ```
 1. Dashboard → "+ Recurring series"
-   │  (first free series is free; a 2nd, or a bundle, needs a $34.99 series credit)
+   │  (first free series is free; a 2nd, or a bundle, needs a $19 series credit)
    │
    ▼
 2. Set recurrence: daily / weekly (pick days) / monthly (day-of-month or nth-weekday),
