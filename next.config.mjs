@@ -2,17 +2,20 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 // F-19: security response headers.
 //
-// Content-Security-Policy is shipped in REPORT-ONLY mode first (per the audit):
-// it reports what a strict policy would block — to /api/csp-report — without
-// breaking anything, so we can tighten it toward enforcement from real data.
-// Everything else below is enforced immediately (no behavioral risk).
+// Content-Security-Policy is now ENFORCED (promoted from report-only after a
+// live coverage sweep — homepage, a Maps-bearing event page, /signup with the
+// Maps JS + Places autocomplete, and /pricing — produced zero violations; every
+// external host the app loads is in the allowlist below). `report-uri` is kept
+// on so anything a not-yet-visited page (e.g. the logged-in dashboard) trips
+// still lands at /api/csp-report while also being blocked.
 //
 // Sources reflect what the app actually loads: Google Maps JS (maps.googleapis
 // .com) and the Maps embed iframe (www.google.com); org logos/banners come from
 // arbitrary https hosts + Cloudinary/Unsplash (img-src https:); Sentry client
-// telemetry posts to *.sentry.io. 'unsafe-inline' scripts are required by Next's
-// hydration bootstrap and the ld+json block until we move to per-request nonces.
-const cspReportOnly = [
+// telemetry posts to *.sentry.io. 'unsafe-inline' scripts are still required by
+// Next's hydration bootstrap and the ld+json block — moving to per-request
+// nonces (to drop 'unsafe-inline') is the next hardening step.
+const csp = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -40,7 +43,7 @@ const securityHeaders = [
   // Least-privilege for powerful features. camera=(self) is REQUIRED — the
   // check-in scanner (CheckinScanner.tsx) uses getUserMedia/BarcodeDetector.
   { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self), payment=(self), browsing-topics=()" },
-  { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
+  { key: "Content-Security-Policy", value: csp },
 ];
 
 /** @type {import('next').NextConfig} */
