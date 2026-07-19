@@ -1,0 +1,23 @@
+# F-11: keep dependencies current so the audit backlog doesn't silently regrow.
+# Minor/patch updates are grouped into one PR to cut noise; MAJOR bumps (e.g.
+# next, react, @sentry/nextjs) open their own PRs so each breaking upgrade can
+# be reviewed and tested deliberately rather than auto-merged.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # Keeps the SHA-pinned GitHub Actions (F-10) from going stale — Dependabot
+  # bumps the pin and updates the trailing version comment.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]
