@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { requireRoleApi } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 
 const UPGRADE_THRESHOLD_CENTS = 20_000_00; // $20,000 lifetime sales
@@ -25,7 +25,9 @@ const UPGRADE_THRESHOLD_CENTS = 20_000_00; // $20,000 lifetime sales
  *      what's now-needed, not everything at once.
  */
 export async function POST(req: Request) {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const gate = await requireRoleApi(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
+  if (gate instanceof NextResponse) return gate;
+  const session = gate;
   if (!session.orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
   if (!stripeConfigured) {
     return NextResponse.json({ error: "Stripe is not configured." }, { status: 503 });

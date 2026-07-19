@@ -10,7 +10,7 @@ Users: attendees, organizers, vendors, staff/volunteers, platform admin.
 ## Stack
 
 - **Framework:** Next.js 14 App Router, React 18, TypeScript, Tailwind CSS
-- **Database:** PostgreSQL via Prisma ORM. Container runs `prisma db push` at boot — no migrations folder. The `--accept-data-loss` flag was removed: additive changes still auto-apply, but a destructive change (column/model rename, type change, new required column) now FAILS the deploy instead of silently dropping data. Make destructive changes deliberately (run `db push --accept-data-loss` once by hand against the DB).
+- **Database:** PostgreSQL via Prisma ORM. Container runs `prisma migrate deploy` at boot against the `prisma/migrations/` folder (with a `migrate resolve --applied 0_init` baseline fallback for the pre-existing DB — see the `start` script). Additive migrations apply automatically; a destructive migration must be authored deliberately in a migration file. (This replaced the old `db push` boot flow — F-12.)
 - **Cache / rate limit:** ioredis against Railway Redis
 - **Auth:** JWT in HttpOnly cookies (`src/lib/auth.ts`), bcrypt (cost 12)
 - **Payments:** Stripe + Stripe Connect Express. Destination Charges with `application_fee_amount`. Platform fee = **5% of the sale value** (subtotal − discount, excluding tax & processing fee), min $1.25/paid ticket. Single source of truth: `PLATFORM_FEE_PERCENT` in `src/lib/connect.ts`.
@@ -123,7 +123,7 @@ Must be a **stable literal string** in Railway, NOT a `${{secret(...)}}` templat
 - **Read before editing.** Always.
 - **Edit directly with Edit/Write.** Don't dump diffs in chat for the user to copy-paste.
 - **The user pushes from their Windows terminal.** After committing locally, give them the exact 2-3 lines they need to run.
-- **Schema changes:** edit `prisma/schema.prisma`. Container runs `db push` at boot, no migration file needed. Additive changes apply automatically. A DESTRUCTIVE change (rename, type change, new required column) will fail the deploy by design — flag it to the user so they can apply it deliberately rather than have data silently dropped.
+- **Schema changes:** edit `prisma/schema.prisma`, then generate a migration (`prisma migrate dev`) so a file lands in `prisma/migrations/`. The container runs `prisma migrate deploy` at boot to apply pending migrations. A DESTRUCTIVE change (rename, type change, new required column) must be authored deliberately in the migration — review it and flag it to the user rather than risk dropping data.
 - **Multi-step work:** use the TodoWrite tool to track progress.
 - **No emojis** in code or files unless explicitly requested.
 

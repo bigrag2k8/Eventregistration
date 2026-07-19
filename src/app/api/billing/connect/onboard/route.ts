@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { requireRoleApi } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -30,7 +30,9 @@ import { rateLimit } from "@/lib/rate-limit";
  *       receives funds. That's how we hit ~90 seconds.
  */
 export async function POST() {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const gate = await requireRoleApi(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
+  if (gate instanceof NextResponse) return gate;
+  const session = gate;
   if (!session.orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
 
   if (!stripeConfigured) {

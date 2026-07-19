@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { getSession, requireRoleApi } from "@/lib/auth";
 
 /**
  * Stripe redirects organizers here when their onboarding link expires
@@ -40,7 +40,9 @@ export async function GET() {
 }
 
 export async function POST() {
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const gate = await requireRoleApi(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
+  if (gate instanceof NextResponse) return gate;
+  const session = gate;
   if (!session.orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
   if (!stripeConfigured) {
     return NextResponse.json({ error: "Stripe is not configured." }, { status: 503 });

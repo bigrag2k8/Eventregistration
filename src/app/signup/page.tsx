@@ -66,7 +66,7 @@ export default function SignUpPage() {
         </div>
       )}
 
-      <form onSubmit={submit} className="mt-6 space-y-5">
+      <form method="post" onSubmit={submit} className="mt-6 space-y-5">
         {error && (
           <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>
         )}

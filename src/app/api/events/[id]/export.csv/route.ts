@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { requireRoleApi } from "@/lib/auth";
 import { reportTenantViolation } from "@/lib/tenant-violation";
 
 /**
@@ -18,18 +18,24 @@ function toCsv(headers: string[], rows: unknown[][]) {
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const session = requireRole(["ORGANIZER", "ADMIN"], await getSession());
+  // F-04: requireRoleApi (clean 401/403 JSON, not an HTML 500), and include
+  // SUPERADMIN — who can export any org's event by design.
+  const gate = await requireRoleApi(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
+  if (gate instanceof NextResponse) return gate;
+  const session = gate;
+
   const event = await prisma.event.findUnique({ where: { id: params.id }, include: { customQuestions: true } });
-  if (!event || event.organizationId !== session.orgId) {
-    // Event exists but belongs to another org → a real cross-tenant attempt
-    // (as opposed to a nonexistent id). Record + alert, then deny.
-    if (event && event.organizationId !== session.orgId) {
+  const allowed = !!event && (session.role === "SUPERADMIN" || event.organizationId === session.orgId);
+  if (!allowed) {
+    // Event exists but belongs to another org (and caller isn't SUPERADMIN) →
+    // a real cross-tenant attempt, as opposed to a nonexistent id. Record + deny.
+    if (event && session.role !== "SUPERADMIN" && event.organizationId !== session.orgId) {
       await reportTenantViolation({
         session, resourceType: "Event", resourceId: params.id,
         ownerOrgId: event.organizationId, route: "api/events/[id]/export.csv",
       });
     }
-    return new NextResponse("Forbidden", { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const type = new URL(req.url).searchParams.get("type") === "vendors" ? "vendors" : "registrations";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { getSession, requireRole } from "@/lib/auth";
+import { requireRoleApi } from "@/lib/auth";
 import { PLANS } from "@/lib/plans";
 
 export async function POST(req: Request) {
@@ -11,7 +11,9 @@ export async function POST(req: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
   const back = (path: string) => NextResponse.redirect(`${appUrl}${path}`, 303);
 
-  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  const gate = await requireRoleApi(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
+  if (gate instanceof NextResponse) return gate;
+  const session = gate;
   if (!session.orgId) return back("/dashboard");
 
   const form = await req.formData();

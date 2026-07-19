@@ -53,7 +53,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-3">
+    <form method="post" onSubmit={submit} className="mt-6 space-y-3">
       {error && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>
       )}
@@ -62,6 +62,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <input
           className="input"
           type="password"
+          autoComplete="new-password"
           required
           minLength={8}
           autoFocus
@@ -75,6 +76,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <input
           className="input"
           type="password"
+          autoComplete="new-password"
           required
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

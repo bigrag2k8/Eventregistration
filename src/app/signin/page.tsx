@@ -66,9 +66,9 @@ export default function SignInPage() {
       {!mfaToken ? (
         <>
           {notice && <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">{notice}</div>}
-          <form onSubmit={submitPassword} className="mt-6 space-y-3">
-            <div><label className="label">Email</label><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-            <div><label className="label">Password</label><input className="input" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+          <form method="post" onSubmit={submitPassword} className="mt-6 space-y-3">
+            <div><label className="label">Email</label><input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+            <div><label className="label">Password</label><input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
             {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
             <button className="btn-primary w-full" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
           </form>
@@ -80,7 +80,7 @@ export default function SignInPage() {
           </p>
         </>
       ) : (
-        <form onSubmit={submitCode} className="mt-6 space-y-3">
+        <form method="post" onSubmit={submitCode} className="mt-6 space-y-3">
           <p className="text-sm text-slate-600">
             Enter the 6-digit code from your authenticator app. Lost your device? Enter one of your recovery codes instead.
           </p>

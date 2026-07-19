@@ -11,10 +11,10 @@
 export const STRIPE_PRICES = {
   SINGLE_EVENT: process.env.STRIPE_PRICE_SINGLE_EVENT ?? "price_1Thy3mGrTuPPvYuYlFzhMPOH", // $19 one-time
   // Recurring event credit is ALWAYS billed inline (price_data) at
-  // RECURRING_EVENT_CREDIT_PRICE_CENTS — hardcoded null so the price is
-  // controlled entirely from code, not a Stripe Price object. NOTE: the old
-  // STRIPE_PRICE_RECURRING_EVENT_CREDIT env var (a $34.99 Price) is intentionally
-  // ignored; delete it from the host to avoid confusion.
+  // RECURRING_EVENT_CREDIT_PRICE_CENTS (currently $19) — hardcoded null so the
+  // price is controlled entirely from code, not a Stripe Price object. The
+  // deprecated STRIPE_PRICE_RECURRING_EVENT_CREDIT env var is ignored; delete it
+  // from the host to avoid confusion (F-13).
   RECURRING_EVENT_CREDIT: null as string | null,
   STARTER:      process.env.STRIPE_PRICE_STARTER      ?? "price_1Thy4EGrTuPPvYuYf7xx0F0i", // $24.99/mo
   PRO:          process.env.STRIPE_PRICE_PRO          ?? "price_1Thy4eGrTuPPvYuY3VtIshXM", // $29/mo
