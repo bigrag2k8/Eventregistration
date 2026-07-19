@@ -9,9 +9,13 @@ export const dynamic = "force-dynamic";
  * names we currently accept, so address autocomplete can come online the
  * moment the var is set on Railway — no rebuild required.
  *
- * The key is restricted by HTTP referrer in Google Cloud Console, so exposing
- * it through a public endpoint is no different from inlining it into the JS
- * bundle (which is exactly what NEXT_PUBLIC_ does anyway). This is safe.
+ * Exposing the key through a public endpoint is no different from inlining it
+ * into the JS bundle (which is exactly what NEXT_PUBLIC_ does anyway) — a Maps
+ * browser key is never a secret. Its ONLY protection is Google Cloud key
+ * restrictions (HTTP referrer + API allow-list). F-14 (2026-07-19) VERIFIED the
+ * production key was NOT referrer-restricted (usable from an unrelated origin),
+ * so those restrictions MUST be set in the Cloud Console — see the Google Maps
+ * section of .env.example for the exact referrers/APIs to configure.
  */
 export async function GET() {
   const key =
