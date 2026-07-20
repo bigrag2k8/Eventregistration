@@ -1,24 +1,32 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CalendarDays, CalendarRange } from "lucide-react";
+import { CalendarDays, CalendarRange, Repeat } from "lucide-react";
 
-type Format = "standard" | "conference";
+type Format = "standard" | "recurring" | "conference";
+
+const LABELS: Record<Format, string> = {
+  standard: "standard event",
+  recurring: "recurring event",
+  conference: "conference",
+};
 
 /**
  * Front door for the create-event flow. First asks WHAT the organizer is
- * creating — a Standard event or a Conference — then mounts the matching wizard.
- * The two wizards are entirely independent forms (different fields, different
- * server actions), so a Conference is set up without ever touching the standard
- * single-event path. `initialFormat` lets the page skip the chooser when we
- * arrive back mid-flow (e.g. ?format=conference after buying a credit).
+ * creating — a Standard event, a Recurring event, or a Conference — then mounts
+ * the matching wizard. Each wizard is an entirely independent form (different
+ * fields, different server actions), so the formats never touch each other's
+ * paths. `initialFormat` lets the page skip the chooser when we arrive back
+ * mid-flow (e.g. ?format=recurring after buying a credit).
  */
 export function EventFormatGate({
   standard,
+  recurring,
   conference,
   initialFormat = null,
 }: {
   standard: ReactNode;
+  recurring: ReactNode;
   conference: ReactNode;
   initialFormat?: Format | null;
 }) {
@@ -29,7 +37,7 @@ export function EventFormatGate({
       <div>
         <h2 className="text-lg font-semibold">What are you creating?</h2>
         <p className="mt-1 text-sm text-slate-500">You&rsquo;ll choose Free or paid on the next step.</p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <button
             type="button"
             onClick={() => setFormat("standard")}
@@ -39,6 +47,18 @@ export function EventFormatGate({
             <span className="mt-3 font-semibold">Standard event</span>
             <span className="mt-1 text-sm text-slate-500">
               A single gathering — a talk, class, party, mixer, or meetup. One date, one set of tickets.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFormat("recurring")}
+            className="flex flex-col items-start rounded-xl border border-slate-200 p-5 text-left hover:border-brand-300 hover:ring-2 hover:ring-brand-100"
+          >
+            <Repeat className="h-6 w-6 text-brand-600" aria-hidden />
+            <span className="mt-3 font-semibold">Recurring event</span>
+            <span className="mt-1 text-sm text-slate-500">
+              Repeats on a schedule (weekly class, monthly meetup). Each date is its own registerable session.
             </span>
           </button>
 
@@ -62,13 +82,13 @@ export function EventFormatGate({
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <span className="text-sm text-slate-500">
-          Creating a <strong className="text-slate-700">{format === "conference" ? "conference" : "standard event"}</strong>
+          Creating a <strong className="text-slate-700">{LABELS[format]}</strong>
         </span>
         <button type="button" onClick={() => setFormat(null)} className="text-sm text-brand-700 hover:underline">
           ← Change event type
         </button>
       </div>
-      {format === "conference" ? conference : standard}
+      {format === "conference" ? conference : format === "recurring" ? recurring : standard}
     </div>
   );
 }

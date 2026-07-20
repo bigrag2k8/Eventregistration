@@ -177,9 +177,8 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
           recurring events unable to make their first one. */}
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your recurring events</h2>
-        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-          <Link href="/dashboard/recurring/new" className="btn-primary">+ Recurring events</Link>
-        )}
+        {/* Recurring events are now created through the single "Create Event" button
+            (below, in Your events) → the format chooser → Recurring. */}
       </div>
 
       {recurringEvents.length === 0 ? (
@@ -250,7 +249,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
       <div className="mt-8 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your events</h2>
         {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-          <Link href="/dashboard/events/new" className="btn-primary">+ Create event</Link>
+          <Link href="/dashboard/events/new" className="btn-primary">+ Create Event</Link>
         )}
       </div>
 

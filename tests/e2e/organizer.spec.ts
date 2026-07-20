@@ -32,6 +32,14 @@ test.describe("organizer dashboard", () => {
     await expect(page.locator('form input[name="sessions"]')).toBeAttached();
   });
 
+  test("the create-event format gate opens the recurring wizard", async ({ page }) => {
+    await page.goto("/dashboard/events/new");
+    await page.getByRole("button", { name: /recurring event/i }).click();
+    // The recurring wizard's Schedule step has the frequency selector (a field
+    // unique to recurring), confirming the separate wizard mounted.
+    await expect(page.locator('form select[name="frequency"]')).toBeAttached();
+  });
+
   test("the check-in scanner opens from the dashboard", async ({ page }) => {
     await page.goto("/dashboard");
     // An organizer sees a "Check-in" link per event (staff/volunteers see

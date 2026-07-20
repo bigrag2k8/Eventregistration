@@ -165,9 +165,9 @@ export function ConferenceWizard({ credits, chargesEnabled, defaultStart, defaul
       {/* 1. Type */}
       <div data-wizard-step hidden={step !== 0}>
         <div className="space-y-6">
-          <EventTypePicker credits={credits} returnTo="/dashboard/events/new?format=conference&bought=SINGLE_EVENT" />
+          <EventTypePicker credits={credits} premiumLabel="Premium Conference" returnTo="/dashboard/events/new?format=conference&bought=SINGLE_EVENT" />
           <div className="rounded-lg bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-200">
-            <strong>Free</strong> hosts a single-day conference (up to 50 registrations). <strong>Premium Event</strong> unlocks a
+            <strong>Free</strong> hosts a single-day conference (up to 50 registrations). <strong>Premium Conference</strong> unlocks a
             multi-day conference (up to 7 days), day passes (Day 1 / Day 2 / All-Access), and unlimited registrations.
           </div>
         </div>
@@ -238,7 +238,7 @@ export function ConferenceWizard({ credits, chargesEnabled, defaultStart, defaul
               </div>
               {freeMultiDay && (
                 <div className="sm:col-span-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
-                  A <strong>Free</strong> conference runs for a single day. To keep these dates, choose <strong>Premium Event</strong> back
+                  A <strong>Free</strong> conference runs for a single day. To keep these dates, choose <strong>Premium Conference</strong> back
                   on the <strong>Type</strong> step (up to 7 days + day passes) — otherwise shorten the range to one day.
                 </div>
               )}

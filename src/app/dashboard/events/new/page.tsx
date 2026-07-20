@@ -4,11 +4,13 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
 import { createEventAction, createConferenceAction } from "./actions";
+import { createRecurringEventAction } from "../../recurring/actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EventWizard } from "@/components/EventWizard";
 import { EventFormatGate } from "@/components/EventFormatGate";
 import { ConferenceWizard } from "@/components/ConferenceWizard";
+import { RecurringWizard } from "@/components/RecurringWizard";
 import { EVENT_CATEGORIES } from "@/lib/categories";
 import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, CapacityField, VendorSettingsFields } from "@/components/EventTierForm";
 
@@ -37,9 +39,10 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
 
   const org = await prisma.organization.findUnique({
     where: { id: session.orgId },
-    select: { singleEventCredits: true, stripeAccountChargesEnabled: true },
+    select: { singleEventCredits: true, recurringEventCredits: true, stripeAccountChargesEnabled: true },
   });
   const credits = org?.singleEventCredits ?? 0;
+  const recurringCredits = org?.recurringEventCredits ?? 0;
   const chargesEnabled = !!org?.stripeAccountChargesEnabled;
   // First-timer intro: only when the org has never created an event.
   const isFirstEvent = (await prisma.event.count({ where: { organizationId: session.orgId } })) === 0;
@@ -58,7 +61,13 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
   // Skip the format chooser when we arrive back mid-flow with an explicit format
   // (e.g. the conference "buy credit" button returns to ?format=conference).
   const initialFormat =
-    searchParams?.format === "conference" ? "conference" : searchParams?.format === "standard" ? "standard" : null;
+    searchParams?.format === "conference"
+      ? "conference"
+      : searchParams?.format === "recurring"
+        ? "recurring"
+        : searchParams?.format === "standard"
+          ? "standard"
+          : null;
 
   const standardWizard = (
     <form action={createEventAction}>
@@ -254,7 +263,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
           <ErrorBanner code={searchParams?.error} />
           {searchParams?.bought === "SINGLE_EVENT" && (
             <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-              ✓ Credit added — <strong>Premium Event</strong> is selected. Finish the steps and save to apply it to this conference.
+              ✓ Credit added — <strong>Premium Conference</strong> is selected. Finish the steps and save to apply it to this conference.
             </div>
           )}
           {searchParams?.canceled && (
@@ -273,6 +282,26 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
     </form>
   );
 
+  const recurringWizard = (
+    <form action={createRecurringEventAction}>
+      <div className="mb-6 space-y-4">
+        <ErrorBanner code={searchParams?.error} />
+        {searchParams?.bought === "RECURRING_EVENT_CREDIT" && (
+          <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+            ✓ Recurring credit added — you now have <strong>{recurringCredits}</strong> credit{recurringCredits === 1 ? "" : "s"}.
+            <strong> Premium Recurring</strong> is selected — finish the steps to use one.
+          </div>
+        )}
+        {searchParams?.canceled && (
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+            Checkout was canceled. No charge was made.
+          </div>
+        )}
+      </div>
+      <RecurringWizard credits={recurringCredits} initialPremium={searchParams?.bought === "RECURRING_EVENT_CREDIT"} />
+    </form>
+  );
+
   return (
     <main>
       <header className="border-b bg-white">
@@ -283,7 +312,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
       </header>
 
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <EventFormatGate initialFormat={initialFormat} standard={standardWizard} conference={conferenceWizard} />
+        <EventFormatGate initialFormat={initialFormat} standard={standardWizard} recurring={recurringWizard} conference={conferenceWizard} />
       </div>
     </main>
   );

@@ -50,7 +50,17 @@ function postToCheckout(returnTo: string) {
   form.submit();
 }
 
-export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }: { credits: number; returnTo?: string }) {
+export function EventTypePicker({
+  credits,
+  returnTo = "/dashboard/events/new",
+  premiumLabel = "Premium Event",
+}: {
+  credits: number;
+  returnTo?: string;
+  /** Display label for the paid tier — names the format (Premium Event / Premium Conference).
+   *  The underlying tier value (single_event) and premium-event credit are unchanged. */
+  premiumLabel?: string;
+}) {
   const { tier, setTier } = useContext(TierCtx);
   return (
     <section className="card">
@@ -91,7 +101,7 @@ export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }:
               checked={tier === "single_event"}
               onChange={() => setTier("single_event")}
             />
-            <span className="font-semibold">Premium Event</span>
+            <span className="font-semibold">{premiumLabel}</span>
           </span>
           <span className="mt-1 text-xs text-slate-500">
             Unlimited registrations, vendor applications, custom branding, 5 email broadcasts. Uses 1 credit.
@@ -108,7 +118,7 @@ export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }:
                   onClick={() => postToCheckout(returnTo)}
                   className="btn-primary w-full"
                 >
-                  Buy Premium Event — $19
+                  Buy {premiumLabel} — $19
                 </button>
                 <p className="text-xs text-slate-500">
                   You&rsquo;ll be sent to checkout, then back here with the credit applied so you can finish creating this event.
