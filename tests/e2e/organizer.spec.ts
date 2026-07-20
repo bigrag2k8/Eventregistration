@@ -12,12 +12,24 @@ test.describe("organizer dashboard", () => {
     await expect(page.getByText(EVENT.name).first()).toBeVisible();
   });
 
-  test("the create-event wizard renders", async ({ page }) => {
+  test("the create-event format gate opens the standard wizard", async ({ page }) => {
     await page.goto("/dashboard/events/new");
     await expect(page.getByRole("heading", { name: /create event/i })).toBeVisible();
-    // The form is a multi-step wizard; the name field lives in a later (hidden)
-    // step, so assert it's in the DOM rather than currently visible.
+    // The page now opens with a format chooser (Standard vs Conference).
+    await expect(page.getByRole("heading", { name: /what are you creating/i })).toBeVisible();
+    // Picking Standard mounts the existing wizard; the name field lives in a
+    // later (hidden) step, so assert it's in the DOM rather than currently visible.
+    await page.getByRole("button", { name: /standard event/i }).click();
     await expect(page.locator('form input[name="name"]')).toBeAttached();
+  });
+
+  test("the create-event format gate opens the conference wizard", async ({ page }) => {
+    await page.goto("/dashboard/events/new");
+    await page.getByRole("button", { name: /^conference/i }).click();
+    // The conference wizard serializes its pass/session builders into hidden
+    // JSON inputs; their presence confirms the separate wizard mounted.
+    await expect(page.locator('form input[name="passes"]')).toBeAttached();
+    await expect(page.locator('form input[name="sessions"]')).toBeAttached();
   });
 
   test("the check-in scanner opens from the dashboard", async ({ page }) => {
