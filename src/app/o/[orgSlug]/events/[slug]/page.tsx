@@ -12,6 +12,7 @@ import { WaitlistForm } from "@/components/WaitlistForm";
 import { JsonLd } from "@/components/JsonLd";
 import { absoluteUrl, metaDescription, eventJsonLd } from "@/lib/seo";
 import { conferenceDays, dayIndexOf, dayAccessLabel } from "@/lib/conference";
+import { ConferenceAgenda, type AgendaSession } from "@/components/ConferenceAgenda";
 import { Calendar, MapPin, PartyPopper, CalendarClock, Presentation, Users, Layers } from "lucide-react";
 
 interface Props { params: { orgSlug: string; slug: string } }
@@ -138,6 +139,22 @@ export default async function EventLandingPage({ params }: Props) {
   // Conference summary stats (strip under the hero).
   const trackCount = new Set(event.sessions.map((s) => s.track).filter(Boolean)).size;
   const hasCappedSession = event.sessions.some((s) => s.capacity != null);
+
+  // Serializable session data for the interactive agenda (plan mode).
+  const agendaSessions: AgendaSession[] = event.sessions.map((s) => ({
+    id: s.id,
+    title: s.title,
+    track: s.track,
+    room: s.room,
+    speaker: s.speaker,
+    description: s.description,
+    day: dayIndexOf(s.startAt, event),
+    startISO: s.startAt.toISOString(),
+    endISO: s.endAt.toISOString(),
+    timeLabel: `${formatInTimeZone(s.startAt, event.timezone, "h:mm a")} – ${formatInTimeZone(s.endAt, event.timezone, "h:mm a")}`,
+    capacity: s.capacity,
+    seated: seatedBySession.get(s.id) ?? 0,
+  }));
 
   const visibleTickets = event.ticketTypes.filter((t) => !t.isVendorTier);
   const minPrice = visibleTickets.length ? Math.min(...visibleTickets.map((t) => t.priceCents)) : 0;
@@ -339,6 +356,26 @@ export default async function EventLandingPage({ params }: Props) {
         </div>
       )}
 
+      {event.sessions.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pt-10">
+          <h2 className="text-xl font-semibold">Agenda</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {hasCappedSession
+              ? "Star sessions to plan your day. Limited-seat sessions are reserved from your schedule after you register."
+              : "Star sessions to build your personal schedule."}
+          </p>
+          <div className="mt-4">
+            <ConferenceAgenda
+              mode="plan"
+              days={days}
+              sessions={agendaSessions}
+              eventId={event.id}
+              registerHref={registrationClosed ? undefined : `/o/${event.organization.slug}/events/${event.slug}/register`}
+            />
+          </div>
+        </section>
+      )}
+
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 lg:grid-cols-3">
         <article className="lg:col-span-2">
           {event.shortDescription && (
@@ -365,86 +402,6 @@ export default async function EventLandingPage({ params }: Props) {
             </section>
           )}
 
-          {event.sessions.length > 0 && (
-            <section className="mt-10">
-              <h2 className="text-xl font-semibold">Agenda</h2>
-              {hasCappedSession && (
-                <p className="mt-1 text-sm text-slate-500">
-                  Some sessions have limited seats — reserve your spot from your schedule after you register.
-                </p>
-              )}
-              {days.length > 1 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {days.map((day) => (
-                    <a
-                      key={day.index}
-                      href={`#day-${day.index}`}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
-                    >
-                      Day {day.index} · {day.label}
-                    </a>
-                  ))}
-                </div>
-              )}
-              <div className="mt-4 space-y-8">
-                {days.map((day) => {
-                  const daySessions = event.sessions.filter((s) => dayIndexOf(s.startAt, event) === day.index);
-                  if (daySessions.length === 0) return null;
-                  return (
-                    <div key={day.index} id={`day-${day.index}`} className="scroll-mt-20">
-                      {days.length > 1 && (
-                        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />
-                          Day {day.index} · {day.label}
-                        </h3>
-                      )}
-                      <ul className={`${days.length > 1 ? "mt-3" : ""} space-y-3`}>
-                        {daySessions.map((s) => {
-                          const capped = s.capacity != null;
-                          const seatsLeft = capped ? Math.max(0, s.capacity! - (seatedBySession.get(s.id) ?? 0)) : null;
-                          return (
-                            <li key={s.id} className="rounded-xl border-l-2 border-brand-500 bg-white p-4 ring-1 ring-slate-200">
-                              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                                <span className="font-medium">{s.title}</span>
-                                <span className="text-sm tabular-nums text-slate-500">
-                                  {formatInTimeZone(s.startAt, event.timezone, "h:mm a")}
-                                  {" – "}
-                                  {formatInTimeZone(s.endAt, event.timezone, "h:mm a")}
-                                </span>
-                              </div>
-                              {(s.track || s.room || s.speaker) && (
-                                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                                  {s.track && (
-                                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">{s.track}</span>
-                                  )}
-                                  {[s.room, s.speaker].filter(Boolean).join(" · ")}
-                                </div>
-                              )}
-                              {s.description && <p className="mt-2 text-sm text-slate-600">{s.description}</p>}
-                              {capped && (
-                                <div
-                                  className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${
-                                    seatsLeft! > 0
-                                      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                      : "bg-amber-50 text-amber-700 ring-amber-200"
-                                  }`}
-                                >
-                                  <Users className="h-3.5 w-3.5" aria-hidden />
-                                  {seatsLeft! > 0
-                                    ? `${seatsLeft} of ${s.capacity} seats left`
-                                    : "Full — join the waitlist after you register"}
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
 
           {event.location && (
             <section className="mt-10">
