@@ -507,6 +507,7 @@ model Event {
 
   location           EventLocation?
   speakers           Speaker[]
+  sessions           EventSession[]
   media              EventMedia[]
   tags               EventTag[]
   ticketTypes        TicketType[]
@@ -575,6 +576,32 @@ model Speaker {
   @@map("speakers")
 }
 
+/// A single agenda item within a (possibly multi-day) conference Event: a talk,
+/// workshop, panel, or break scheduled in a room/track. Belongs to one Event
+/// and shares that event's ticket — sessions are NOT independently purchasable
+/// (that's what RecurringEvent occurrences are). Which conference "day" a
+/// session falls on is DERIVED from startAt in the event's timezone, never
+/// stored, so it stays correct after a reschedule. NOTE: named EventSession, not
+/// Session — `Session` is already the auth/login refresh-token model.
+model EventSession {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  description String?  @db.Text
+  track       String?
+  room        String?
+  speaker     String?  // free-text speaker name (not the Speaker relation)
+  startAt     DateTime
+  endAt       DateTime
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId, startAt])
+  @@map("event_sessions")
+}
+
 model EventMedia {
   id        String  @id @default(cuid())
   eventId   String
@@ -619,6 +646,12 @@ model TicketType {
   isHidden        Boolean        @default(false)
   isVendorTier    Boolean        @default(false)  // when true, this tier is offered only via the vendor application flow
   sortOrder       Int            @default(0)
+  /// Conference day-scoping: 1-based conference-day numbers this ticket grants
+  /// access to (a "Day 2 pass" = [2]). Empty = the whole event / all days, so
+  /// every existing ticket (and every single-day event) stays valid. Premium
+  /// multi-day events only; informational in Slice 1 (drives labels), enforced
+  /// once per-session seat reservation ships.
+  dayAccess       Int[]          @default([])
 
   registrations   Registration[]
   vendorApplications VendorApplication[]

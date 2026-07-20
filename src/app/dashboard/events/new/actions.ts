@@ -5,6 +5,8 @@ import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
+import { conferenceDayCount } from "@/lib/conference";
+import { eventEntitlements } from "@/lib/plans";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
@@ -83,6 +85,15 @@ export async function createEventAction(formData: FormData) {
   // Friendly inline error instead of a server-side exception page
   if (endAt <= startAt) {
     redirect("/dashboard/events/new?error=date_order");
+  }
+
+  // Conference span gate: FREE = single-day, PREMIUM = up to a 7-day conference.
+  // Check against the INTENDED tier BEFORE claiming a credit below, so a rejected
+  // multi-day span never burns a single-event credit.
+  const wantsPremium = data.tier === "single_event";
+  const dayCount = conferenceDayCount({ startAt, endAt, timezone: data.timezone });
+  if (dayCount > eventEntitlements(wantsPremium).maxConferenceDays) {
+    redirect(`/dashboard/events/new?error=conference_span_${wantsPremium ? "max" : "free"}`);
   }
 
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });

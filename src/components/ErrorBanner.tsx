@@ -6,6 +6,8 @@
  */
 const MESSAGES: Record<string, string> = {
   date_order: "End time must be after the start time. Please fix the dates and submit again.",
+  conference_span_free: "Free events run for a single day. Upgrade to a premium event ($19) to host a multi-day conference (up to 7 days).",
+  conference_span_max: "A conference can span at most 7 days. Please shorten the dates.",
   validation: "Some fields were invalid. Check your inputs and try again.",
   no_ticket_types: "Add at least one ticket type before publishing.",
   payouts_required: "Set up payouts in Billing before adding paid ticket types. Free tickets are fine.",

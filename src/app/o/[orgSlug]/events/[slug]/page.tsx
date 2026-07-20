@@ -10,7 +10,8 @@ import { OrgBrandStyle } from "@/components/OrgBrandStyle";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { JsonLd } from "@/components/JsonLd";
 import { absoluteUrl, metaDescription, eventJsonLd } from "@/lib/seo";
-import { Calendar, MapPin, PartyPopper } from "lucide-react";
+import { conferenceDays, dayIndexOf, dayAccessLabel } from "@/lib/conference";
+import { Calendar, MapPin, PartyPopper, CalendarClock } from "lucide-react";
 
 interface Props { params: { orgSlug: string; slug: string } }
 
@@ -75,12 +76,16 @@ export default async function EventLandingPage({ params }: Props) {
       organization: true,
       location: true,
       speakers: { orderBy: { order: "asc" } },
+      sessions: { orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }] },
       media: { orderBy: { order: "asc" } },
       tags: true,
       ticketTypes: { where: { isHidden: false }, orderBy: { sortOrder: "asc" } },
     },
   });
   if (!event) return notFound();
+
+  // Conference days (derived in the event's tz) for the agenda + ticket labels.
+  const days = conferenceDays(event);
 
   const visibleTickets = event.ticketTypes.filter((t) => !t.isVendorTier);
   const minPrice = visibleTickets.length ? Math.min(...visibleTickets.map((t) => t.priceCents)) : 0;
@@ -274,6 +279,48 @@ export default async function EventLandingPage({ params }: Props) {
             </section>
           )}
 
+          {event.sessions.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-xl font-semibold">Agenda</h2>
+              <div className="mt-4 space-y-8">
+                {days.map((day) => {
+                  const daySessions = event.sessions.filter((s) => dayIndexOf(s.startAt, event) === day.index);
+                  if (daySessions.length === 0) return null;
+                  return (
+                    <div key={day.index}>
+                      {days.length > 1 && (
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />
+                          Day {day.index} · {day.label}
+                        </h3>
+                      )}
+                      <ul className={`${days.length > 1 ? "mt-3" : ""} space-y-3`}>
+                        {daySessions.map((s) => (
+                          <li key={s.id} className="rounded-xl p-4 ring-1 ring-slate-200">
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                              <span className="font-medium">{s.title}</span>
+                              <span className="text-sm tabular-nums text-slate-500">
+                                {formatInTimeZone(s.startAt, event.timezone, "h:mm a")}
+                                {" – "}
+                                {formatInTimeZone(s.endAt, event.timezone, "h:mm a")}
+                              </span>
+                            </div>
+                            {(s.track || s.room || s.speaker) && (
+                              <div className="mt-1 text-sm text-slate-500">
+                                {[s.track, s.room, s.speaker].filter(Boolean).join(" · ")}
+                              </div>
+                            )}
+                            {s.description && <p className="mt-2 text-sm text-slate-600">{s.description}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {event.location && (
             <section className="mt-10">
               <h2 className="text-xl font-semibold">Location</h2>
@@ -339,6 +386,9 @@ export default async function EventLandingPage({ params }: Props) {
                   <div key={t.id} className="flex items-center justify-between rounded-lg ring-1 ring-slate-200 p-3">
                     <div>
                       <div className="font-medium">{t.name}</div>
+                      {days.length > 1 && (
+                        <div className="text-xs font-medium text-brand-700">{dayAccessLabel(t.dayAccess, days)}</div>
+                      )}
                       <div className="text-xs text-slate-500">
                         {soldOut ? "Sold out" : left !== null ? `${left} left` : "Available"}
                       </div>

@@ -11,6 +11,8 @@ import { reportTenantViolation } from "@/lib/tenant-violation";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 import { sendConfirmationEmail, sendReviewRequestEmail } from "@/lib/email";
+import { conferenceDayCount } from "@/lib/conference";
+import { eventEntitlements } from "@/lib/plans";
 
 async function authorizeEvent(eventId: string) {
   const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
@@ -239,6 +241,9 @@ export async function rescheduleEventAction(formData: FormData) {
   const startAt = fromZonedTime(startRaw, tz);
   const endAt = fromZonedTime(endRaw, tz);
   if (endAt <= startAt) redirect(`/dashboard/events/${event.id}?error=date_order`);
+  if (conferenceDayCount({ startAt, endAt, timezone: tz }) > eventEntitlements(event.isPremium).maxConferenceDays) {
+    redirect(`/dashboard/events/${event.id}?error=conference_span_${event.isPremium ? "max" : "free"}`);
+  }
 
   await prisma.event.update({
     where: { id: event.id },
@@ -336,6 +341,12 @@ export async function updateBasicsAction(formData: FormData) {
   // Friendly inline error instead of a server-side exception page
   if (endAt <= startAt) {
     redirect(`/dashboard/events/${event.id}?error=date_order`);
+  }
+  // Conference span gate (draft edits can move dates): free = single-day,
+  // premium = up to 7 days. Live events keep their existing dates, so this only
+  // bites when isDraft.
+  if (isDraft && conferenceDayCount({ startAt, endAt, timezone: tz }) > eventEntitlements(event.isPremium).maxConferenceDays) {
+    redirect(`/dashboard/events/${event.id}?error=conference_span_${event.isPremium ? "max" : "free"}`);
   }
 
   await prisma.event.update({
@@ -524,6 +535,15 @@ export async function addTicketTypeAction(formData: FormData) {
   const priceCents = Math.round(parseFloat(data.price || "0") * 100);
   const qty = data.quantity ? parseInt(data.quantity) : null;
 
+  // Day-scoped access (a "Day 2 pass"). Read the repeated checkbox values OUTSIDE
+  // the zod parse (Object.fromEntries collapses duplicate keys). Only premium
+  // events may day-scope; anything else stores [] = whole event. Empty = all days.
+  const dayCount = conferenceDayCount(event);
+  const dayScopingAllowed = eventEntitlements(event.isPremium).dayScopedTickets && dayCount > 1;
+  const dayAccess = dayScopingAllowed
+    ? formData.getAll("dayAccess").map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= dayCount)
+    : [];
+
   // Phase B: paid ticket types require the org to be Connect-ready, otherwise
   // we'd accept registrations we can't process at checkout time. Free tiers
   // are always allowed.
@@ -546,8 +566,59 @@ export async function addTicketTypeAction(formData: FormData) {
       priceCents,
       quantityTotal: qty,
       sortOrder: existing,
+      dayAccess,
     },
   });
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/events/${event.slug}`);
+}
+
+const sessionSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  track: z.string().max(120).optional(),
+  room: z.string().max(120).optional(),
+  speaker: z.string().max(200).optional(),
+  startAt: z.string().min(1),
+  endAt: z.string().min(1),
+});
+
+export async function addSessionAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const { event } = await authorizeEvent(eventId);
+  const parsed = sessionSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/events/${event.id}?error=validation`);
+  const d = parsed.data;
+  // Session wall-clock times are in the event's timezone (like the event itself).
+  const startAt = fromZonedTime(d.startAt, event.timezone);
+  const endAt = fromZonedTime(d.endAt, event.timezone);
+  if (endAt <= startAt) redirect(`/dashboard/events/${event.id}?error=date_order`);
+
+  const existing = await prisma.eventSession.count({ where: { eventId: event.id } });
+  await prisma.eventSession.create({
+    data: {
+      eventId: event.id,
+      title: d.title,
+      description: d.description || null,
+      track: d.track || null,
+      room: d.room || null,
+      speaker: d.speaker || null,
+      startAt,
+      endAt,
+      sortOrder: existing,
+    },
+  });
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/events/${event.slug}`);
+}
+
+export async function deleteSessionAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const sessionId = String(formData.get("sessionId"));
+  const { event } = await authorizeEvent(eventId);
+  const s = await prisma.eventSession.findFirst({ where: { id: sessionId, eventId: event.id } });
+  if (!s) throw new Error("Not found");
+  await prisma.eventSession.delete({ where: { id: s.id } });
   revalidatePath(`/dashboard/events/${event.id}`);
   revalidatePath(`/events/${event.slug}`);
 }

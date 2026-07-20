@@ -5,12 +5,15 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
-import { publishAction, unpublishAction, cancelEventAction, rescheduleEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
+import { publishAction, unpublishAction, cancelEventAction, rescheduleEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, addSessionAction, deleteSessionAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
 import { EventLocationFields } from "@/components/EventLocationFields";
 import { AddTicketFields } from "@/components/AddTicketFields";
+import { DayAccessPicker } from "@/components/DayAccessPicker";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { conferenceDays, dayIndexOf, dayAccessLabel } from "@/lib/conference";
+import { eventEntitlements } from "@/lib/plans";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { categoryOptions } from "@/lib/categories";
 import { QrButton } from "./QrButton";
@@ -32,11 +35,17 @@ export default async function EventManagePage({ params, searchParams }: { params
     include: {
       location: true,
       ticketTypes: { orderBy: { sortOrder: "asc" } },
+      sessions: { orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }] },
       recurringEvent: { select: { name: true, slug: true, isPremium: true, organization: { select: { slug: true } } } },
       _count: { select: { registrations: { where: { status: "CONFIRMED" } } } },
     },
   });
   if (!event) return notFound();
+
+  // Conference days (derived in the event's tz) + this event's entitlements.
+  const days = conferenceDays(event);
+  const entitlements = eventEntitlements(event.isPremium);
+  const dayScoped = entitlements.dayScopedTickets && days.length > 1;
 
   const totalRevenue = await prisma.payment.aggregate({
     where: { status: "SUCCEEDED", registration: { eventId: event.id } },
@@ -482,6 +491,7 @@ export default async function EventManagePage({ params, searchParams }: { params
                   <th className="px-3 py-2">Kind</th>
                   <th className="px-3 py-2 text-right">Price</th>
                   {presaleEnabled && <th className="px-3 py-2 text-right">Presale</th>}
+                  {dayScoped && <th className="px-3 py-2">Days</th>}
                   <th className="px-3 py-2 text-right">Sold / Total</th>
                   <th className="px-3 py-2"></th>
                 </tr>
@@ -496,6 +506,9 @@ export default async function EventManagePage({ params, searchParams }: { params
                       <td className="px-3 py-2 text-right font-medium text-emerald-700">
                         {t.priceCents === 0 ? "Free" : money(presalePrice(t.priceCents))}
                       </td>
+                    )}
+                    {dayScoped && (
+                      <td className="px-3 py-2 text-slate-600">{dayAccessLabel(t.dayAccess, days) || "All days"}</td>
                     )}
                     <td className="px-3 py-2 text-right">
                       {t.quantitySold} / {t.quantityTotal ?? "∞"}
@@ -518,15 +531,114 @@ export default async function EventManagePage({ params, searchParams }: { params
             </table>
           </div>
 
-          <form action={addTicketTypeAction} className={`mt-6 grid gap-3 ${presaleEnabled ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
+          <form action={addTicketTypeAction} className="mt-6 space-y-3">
+            <input type="hidden" name="eventId" value={event.id} />
+            <div className={`grid gap-3 ${presaleEnabled ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
+              <div className="sm:col-span-2">
+                <label className="label">New ticket name</label>
+                <input name="name" required className="input" placeholder="VIP" />
+              </div>
+              <AddTicketFields presalePercent={presaleEnabled ? presalePct : null} />
+              <div className="flex items-end">
+                <button type="submit" className="btn-primary w-full">Add ticket type</button>
+              </div>
+            </div>
+            {dayScoped && <DayAccessPicker days={days} />}
+          </form>
+        </section>
+
+        {/* Agenda — sessions/tracks within this event (a conference schedule) */}
+        <section className="card">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Agenda</h2>
+            <span className="text-xs text-slate-500">
+              {event.sessions.length} session{event.sessions.length === 1 ? "" : "s"}
+              {days.length > 1 ? ` · ${days.length} days` : ""}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            Add talks, workshops, and breaks to build a schedule. Attendees see this on the event page.
+            {days.length > 1 ? " Each session is placed on a day automatically from its start time." : ""}
+          </p>
+
+          {event.sessions.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+                    {days.length > 1 && <th className="px-3 py-2">Day</th>}
+                    <th className="px-3 py-2">Time</th>
+                    <th className="px-3 py-2">Session</th>
+                    <th className="px-3 py-2">Track</th>
+                    <th className="px-3 py-2">Room</th>
+                    <th className="px-3 py-2">Speaker</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {event.sessions.map((s) => (
+                    <tr key={s.id}>
+                      {days.length > 1 && (
+                        <td className="px-3 py-2 text-slate-500">Day {dayIndexOf(s.startAt, event)}</td>
+                      )}
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-600">
+                        {formatInTimeZone(s.startAt, event.timezone, "MMM d, h:mm a")}
+                        {" – "}
+                        {formatInTimeZone(s.endAt, event.timezone, "h:mm a")}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{s.title}</td>
+                      <td className="px-3 py-2 text-slate-500">{s.track || "—"}</td>
+                      <td className="px-3 py-2 text-slate-500">{s.room || "—"}</td>
+                      <td className="px-3 py-2 text-slate-500">{s.speaker || "—"}</td>
+                      <td className="px-3 py-2 text-right">
+                        <form action={deleteSessionAction} className="inline">
+                          <input type="hidden" name="eventId" value={event.id} />
+                          <input type="hidden" name="sessionId" value={s.id} />
+                          <button type="submit" className="text-xs text-red-600 hover:underline">Delete</button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <form action={addSessionAction} className="mt-6 grid gap-3 sm:grid-cols-2">
             <input type="hidden" name="eventId" value={event.id} />
             <div className="sm:col-span-2">
-              <label className="label">New ticket name</label>
-              <input name="name" required className="input" placeholder="VIP" />
+              <label className="label">Session title</label>
+              <input name="title" required maxLength={200} className="input" placeholder="Opening Keynote: The State of…" />
             </div>
-            <AddTicketFields presalePercent={presaleEnabled ? presalePct : null} />
-            <div className="flex items-end">
-              <button type="submit" className="btn-primary w-full">Add ticket type</button>
+            <div>
+              <label className="label">Starts</label>
+              <input name="startAt" type="datetime-local" required className="input" />
+            </div>
+            <div>
+              <label className="label">Ends</label>
+              <input name="endAt" type="datetime-local" required className="input" />
+            </div>
+            <div>
+              <label className="label">Track (optional)</label>
+              <input name="track" maxLength={120} className="input" placeholder="Applied ML" />
+            </div>
+            <div>
+              <label className="label">Room (optional)</label>
+              <input name="room" maxLength={120} className="input" placeholder="Bayview A" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Speaker (optional)</label>
+              <input name="speaker" maxLength={200} className="input" placeholder="Dr. Ada Lin, Vector Labs" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Description (optional)</label>
+              <textarea name="description" maxLength={2000} rows={2} className="input" placeholder="What this session covers…" />
+            </div>
+            <p className="text-xs text-slate-500 sm:col-span-2">
+              Times are in the event timezone ({event.timezone}).
+            </p>
+            <div className="sm:col-span-2">
+              <button type="submit" className="btn-primary">Add session</button>
             </div>
           </form>
         </section>

@@ -31,6 +31,11 @@ export const STRIPE_PRICES = {
 export const FREE_EVENT_REGISTRATION_LIMIT = 50;
 export const FREE_EVENT_EMAIL_BROADCASTS = 1;
 export const PREMIUM_EVENT_EMAIL_BROADCASTS = 5;
+/** Conference span: a FREE event is single-day; a PREMIUM event (a $19 credit
+ *  was spent) can span a multi-day conference, up to a week. Day-scoped ticket
+ *  tiers (Day 1 / Day 2 / All-Access) are therefore a premium-only concept. */
+export const FREE_EVENT_MAX_DAYS = 1;
+export const PREMIUM_EVENT_MAX_DAYS = 7;
 /** Price of one single-event credit (USD cents). Mirrors PLANS.SINGLE_EVENT. */
 export const SINGLE_EVENT_PRICE_CENTS = 1900;
 /** Price of one recurring event credit (USD cents). Mirrors PLANS.RECURRING_EVENT_CREDIT. */
@@ -50,13 +55,17 @@ export interface EventEntitlements {
   customBranding: boolean;
   /** Max organizer email broadcasts for this event. null = unlimited. */
   emailBroadcasts: number | null;
+  /** Max number of calendar days this event may span (a conference). */
+  maxConferenceDays: number;
+  /** May this event sell day-scoped ticket tiers (Day 1 / All-Access)? */
+  dayScopedTickets: boolean;
 }
 
 /** What an event can do, based solely on whether a credit has been spent on it. */
 export function eventEntitlements(isPremium: boolean): EventEntitlements {
   return isPremium
-    ? { registrationLimit: null, vendorFlow: true, customBranding: true, emailBroadcasts: PREMIUM_EVENT_EMAIL_BROADCASTS }
-    : { registrationLimit: FREE_EVENT_REGISTRATION_LIMIT, vendorFlow: false, customBranding: false, emailBroadcasts: FREE_EVENT_EMAIL_BROADCASTS };
+    ? { registrationLimit: null, vendorFlow: true, customBranding: true, emailBroadcasts: PREMIUM_EVENT_EMAIL_BROADCASTS, maxConferenceDays: PREMIUM_EVENT_MAX_DAYS, dayScopedTickets: true }
+    : { registrationLimit: FREE_EVENT_REGISTRATION_LIMIT, vendorFlow: false, customBranding: false, emailBroadcasts: FREE_EVENT_EMAIL_BROADCASTS, maxConferenceDays: FREE_EVENT_MAX_DAYS, dayScopedTickets: false };
 }
 
 /**
