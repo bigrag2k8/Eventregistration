@@ -121,7 +121,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
           <ErrorBanner code={searchParams.error} />
         </div>
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-slate-500">
@@ -136,6 +136,9 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
             )}
           </p>
         </div>
+        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
+          <Link href="/dashboard/events/new" className="btn-primary shrink-0">+ Create Event</Link>
+        )}
       </div>
 
       {showOnboarding && org && (
@@ -246,11 +249,8 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         </>
       )}
 
-      <div className="mt-8 flex items-center justify-between">
+      <div className="mt-8">
         <h2 className="text-lg font-semibold">Your events</h2>
-        {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-          <Link href="/dashboard/events/new" className="btn-primary">+ Create Event</Link>
-        )}
       </div>
 
       {events.length === 0 ? (
