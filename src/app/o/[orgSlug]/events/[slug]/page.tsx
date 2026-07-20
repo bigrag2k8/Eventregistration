@@ -12,7 +12,7 @@ import { WaitlistForm } from "@/components/WaitlistForm";
 import { JsonLd } from "@/components/JsonLd";
 import { absoluteUrl, metaDescription, eventJsonLd } from "@/lib/seo";
 import { conferenceDays, dayIndexOf, dayAccessLabel } from "@/lib/conference";
-import { Calendar, MapPin, PartyPopper, CalendarClock } from "lucide-react";
+import { Calendar, MapPin, PartyPopper, CalendarClock, Presentation, Users, Layers } from "lucide-react";
 
 interface Props { params: { orgSlug: string; slug: string } }
 
@@ -121,6 +121,23 @@ export default async function EventLandingPage({ params }: Props) {
 
   // Conference days (derived in the event's tz) for the agenda + ticket labels.
   const days = conferenceDays(event);
+
+  // Live seat counts for capacity-limited sessions — same source as the attendee
+  // schedule page, so the public "N of M seats left" matches what's reservable.
+  const capSessionIds = event.sessions.filter((s) => s.capacity != null).map((s) => s.id);
+  const seatedBySession = new Map(
+    (capSessionIds.length
+      ? await prisma.sessionReservation.groupBy({
+          by: ["sessionId"],
+          where: { sessionId: { in: capSessionIds }, status: "SEAT" },
+          _count: { _all: true },
+        })
+      : []
+    ).map((c) => [c.sessionId, c._count._all]),
+  );
+  // Conference summary stats (strip under the hero).
+  const trackCount = new Set(event.sessions.map((s) => s.track).filter(Boolean)).size;
+  const hasCappedSession = event.sessions.some((s) => s.capacity != null);
 
   const visibleTickets = event.ticketTypes.filter((t) => !t.isVendorTier);
   const minPrice = visibleTickets.length ? Math.min(...visibleTickets.map((t) => t.priceCents)) : 0;
@@ -295,6 +312,33 @@ export default async function EventLandingPage({ params }: Props) {
         </div>
       </section>
 
+      {event.isConference && event.sessions.length > 0 && (
+        <div className="border-b border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 text-sm text-slate-600">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />
+              <strong className="font-semibold text-slate-900">{days.length}</strong>&nbsp;{days.length === 1 ? "day" : "days"}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Presentation className="h-4 w-4 text-brand-600" aria-hidden />
+              <strong className="font-semibold text-slate-900">{event.sessions.length}</strong>&nbsp;{event.sessions.length === 1 ? "session" : "sessions"}
+            </span>
+            {trackCount > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <Layers className="h-4 w-4 text-brand-600" aria-hidden />
+                <strong className="font-semibold text-slate-900">{trackCount}</strong>&nbsp;{trackCount === 1 ? "track" : "tracks"}
+              </span>
+            )}
+            {hasCappedSession && (
+              <span className="inline-flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-brand-600" aria-hidden />
+                Limited-seat sessions
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 lg:grid-cols-3">
         <article className="lg:col-span-2">
           {event.shortDescription && (
@@ -324,12 +368,30 @@ export default async function EventLandingPage({ params }: Props) {
           {event.sessions.length > 0 && (
             <section className="mt-10">
               <h2 className="text-xl font-semibold">Agenda</h2>
+              {hasCappedSession && (
+                <p className="mt-1 text-sm text-slate-500">
+                  Some sessions have limited seats — reserve your spot from your schedule after you register.
+                </p>
+              )}
+              {days.length > 1 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {days.map((day) => (
+                    <a
+                      key={day.index}
+                      href={`#day-${day.index}`}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+                    >
+                      Day {day.index} · {day.label}
+                    </a>
+                  ))}
+                </div>
+              )}
               <div className="mt-4 space-y-8">
                 {days.map((day) => {
                   const daySessions = event.sessions.filter((s) => dayIndexOf(s.startAt, event) === day.index);
                   if (daySessions.length === 0) return null;
                   return (
-                    <div key={day.index}>
+                    <div key={day.index} id={`day-${day.index}`} className="scroll-mt-20">
                       {days.length > 1 && (
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                           <CalendarClock className="h-4 w-4 text-brand-600" aria-hidden />
@@ -337,29 +399,45 @@ export default async function EventLandingPage({ params }: Props) {
                         </h3>
                       )}
                       <ul className={`${days.length > 1 ? "mt-3" : ""} space-y-3`}>
-                        {daySessions.map((s) => (
-                          <li key={s.id} className="rounded-xl p-4 ring-1 ring-slate-200">
-                            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                              <span className="font-medium">{s.title}</span>
-                              <span className="text-sm tabular-nums text-slate-500">
-                                {formatInTimeZone(s.startAt, event.timezone, "h:mm a")}
-                                {" – "}
-                                {formatInTimeZone(s.endAt, event.timezone, "h:mm a")}
-                              </span>
-                            </div>
-                            {(s.track || s.room || s.speaker) && (
-                              <div className="mt-1 text-sm text-slate-500">
-                                {[s.track, s.room, s.speaker].filter(Boolean).join(" · ")}
+                        {daySessions.map((s) => {
+                          const capped = s.capacity != null;
+                          const seatsLeft = capped ? Math.max(0, s.capacity! - (seatedBySession.get(s.id) ?? 0)) : null;
+                          return (
+                            <li key={s.id} className="rounded-xl border-l-2 border-brand-500 bg-white p-4 ring-1 ring-slate-200">
+                              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                                <span className="font-medium">{s.title}</span>
+                                <span className="text-sm tabular-nums text-slate-500">
+                                  {formatInTimeZone(s.startAt, event.timezone, "h:mm a")}
+                                  {" – "}
+                                  {formatInTimeZone(s.endAt, event.timezone, "h:mm a")}
+                                </span>
                               </div>
-                            )}
-                            {s.description && <p className="mt-2 text-sm text-slate-600">{s.description}</p>}
-                            {s.capacity != null && (
-                              <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
-                                Limited seats — reserve after you register
-                              </div>
-                            )}
-                          </li>
-                        ))}
+                              {(s.track || s.room || s.speaker) && (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                                  {s.track && (
+                                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">{s.track}</span>
+                                  )}
+                                  {[s.room, s.speaker].filter(Boolean).join(" · ")}
+                                </div>
+                              )}
+                              {s.description && <p className="mt-2 text-sm text-slate-600">{s.description}</p>}
+                              {capped && (
+                                <div
+                                  className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${
+                                    seatsLeft! > 0
+                                      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                      : "bg-amber-50 text-amber-700 ring-amber-200"
+                                  }`}
+                                >
+                                  <Users className="h-3.5 w-3.5" aria-hidden />
+                                  {seatsLeft! > 0
+                                    ? `${seatsLeft} of ${s.capacity} seats left`
+                                    : "Full — join the waitlist after you register"}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   );
@@ -429,14 +507,23 @@ export default async function EventLandingPage({ params }: Props) {
               {visibleTickets.map((t) => {
                 const left = t.quantityTotal ? t.quantityTotal - t.quantitySold : null;
                 const soldOut = left !== null && left <= 0;
+                // Day-pass scope, only meaningful on a multi-day conference.
+                const dayScope = days.length > 1 ? dayAccessLabel(t.dayAccess, days) : null;
                 return (
                   <div key={t.id} className="flex items-center justify-between rounded-lg ring-1 ring-slate-200 p-3">
                     <div>
                       <div className="font-medium">{t.name}</div>
-                      {days.length > 1 && (
-                        <div className="text-xs font-medium text-brand-700">{dayAccessLabel(t.dayAccess, days)}</div>
+                      {dayScope && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+                            {dayScope}
+                          </span>
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            {dayScope === "All days" ? `Every session, all ${days.length} days` : `${dayScope} sessions only`}
+                          </div>
+                        </div>
                       )}
-                      <div className="text-xs text-slate-500">
+                      <div className="mt-0.5 text-xs text-slate-500">
                         {soldOut ? "Sold out" : left !== null ? `${left} left` : "Available"}
                       </div>
                     </div>
