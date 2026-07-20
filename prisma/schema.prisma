@@ -90,6 +90,7 @@ enum EmailKind {
   REFUND_REQUEST_APPROVED
   REFUND_REQUEST_DENIED
   WAITLIST_PROMOTED
+  SESSION_WAITLIST_PROMOTED
   ABANDONED_CART
   ORGANIZER_BLAST
   POST_EVENT
@@ -594,12 +595,49 @@ model EventSession {
   speaker     String?  // free-text speaker name (not the Speaker relation)
   startAt     DateTime
   endAt       DateTime
+  /// Per-room seat cap (Slice 2). null = uncapped — no reservation needed, any
+  /// ticket-holder whose pass covers this day just attends. When set, seats are
+  /// reservable and a full session offers a waitlist. Availability is computed
+  /// LIVE (count of SEAT reservations) under a row lock, not a stored counter,
+  /// so a cancelled registration frees its seat automatically via cascade.
+  capacity    Int?
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  reservations SessionReservation[]
+
   @@index([eventId, startAt])
   @@map("event_sessions")
+}
+
+/// A conference attendee's seat (or waitlist spot) in ONE capacity-limited
+/// EventSession. The holder already paid for the event (has a Registration), so
+/// promotion off the waitlist is DIRECT (WAITLIST -> SEAT + email) — no
+/// magic-link/expiry dance like the event-level Waitlist (which needs those only
+/// because promotion there means a second purchase). dayAccess is enforced at
+/// reserve time: a Day-2 pass can only reserve Day-2 sessions.
+model SessionReservation {
+  id             String                   @id @default(cuid())
+  sessionId      String
+  session        EventSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  registrationId String
+  registration   Registration             @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  status         SessionReservationStatus @default(SEAT)
+  /// Ordering within the session's waitlist (ignored for SEAT rows).
+  position       Int                      @default(0)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@unique([sessionId, registrationId])
+  @@index([sessionId, status, position])
+  @@index([registrationId])
+  @@map("session_reservations")
+}
+
+enum SessionReservationStatus {
+  SEAT
+  WAITLIST
 }
 
 model EventMedia {
@@ -761,6 +799,7 @@ model Registration {
   emailLogs         EmailLog[]
   refundRequests    RefundRequest[]
   review            Review?
+  sessionReservations SessionReservation[]
 
   @@index([eventId, status])
   @@index([email])

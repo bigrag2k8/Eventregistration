@@ -76,3 +76,29 @@ export function dayAccessLabel(dayAccess: number[], days: ConferenceDay[]): stri
   if (inRange.length === days.length) return "All days";
   return "Day " + inRange.join(", ");
 }
+
+/** Do two time ranges overlap? Touching (a.end === b.start) does NOT count. */
+export function sessionsOverlap(
+  a: { startAt: Date; endAt: Date },
+  b: { startAt: Date; endAt: Date },
+): boolean {
+  return a.startAt < b.endAt && b.startAt < a.endAt;
+}
+
+export type SeatState = "open" | "full" | "reserved" | "waitlisted";
+
+/**
+ * The display/button state for a capacity session on an attendee's schedule.
+ * `myStatus` is their own SessionReservation status (or null if none). Seats are
+ * counted live (`seated`), so `open` vs `full` reflects real-time availability.
+ */
+export function sessionSeatState(opts: {
+  capacity: number | null;
+  seated: number;
+  myStatus: "SEAT" | "WAITLIST" | null;
+}): SeatState {
+  if (opts.myStatus === "SEAT") return "reserved";
+  if (opts.myStatus === "WAITLIST") return "waitlisted";
+  if (opts.capacity == null) return "open"; // uncapped — reservation N/A
+  return opts.seated >= opts.capacity ? "full" : "open";
+}

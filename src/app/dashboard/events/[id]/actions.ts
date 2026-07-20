@@ -581,6 +581,7 @@ const sessionSchema = z.object({
   speaker: z.string().max(200).optional(),
   startAt: z.string().min(1),
   endAt: z.string().min(1),
+  capacity: z.string().optional(),
 });
 
 export async function addSessionAction(formData: FormData) {
@@ -594,6 +595,9 @@ export async function addSessionAction(formData: FormData) {
   const endAt = fromZonedTime(d.endAt, event.timezone);
   if (endAt <= startAt) redirect(`/dashboard/events/${event.id}?error=date_order`);
 
+  const capacityNum = d.capacity && d.capacity.trim() !== "" ? parseInt(d.capacity, 10) : null;
+  const capacity = capacityNum != null && Number.isFinite(capacityNum) && capacityNum > 0 ? capacityNum : null;
+
   const existing = await prisma.eventSession.count({ where: { eventId: event.id } });
   await prisma.eventSession.create({
     data: {
@@ -605,6 +609,7 @@ export async function addSessionAction(formData: FormData) {
       speaker: d.speaker || null,
       startAt,
       endAt,
+      capacity,
       sortOrder: existing,
     },
   });

@@ -5,6 +5,8 @@ import {
   conferenceDays,
   ticketCoversDay,
   dayAccessLabel,
+  sessionsOverlap,
+  sessionSeatState,
 } from "@/lib/conference";
 import { eventEntitlements, FREE_EVENT_MAX_DAYS, PREMIUM_EVENT_MAX_DAYS } from "@/lib/plans";
 
@@ -113,6 +115,37 @@ describe("dayAccessLabel", () => {
   it("'Day N' for partial coverage", () => {
     expect(dayAccessLabel([2], days3)).toBe("Day 2");
     expect(dayAccessLabel([3, 1], days3)).toBe("Day 1, 3");
+  });
+});
+
+describe("sessionsOverlap", () => {
+  const at = (s: string, e: string) => ({ startAt: new Date(s), endAt: new Date(e) });
+  it("overlapping ranges", () => {
+    expect(sessionsOverlap(at("2026-08-16T17:00:00Z", "2026-08-16T18:00:00Z"), at("2026-08-16T17:30:00Z", "2026-08-16T18:30:00Z"))).toBe(true);
+  });
+  it("one contained in the other", () => {
+    expect(sessionsOverlap(at("2026-08-16T17:00:00Z", "2026-08-16T19:00:00Z"), at("2026-08-16T17:30:00Z", "2026-08-16T18:00:00Z"))).toBe(true);
+  });
+  it("touching edge does NOT count as overlap", () => {
+    expect(sessionsOverlap(at("2026-08-16T17:00:00Z", "2026-08-16T18:00:00Z"), at("2026-08-16T18:00:00Z", "2026-08-16T19:00:00Z"))).toBe(false);
+  });
+  it("disjoint ranges", () => {
+    expect(sessionsOverlap(at("2026-08-16T17:00:00Z", "2026-08-16T18:00:00Z"), at("2026-08-16T19:00:00Z", "2026-08-16T20:00:00Z"))).toBe(false);
+  });
+});
+
+describe("sessionSeatState", () => {
+  it("reflects my own reservation first", () => {
+    expect(sessionSeatState({ capacity: 10, seated: 10, myStatus: "SEAT" })).toBe("reserved");
+    expect(sessionSeatState({ capacity: 10, seated: 10, myStatus: "WAITLIST" })).toBe("waitlisted");
+  });
+  it("open when seats remain, full when not", () => {
+    expect(sessionSeatState({ capacity: 10, seated: 9, myStatus: null })).toBe("open");
+    expect(sessionSeatState({ capacity: 10, seated: 10, myStatus: null })).toBe("full");
+    expect(sessionSeatState({ capacity: 10, seated: 11, myStatus: null })).toBe("full");
+  });
+  it("uncapped is open (reservation N/A)", () => {
+    expect(sessionSeatState({ capacity: null, seated: 0, myStatus: null })).toBe("open");
   });
 });
 

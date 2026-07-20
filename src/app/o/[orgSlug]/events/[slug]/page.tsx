@@ -311,6 +311,11 @@ export default async function EventLandingPage({ params }: Props) {
                               </div>
                             )}
                             {s.description && <p className="mt-2 text-sm text-slate-600">{s.description}</p>}
+                            {s.capacity != null && (
+                              <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                                Limited seats — reserve after you register
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>

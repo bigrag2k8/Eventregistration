@@ -28,6 +28,13 @@ export default async function SuccessPage({
     ? await Promise.all(reg.tickets.map((t) => renderQrPngDataUrl(t.qrToken)))
     : [];
 
+  // If this event has capacity-limited sessions, offer the personal schedule
+  // where the attendee reserves their seats.
+  const reservableSessions = canViewTickets
+    ? await prisma.eventSession.count({ where: { eventId: reg.eventId, capacity: { not: null } } })
+    : 0;
+  const scheduleHref = `/o/${params.orgSlug}/events/${reg.event.slug}/schedule?reg=${reg.id}&key=${reg.accessToken}`;
+
   // Account upsell: signed-in attendees see a link into their dashboard;
   // guests get a prompt to create one (passwordless) so all tickets live together.
   const session = await getSession();
@@ -98,6 +105,14 @@ export default async function SuccessPage({
           <div className="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
             Your QR tickets were sent to <strong>{reg.email}</strong>. For security,
             tickets can't be displayed from this link — check your inbox.
+          </div>
+        )}
+
+        {reservableSessions > 0 && (
+          <div className="mt-6 rounded-lg bg-brand-50 p-4 text-sm text-brand-800 ring-1 ring-brand-200">
+            <strong>This event has limited-capacity sessions.</strong>
+            <p className="mt-1">Reserve your seats before they fill up.</p>
+            <Link className="btn-primary mt-3 inline-block" href={scheduleHref}>Build your schedule</Link>
           </div>
         )}
 

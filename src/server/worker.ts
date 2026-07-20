@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/rate-limit";
-import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail, sendEventRescheduledEmail, sendReviewRequestEmail } from "@/lib/email";
+import { sendReminderEmail, sendWaitlistPromotionEmail, sendEventCancelledEmail, sendEventRescheduledEmail, sendReviewRequestEmail, sendSessionPromotionEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
 import { issueTickets, releaseSeats, releasePromoUse, reissueTickets } from "@/server/tickets";
 import { recomputeOrgReputation } from "@/server/reviews";
@@ -92,6 +92,43 @@ async function promoteWaitlist() {
     where: { status: "PROMOTED", expiresAt: { lt: new Date() } },
     data: { status: "EXPIRED" },
   });
+}
+
+/**
+ * Backstop for per-session waitlists: fill any capacity-limited session that has
+ * open seats (seats freed by a registration cancellation/refund, or an organizer
+ * raising capacity) from its waitlist, in order, emailing each promoted attendee.
+ * Inline promotion on release handles the common case instantly; this catches
+ * the rest on the 5-minute tick. Seats are counted live (no counter to drift).
+ */
+async function promoteSessionWaitlist() {
+  const sessions = await prisma.eventSession.findMany({
+    where: {
+      capacity: { not: null },
+      endAt: { gte: new Date() },
+      reservations: { some: { status: "WAITLIST" } },
+    },
+    select: { id: true, capacity: true },
+  });
+  for (const s of sessions) {
+    const seated = await prisma.sessionReservation.count({ where: { sessionId: s.id, status: "SEAT" } });
+    const open = (s.capacity ?? 0) - seated;
+    if (open <= 0) continue;
+    const queued = await prisma.sessionReservation.findMany({
+      where: { sessionId: s.id, status: "WAITLIST" },
+      orderBy: { position: "asc" },
+      take: open,
+    });
+    for (const r of queued) {
+      await prisma.sessionReservation.update({ where: { id: r.id }, data: { status: "SEAT" } });
+      try {
+        await sendSessionPromotionEmail(r.id);
+      } catch (e: any) {
+        console.error(`[worker] session promotion email failed for ${r.id}:`, e?.message);
+        Sentry.captureException(e, { tags: { job: "promoteSessionWaitlist" }, extra: { reservationId: r.id, sessionId: s.id } });
+      }
+    }
+  }
 }
 
 async function purgeAbandonedCarts() {
@@ -584,6 +621,7 @@ async function tick() {
   // (previously one thrown send skipped waitlist promotion and cart purging).
   try { await sendReminders(); } catch (e) { console.error("[worker] sendReminders error", e); Sentry.captureException(e, { tags: { job: "sendReminders" } }); }
   try { await promoteWaitlist(); } catch (e) { console.error("[worker] promoteWaitlist error", e); Sentry.captureException(e, { tags: { job: "promoteWaitlist" } }); }
+  try { await promoteSessionWaitlist(); } catch (e) { console.error("[worker] promoteSessionWaitlist error", e); Sentry.captureException(e, { tags: { job: "promoteSessionWaitlist" } }); }
   try { await purgeAbandonedCarts(); } catch (e) { console.error("[worker] purgeAbandonedCarts error", e); Sentry.captureException(e, { tags: { job: "purgeAbandonedCarts" } }); }
   try { await releaseEventPayouts(); } catch (e) { console.error("[worker] releaseEventPayouts error", e); Sentry.captureException(e, { tags: { job: "releaseEventPayouts" } }); }
   try { await refundCancelledEvents(); } catch (e) { console.error("[worker] refundCancelledEvents error", e); Sentry.captureException(e, { tags: { job: "refundCancelledEvents" } }); }

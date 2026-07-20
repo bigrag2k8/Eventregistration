@@ -65,7 +65,10 @@ export async function sendConfirmationEmail(registrationId: string) {
     }))
   );
 
-  const html = renderConfirmation(reg);
+  const reservableSessions = await prisma.eventSession.count({
+    where: { eventId: reg.eventId, capacity: { not: null } },
+  });
+  const html = renderConfirmation(reg, reservableSessions > 0);
   const result = await resend().emails.send({
     from: buildFrom(reg.event.organization),
     to: reg.email,
@@ -249,7 +252,7 @@ export async function sendEventRescheduledEmail(registrationId: string) {
   });
 }
 
-function renderConfirmation(reg: any) {
+function renderConfirmation(reg: any, hasReservableSessions = false) {
   const e = reg.event;
   const org = e.organization ?? {};
   const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
@@ -304,6 +307,10 @@ function renderConfirmation(reg: any) {
          style="display:inline-block;background:${brand};color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;margin-top:8px">
          Add to Calendar
       </a>
+      ${hasReservableSessions ? `<a href="${process.env.NEXT_PUBLIC_APP_URL}/o/${org.slug}/events/${e.slug}/schedule?reg=${reg.id}${reg.accessToken ? `&key=${reg.accessToken}` : ""}"
+         style="display:inline-block;background:#fff;color:${brand};border:1px solid ${brand};padding:10px 16px;border-radius:8px;text-decoration:none;margin-top:8px;margin-left:8px">
+         Build your schedule
+      </a>` : ""}
 
       <p style="color:#475569;font-size:14px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
         <a href="${process.env.NEXT_PUBLIC_APP_URL}/account/signin" style="color:${brand};font-weight:bold;text-decoration:none">Sign in to your account</a>
@@ -530,6 +537,69 @@ export async function sendWaitlistPromotionEmail(waitlistId: string) {
     });
   } catch (err: any) {
     console.error("[waitlist] promotion email failed:", err?.message);
+  }
+}
+
+/**
+ * A seat opened in a capacity-limited conference SESSION and this reservation was
+ * promoted off its waitlist. Unlike the event waitlist, the attendee already
+ * holds a ticket — the seat is theirs, no re-purchase — so we just tell them and
+ * link to their personal schedule (reg+key). Mirrors sendWaitlistPromotionEmail.
+ */
+export async function sendSessionPromotionEmail(reservationId: string) {
+  const res = await prisma.sessionReservation.findUnique({
+    where: { id: reservationId },
+    include: {
+      session: { include: { event: { include: { organization: true } } } },
+      registration: true,
+    },
+  });
+  if (!res || res.status !== "SEAT") return;
+
+  const s = res.session;
+  const e = s.event;
+  const org = e.organization ?? {};
+  const reg = res.registration;
+  const brand = (typeof org.brandColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(org.brandColor))
+    ? org.brandColor
+    : "#1F3A8A";
+  const orgSlug = org.slug ?? "_";
+  const when = formatInTimeZone(s.startAt, e.timezone, "EEE, MMM d · h:mm a");
+  const keyParam = reg.accessToken ? `&key=${reg.accessToken}` : "";
+  const scheduleUrl = `${process.env.NEXT_PUBLIC_APP_URL}/o/${orgSlug}/events/${e.slug}/schedule?reg=${reg.id}${keyParam}`;
+
+  try {
+    const result = await resend().emails.send({
+      from: buildFrom(org),
+      to: reg.email,
+      subject: `You're in — ${s.title}`,
+      html: `
+<!doctype html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;margin:0;padding:24px">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:24px">
+    <tr><td>
+      <h1 style="margin:0 0 8px;color:${brand}">A seat opened up, ${esc(reg.firstName)}!</h1>
+      <p style="color:#475569">You've been moved off the waitlist and into <strong>${esc(s.title)}</strong> at <strong>${esc(e.name)}</strong> (${esc(when)}). Your seat is confirmed — nothing else to do.</p>
+      <p style="margin:24px 0">
+        <a href="${scheduleUrl}" style="display:inline-block;background:${brand};color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">View my schedule</a>
+      </p>
+      <p style="color:#64748b;font-size:12px">Can't make it after all? Open your schedule and release the seat so the next person can take it.</p>
+    </td></tr>
+  </table>
+</body></html>`,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        toEmail: reg.email,
+        kind: "SESSION_WAITLIST_PROMOTED",
+        subject: `You're in — ${s.title}`,
+        status: result.data?.id ? "SENT" : "FAILED",
+        providerId: result.data?.id ?? null,
+        sentAt: new Date(),
+      },
+    });
+  } catch (err: any) {
+    console.error("[session-waitlist] promotion email failed:", err?.message);
   }
 }
 

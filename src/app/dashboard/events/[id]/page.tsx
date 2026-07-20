@@ -572,6 +572,7 @@ export default async function EventManagePage({ params, searchParams }: { params
                     <th className="px-3 py-2">Track</th>
                     <th className="px-3 py-2">Room</th>
                     <th className="px-3 py-2">Speaker</th>
+                    <th className="px-3 py-2">Seats</th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -590,6 +591,7 @@ export default async function EventManagePage({ params, searchParams }: { params
                       <td className="px-3 py-2 text-slate-500">{s.track || "—"}</td>
                       <td className="px-3 py-2 text-slate-500">{s.room || "—"}</td>
                       <td className="px-3 py-2 text-slate-500">{s.speaker || "—"}</td>
+                      <td className="px-3 py-2 text-slate-500">{s.capacity != null ? `${s.capacity} cap` : "Open"}</td>
                       <td className="px-3 py-2 text-right">
                         <form action={deleteSessionAction} className="inline">
                           <input type="hidden" name="eventId" value={event.id} />
@@ -626,7 +628,11 @@ export default async function EventManagePage({ params, searchParams }: { params
               <label className="label">Room (optional)</label>
               <input name="room" maxLength={120} className="input" placeholder="Bayview A" />
             </div>
-            <div className="sm:col-span-2">
+            <div>
+              <label className="label">Seat cap (optional)</label>
+              <input name="capacity" type="number" min={1} className="input" placeholder="Open seating" />
+            </div>
+            <div>
               <label className="label">Speaker (optional)</label>
               <input name="speaker" maxLength={200} className="input" placeholder="Dr. Ada Lin, Vector Labs" />
             </div>

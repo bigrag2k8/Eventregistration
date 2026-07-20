@@ -23,7 +23,12 @@ export default async function MyEventsPage() {
   const regs = await prisma.registration.findMany({
     where: { userId: session.sub, deletedAt: null },
     include: {
-      event: { include: { organization: { select: { slug: true } } } },
+      event: {
+        include: {
+          organization: { select: { slug: true } },
+          _count: { select: { sessions: { where: { capacity: { not: null } } } } },
+        },
+      },
       ticketType: { select: { name: true } },
       refundRequests: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true } },
       payments: {
@@ -87,6 +92,11 @@ export default async function MyEventsPage() {
               <a href={`/api/registrations/${r.id}/ics?key=${r.accessToken}`} className="text-brand-700 hover:underline">
                 Add to calendar
               </a>
+              {r.event._count.sessions > 0 && (
+                <Link href={`${base}/schedule?reg=${r.id}${keyQ}`} className="text-brand-700 hover:underline">
+                  My schedule
+                </Link>
+              )}
             </>
           )}
           {canRefund && (
