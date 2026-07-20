@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { ShareBar } from "@/components/ShareBar";
 import { PublicAccountNav } from "@/components/PublicAccountNav";
@@ -63,25 +64,59 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventLandingPage({ params }: Props) {
-  const event = await prisma.event.findFirst({
-    where: {
-      slug: params.slug,
-      organization: { slug: params.orgSlug, deletedAt: null },
-      // Include CANCELLED (but not soft-deleted) events so a cancelled event shows
-      // the "Event cancelled" state instead of a 404.
-      status: { in: ["PUBLISHED", "CANCELLED"] },
-      deletedAt: null,
-    },
-    include: {
-      organization: true,
-      location: true,
-      speakers: { orderBy: { order: "asc" } },
-      sessions: { orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }] },
-      media: { orderBy: { order: "asc" } },
-      tags: true,
-      ticketTypes: { where: { isHidden: false }, orderBy: { sortOrder: "asc" } },
-    },
-  });
+  // Owner draft preview: a DRAFT isn't public, but its own organizer (or an
+  // admin/superadmin) should be able to preview this page rather than hit a bare
+  // 404 after saving a draft. Everyone else still gets a 404 — drafts stay
+  // private. Published + Cancelled are the normal public statuses (Cancelled
+  // renders the "Event cancelled" state, not a 404).
+  const statusFor = async () => {
+    const published = await prisma.event.findFirst({
+      where: {
+        slug: params.slug,
+        organization: { slug: params.orgSlug, deletedAt: null },
+        status: { in: ["PUBLISHED", "CANCELLED"] },
+        deletedAt: null,
+      },
+      include: {
+        organization: true,
+        location: true,
+        speakers: { orderBy: { order: "asc" } },
+        sessions: { orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }] },
+        media: { orderBy: { order: "asc" } },
+        tags: true,
+        ticketTypes: { where: { isHidden: false }, orderBy: { sortOrder: "asc" } },
+      },
+    });
+    if (published) return { event: published, isDraftPreview: false };
+
+    const draft = await prisma.event.findFirst({
+      where: {
+        slug: params.slug,
+        organization: { slug: params.orgSlug, deletedAt: null },
+        status: "DRAFT",
+        deletedAt: null,
+      },
+      include: {
+        organization: true,
+        location: true,
+        speakers: { orderBy: { order: "asc" } },
+        sessions: { orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }] },
+        media: { orderBy: { order: "asc" } },
+        tags: true,
+        ticketTypes: { where: { isHidden: false }, orderBy: { sortOrder: "asc" } },
+      },
+    });
+    if (draft) {
+      const session = await getSession();
+      const canPreview =
+        !!session &&
+        (session.orgId === draft.organizationId || session.role === "ADMIN" || session.role === "SUPERADMIN");
+      if (canPreview) return { event: draft, isDraftPreview: true };
+    }
+    return { event: null, isDraftPreview: false };
+  };
+
+  const { event, isDraftPreview } = await statusFor();
   if (!event) return notFound();
 
   // Conference days (derived in the event's tz) for the agenda + ticket labels.
@@ -103,7 +138,8 @@ export default async function EventLandingPage({ params }: Props) {
   // cancelled — before this a past event still rendered a live "Register Now".
   const hasEnded = event.endAt < new Date();
   const isCancelled = event.status === "CANCELLED";
-  const registrationClosed = hasEnded || isCancelled;
+  // Registration is disabled while previewing a draft (it isn't live yet).
+  const registrationClosed = hasEnded || isCancelled || isDraftPreview;
 
   // Presale (early-bird) banner — only while the window is open and a paid
   // ticket exists for the discount to apply to. Date shown in the event's timezone.
@@ -139,7 +175,7 @@ export default async function EventLandingPage({ params }: Props) {
 
   // schema.org Event rich-result data — public events only (never leak a private
   // event to search). soldOut mirrors the on-page state.
-  const jsonLd = event.isPrivate
+  const jsonLd = event.isPrivate || isDraftPreview
     ? null
     : eventJsonLd({
         name: event.name,
@@ -159,6 +195,12 @@ export default async function EventLandingPage({ params }: Props) {
 
   return (
     <main>
+      {isDraftPreview && (
+        <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-amber-950">
+          Draft preview — this {event.isConference ? "conference" : "event"} isn&rsquo;t public yet. Publish it from your
+          dashboard to make this page live and let people register.
+        </div>
+      )}
       {jsonLd && <JsonLd data={jsonLd} />}
       {/* Custom branding (logo + brand color) is a premium-event feature. */}
       <OrgBrandStyle color={event.isPremium ? event.organization.brandColor : null} />
@@ -421,7 +463,12 @@ export default async function EventLandingPage({ params }: Props) {
               </p>
             )}
 
-            {isCancelled ? (
+            {isDraftPreview ? (
+              <div className="mt-4 rounded-lg bg-amber-50 p-4 text-center ring-1 ring-amber-200">
+                <div className="text-sm font-semibold text-amber-800">Draft — not published</div>
+                <p className="mt-1 text-xs text-amber-700">Publish this event from your dashboard to open registration.</p>
+              </div>
+            ) : isCancelled ? (
               <div className="mt-4 rounded-lg bg-rose-50 p-4 text-center ring-1 ring-rose-200">
                 <div className="text-sm font-semibold text-rose-800">Event cancelled</div>
                 <p className="mt-1 text-xs text-rose-700">This event has been cancelled — registration is closed.</p>
