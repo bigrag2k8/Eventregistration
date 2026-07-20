@@ -15,13 +15,21 @@ import { withSentryConfig } from "@sentry/nextjs";
 // telemetry posts to *.sentry.io. 'unsafe-inline' scripts are still required by
 // Next's hydration bootstrap and the ld+json block — moving to per-request
 // nonces (to drop 'unsafe-inline') is the next hardening step.
+// Next's dev-mode webpack devtool (eval-source-map) wraps every module in
+// eval() — without 'unsafe-eval' the entire client bundle fails to execute
+// under `next dev` (no hydration, no interactivity), even though prod builds
+// never eval and are unaffected. Dev-only, so production CSP is unchanged.
+const scriptSrc = process.env.NODE_ENV === "production"
+  ? "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com";
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'self'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
