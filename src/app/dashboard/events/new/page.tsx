@@ -77,7 +77,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
           )}
           {searchParams?.bought === "SINGLE_EVENT" && (
             <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-              ✓ Credit added — <strong>Single Event</strong> is selected in step 1. Finish the steps and save to apply it to this event.
+              ✓ Credit added — <strong>Premium Event</strong> is selected in step 1. Finish the steps and save to apply it to this event.
             </div>
           )}
           {searchParams?.canceled && (
@@ -139,7 +139,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
               <input name="endAt" type="datetime-local" required defaultValue={defaultEnd} className="input" />
             </div>
             <div className="sm:col-span-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-200">
-              <strong>Running a multi-day conference?</strong> A <strong>Single Event</strong> (premium) can span up to
+              <strong>Running a multi-day conference?</strong> A <strong>Premium Event</strong> can span up to
               7 days — then, from its Manage page, you can build a track-by-track <strong>agenda</strong> and sell
               <strong> Day 1 / Day 2 / All-Access</strong> passes with per-session seat reservations. Free events are
               single-day.
@@ -254,7 +254,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
           <ErrorBanner code={searchParams?.error} />
           {searchParams?.bought === "SINGLE_EVENT" && (
             <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-              ✓ Credit added — <strong>Single Event</strong> is selected. Finish the steps and save to apply it to this conference.
+              ✓ Credit added — <strong>Premium Event</strong> is selected. Finish the steps and save to apply it to this conference.
             </div>
           )}
           {searchParams?.canceled && (

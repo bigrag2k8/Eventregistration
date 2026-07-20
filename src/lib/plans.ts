@@ -123,7 +123,7 @@ export const PLANS: Record<PlanInfo["key"], PlanInfo> = {
   },
   SINGLE_EVENT: {
     key: "SINGLE_EVENT",
-    name: "Single Event",
+    name: "Premium Event",
     price: "$19 per event",
     priceCents: 1900,
     cadence: "one_time",

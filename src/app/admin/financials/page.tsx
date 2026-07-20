@@ -230,7 +230,7 @@ export default async function AdminFinancialsPage({
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Total platform revenue" value={fmt(totalPlatformRevCents)} hint={`Fees + passes + subscriptions · ${rangeLabel.toLowerCase()}`} accent />
           <Stat label="Platform fee revenue" value={fmt(feeNetCents)} hint="Ticket/vendor cut, net of refunds" />
-          <Stat label="Single-event purchases" value={fmt(singleEventRevCents)} hint={`${singleEventCount.toLocaleString()} one-time pass${singleEventCount === 1 ? "" : "es"}`} />
+          <Stat label="Premium Event purchases" value={fmt(singleEventRevCents)} hint={`${singleEventCount.toLocaleString()} one-time pass${singleEventCount === 1 ? "" : "es"}`} />
           <Stat label="Subscription revenue" value={fmt(subRevCents)} hint="Recurring plan invoices" />
         </div>
 
@@ -356,7 +356,7 @@ export default async function AdminFinancialsPage({
         <p className="mt-6 text-xs text-slate-400">
           Platform fee figures are tracked from the deploy that added fee persistence forward; transactions
           recorded before that show $0 fee until backfilled from Stripe (run scripts/backfill-platform-fees.ts).
-          Single-event purchases are one-time pass payments captured at checkout; purchases made before capture
+          Premium Event purchases are one-time pass payments captured at checkout; purchases made before capture
           existed backfill via scripts/backfill-single-event-purchases.ts. Subscription revenue comes from recurring
           Stripe invoices. MRR/ARR, subscription status, and the payments-disabled list are current snapshots
           (not affected by the selected window).

@@ -74,12 +74,15 @@ export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }:
         </label>
 
         <label
-          className={`flex cursor-pointer flex-col rounded-xl border p-4 ${
+          className={`relative flex cursor-pointer flex-col rounded-xl border p-4 ${
             tier === "single_event"
               ? "border-brand-400 ring-2 ring-brand-500"
-              : "border-slate-200 hover:border-brand-300"
+              : "border-amber-300 hover:border-amber-400"
           }`}
         >
+          <span className="absolute -top-2.5 right-3 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+            Recommended
+          </span>
           <span className="flex items-center gap-2">
             <input
               type="radio"
@@ -88,7 +91,7 @@ export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }:
               checked={tier === "single_event"}
               onChange={() => setTier("single_event")}
             />
-            <span className="font-semibold">Single Event</span>
+            <span className="font-semibold">Premium Event</span>
           </span>
           <span className="mt-1 text-xs text-slate-500">
             Unlimited registrations, vendor applications, custom branding, 5 email broadcasts. Uses 1 credit.
@@ -105,7 +108,7 @@ export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }:
                   onClick={() => postToCheckout(returnTo)}
                   className="btn-primary w-full"
                 >
-                  Buy single event — $19
+                  Buy Premium Event — $19
                 </button>
                 <p className="text-xs text-slate-500">
                   You&rsquo;ll be sent to checkout, then back here with the credit applied so you can finish creating this event.
@@ -168,7 +171,7 @@ function FreeTierUpgradeWarning({ blank }: { blank: boolean }) {
       {blank
         ? "Leaving this blank reads as unlimited, but free events still stop at 50."
         : "Values above 50 won't be honoured on a free event."}{" "}
-      Switch to <strong>Single Event</strong> in the Event type section above
+      Switch to <strong>Premium Event</strong> in the Event type section above
       (one credit, $19) to lift the cap and unlock unlimited registrations,
       vendor applications, and custom branding.
     </div>
@@ -264,12 +267,12 @@ export function VendorSettingsFields() {
           <span>
             <span className="font-medium">Accept vendor applications</span>
             {!premium && (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Single Event feature</span>
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Premium feature</span>
             )}
             <br />
             <span className="text-xs text-slate-500">
               Adds a &ldquo;Become a Vendor&rdquo; button to the event page. Vendors submit applications you approve before payment.
-              {!premium && " Choose Single Event above to enable it."}
+              {!premium && " Choose Premium Event above to enable it."}
             </span>
           </span>
         </label>

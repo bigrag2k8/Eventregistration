@@ -50,7 +50,7 @@ export default async function ReferPage() {
         <h1 className="text-2xl font-bold">Refer an organizer, earn 50% off</h1>
         <p className="mt-1 text-sm text-slate-500">
           Invite another organizer with your link. When they run their first paid event, you get{" "}
-          <strong>50% off your next single-event credit</strong>. Coupons last 3 months.
+          <strong>50% off your next Premium Event credit</strong>. Coupons last 3 months.
         </p>
       </div>
 
@@ -75,7 +75,7 @@ export default async function ReferPage() {
 
       {available.length > 0 && (
         <div className="mt-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-          You have <strong>{available.length}</strong> coupon{available.length === 1 ? "" : "s"} for 50% off a single-event
+          You have <strong>{available.length}</strong> coupon{available.length === 1 ? "" : "s"} for 50% off a Premium Event
           credit. {available.length === 1 ? "It's" : "They're"} applied automatically at checkout — next one expires{" "}
           {available[available.length - 1].expiresAt.toLocaleDateString()}.{" "}
           <Link href="/dashboard/billing" className="font-medium underline">Buy a credit →</Link>

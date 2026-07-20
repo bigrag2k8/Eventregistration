@@ -96,7 +96,7 @@ export function EventWizard({ titles, children }: Props) {
     const tierEl = f.elements.namedItem("tier") as RadioNodeList | null;
     setReview({
       name: val("name"),
-      tier: (tierEl?.value as string) === "single_event" ? "Single Event" : "Free event",
+      tier: (tierEl?.value as string) === "single_event" ? "Premium Event" : "Free event",
       start: val("startAt"),
       end: val("endAt"),
       timezone: val("timezone"),

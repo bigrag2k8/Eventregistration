@@ -126,7 +126,7 @@ export default async function OrgFinancialsPage({
               <div className="text-xs uppercase tracking-wider text-slate-500">Paid to YourEvents</div>
               <div className="mt-1 text-2xl font-bold">{money(totalFees + singleEvent.cents)}</div>
               <p className="mt-1 text-xs text-slate-400">
-                What {org ? org.name : "all organizations"} paid the platform this window — fees on sales plus single-event passes.
+                What {org ? org.name : "all organizations"} paid the platform this window — fees on sales plus Premium Event passes.
               </p>
             </div>
             <div className="flex gap-8 text-sm">
@@ -136,7 +136,7 @@ export default async function OrgFinancialsPage({
                 <div className="text-xs text-slate-400">Ticket + vendor cut</div>
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wider text-slate-500">Single-event passes</div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">Premium Event passes</div>
                 <div className="mt-0.5 text-lg font-semibold">{money(singleEvent.cents)}</div>
                 <div className="text-xs text-slate-400">{singleEvent.count} pass{singleEvent.count === 1 ? "" : "es"} · $19 each</div>
               </div>

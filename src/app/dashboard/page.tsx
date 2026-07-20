@@ -300,7 +300,7 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                   <span className={`rounded-full px-2 py-0.5 text-xs ${
                     e.isConference ? "bg-indigo-100 text-indigo-700" : e.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
                   }`}>
-                    {e.isConference ? "Conference" : e.isPremium ? "Single Event" : "Free"}
+                    {e.isConference ? "Conference" : e.isPremium ? "Premium" : "Free"}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">{e._count.registrations}</td>

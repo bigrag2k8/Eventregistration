@@ -291,7 +291,7 @@ export default function UserGuidePage() {
         <h3>How to create your first event</h3>
         <ol>
           <li>From the dashboard, click <strong>+ New Event</strong>.</li>
-          <li>Pick a tier: <strong>Free</strong> (up to 50 attendees, basic features) or <strong>Single Event</strong> ($19, unlimited registrations + vendor flow + branding).</li>
+          <li>Pick a tier: <strong>Free</strong> (up to 50 attendees, basic features) or <strong>Premium Event</strong> ($19, unlimited registrations + vendor flow + branding).</li>
           <li>Enter the event name, short description, and full description.</li>
           <li>Pick start and end date/time and a timezone.</li>
           <li>Fill in the venue address — autocomplete fills city/state/zip. Or check <strong>Virtual event</strong> and paste a Zoom/Meet URL.</li>
@@ -418,7 +418,7 @@ export default function UserGuidePage() {
           <li>Pick the audience: all confirmed attendees, or filter by status / ticket type.</li>
           <li>Click <strong>Send now</strong>.</li>
         </ol>
-        <p><strong>Note:</strong> the number of campaigns you can send per event is capped by your plan. Free events: 1 campaign. Single-event: 5 campaigns. See <code>/dashboard/billing</code> for current limits.</p>
+        <p><strong>Note:</strong> the number of campaigns you can send per event is capped by your plan. Free events: 1 campaign. Premium Event: 5 campaigns. See <code>/dashboard/billing</code> for current limits.</p>
 
         <h3>How to do on-site check-in</h3>
         <ol>
@@ -737,7 +737,7 @@ export default function UserGuidePage() {
           { q: "Can attendees buy more than one ticket?", a: "Yes. Most events allow up to 10 tickets per order by default. Organizers can lower this on a per-event basis." },
           { q: "Does YourEvents charge attendees any extra fees?", a: "No. The price you set is the price the attendee pays. We charge the organizer; we never tack a service fee onto the buyer's checkout." },
           { q: "What's the difference between Organizer, Admin, Staff, and Volunteer?", a: "Organizers and Admins manage the org (create events, see financials, invite team). Staff and Volunteers handle on-site check-in only. Staff vs. Volunteer is just a label for paid vs. unpaid helpers." },
-          { q: "How many events can I create on the Free plan?", a: "One event per month, up to 50 registrations per event. Upgrade to a Single Event credit ($19) to lift the cap and unlock vendor flow and unlimited registrations." },
+          { q: "How many events can I create on the Free plan?", a: "One event per month, up to 50 registrations per event. Upgrade to a Premium Event credit ($19) to lift the cap and unlock vendor flow and unlimited registrations." },
           { q: "Do I have to use Stripe to get paid?", a: "Yes. Stripe Connect is the only payout method. They handle KYC and tax reporting, and your funds sit in your own Stripe account until they're paid out to your bank." },
           { q: "Can I export my attendee list?", a: "Yes. From the Registrations page on your event, click Export CSV. The download includes every attendee with custom-question answers." },
           { q: "Can I import existing attendees from another platform?", a: "Bulk import isn't built into the dashboard yet. Email support if you have a large list to migrate." },
@@ -790,7 +790,7 @@ export default function UserGuidePage() {
           <dt><strong>Destination charge</strong></dt>
           <dd>The Stripe payment pattern we use — money flows to the organizer&rsquo;s Stripe account with our platform fee deducted.</dd>
           <dt><strong>Event tier</strong></dt>
-          <dd>Either Free (basic, capped) or Single Event (premium, unlocked features). Set when the event is created.</dd>
+          <dd>Either Free (basic, capped) or Premium Event (unlocked features). Set when the event is created.</dd>
           <dt><strong>Magic link</strong></dt>
           <dd>A passwordless sign-in link emailed to the user, valid for 15 minutes.</dd>
           <dt><strong>MCC</strong></dt>

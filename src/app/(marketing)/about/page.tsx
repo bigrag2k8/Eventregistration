@@ -19,7 +19,7 @@ export default function AboutPage() {
         <p>
           Most event tools are either too basic to run a real event or too expensive and complex for
           the organizers who need them most. We took a different approach: host free events at no
-          cost, and unlock the full feature set for a single event with one simple payment — no
+          cost, and unlock the full feature set for one event with one simple payment — no
           subscription, no lock-in.
         </p>
         <p>

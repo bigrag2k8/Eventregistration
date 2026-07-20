@@ -142,7 +142,7 @@ export default async function AdminOrgPage({
             <Readout label="Events / month" value={fmtLimit(effective.monthlyEventLimit)} />
             <Readout label="Registrations / event" value={fmtLimit(effective.registrationLimitPerEvent)} />
             <Readout label="Comm. emails / event" value={fmtLimit(effective.emailCampaignsPerEvent)} />
-            <Readout label="Single-event credits" value={String(org.singleEventCredits)} />
+            <Readout label="Premium Event credits" value={String(org.singleEventCredits)} />
             <Readout label="Recurring event credits" value={String(org.recurringEventCredits)} />
             <Readout label="Status" value={org.subscriptionStatus} />
           </dl>
@@ -183,7 +183,7 @@ export default async function AdminOrgPage({
                 </select>
               </div>
               <div>
-                <label className="label">Single-event credits</label>
+                <label className="label">Premium Event credits</label>
                 <input
                   name="singleEventCredits"
                   type="number"

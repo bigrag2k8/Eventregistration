@@ -45,7 +45,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
             <p className="mt-1 text-sm text-brand-800">
               You can create <strong>unlimited free events</strong> at no cost. When you want unlimited
               registrations, vendor applications, and custom branding for an event, buy a
-              <strong> single-event credit</strong> and apply it to that event. Start free below.
+              <strong> Premium Event credit</strong> and apply it to that event. Start free below.
             </p>
             <form action={activateFreePlanAction} className="mt-3">
               <button type="submit" className="btn-primary">Get started — it&rsquo;s free</button>
@@ -56,7 +56,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
             {searchParams.upgraded === "SINGLE_EVENT" ? (
               <>
-                ✓ Single-event credit added — you now have <strong>{credits}</strong>{" "}
+                ✓ Premium Event credit added — you now have <strong>{credits}</strong>{" "}
                 credit{credits === 1 ? "" : "s"}. Apply it when you create an event (or upgrade a free
                 one) to unlock unlimited registrations, vendors, and branding.
               </>
@@ -109,7 +109,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
             <div className="text-xs uppercase tracking-wider text-slate-500">Event credits</div>
             <div className="mt-1 text-4xl font-bold">{credits}</div>
             <p className="mt-2 text-slate-600">
-              Each credit turns one event into a <strong>Single Event</strong> — unlimited registrations,
+              Each credit turns one event into a <strong>Premium Event</strong> — unlimited registrations,
               vendor applications, custom branding, and 5 email broadcasts. Spend it when you create an
               event, or upgrade a free event later. Credits don&rsquo;t expire.
             </p>
@@ -119,7 +119,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
           </div>
           <form action="/api/billing/checkout" method="POST">
             <input type="hidden" name="planKey" value="SINGLE_EVENT" />
-            <button type="submit" className="btn-primary">Buy single event credit — $19</button>
+            <button type="submit" className="btn-primary">Buy Premium Event credit — $19</button>
           </form>
         </section>
 
@@ -165,7 +165,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
               }
             />
             <PricingCard
-              title="Single Event"
+              title="Premium Event"
               price="$19 / event"
               highlight
               blurb="One credit unlocks one event's full power. No subscription."
@@ -181,7 +181,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { up
               cta={
                 <form action="/api/billing/checkout" method="POST" className="mt-4">
                   <input type="hidden" name="planKey" value="SINGLE_EVENT" />
-                  <button type="submit" className="btn-primary w-full">Buy single event — $19</button>
+                  <button type="submit" className="btn-primary w-full">Buy Premium Event — $19</button>
                 </form>
               }
             />

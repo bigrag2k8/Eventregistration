@@ -112,7 +112,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             }`}>{isCancelled ? "CANCELLED" : hasEnded ? "ENDED" : event.status}</span>
             <span className={`rounded-full px-2 py-0.5 text-xs ${
               event.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
-            }`}>{event.recurringEvent ? (event.isPremium ? "Premium session" : "Free session") : event.isPremium ? "Single Event" : "Free"}</span>
+            }`}>{event.recurringEvent ? (event.isPremium ? "Premium session" : "Free session") : event.isPremium ? "Premium" : "Free"}</span>
           </div>
           <div className="flex items-center gap-2">
             <Link href={publicUrl} target="_blank" className="btn-secondary">View public page ↗</Link>
@@ -131,7 +131,7 @@ export default async function EventManagePage({ params, searchParams }: { params
 
         {searchParams?.upgraded && (
           <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
-            ✓ This event is now a <strong>Single Event</strong> — premium features unlocked.
+            ✓ This event is now a <strong>Premium Event</strong> — premium features unlocked.
           </div>
         )}
 
@@ -162,7 +162,7 @@ export default async function EventManagePage({ params, searchParams }: { params
         ) : (
         <section className="card flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold">{event.isPremium ? "Single Event (premium)" : "Free event"}</h2>
+            <h2 className="font-semibold">{event.isPremium ? "Premium Event" : "Free event"}</h2>
             <p className="text-sm text-slate-500">
               {event.isPremium
                 ? "Unlimited registrations, vendor applications, custom branding, 5 email broadcasts."
@@ -173,7 +173,7 @@ export default async function EventManagePage({ params, searchParams }: { params
             (org?.singleEventCredits ?? 0) >= 1 ? (
               <form action={upgradeEventAction}>
                 <input type="hidden" name="eventId" value={event.id} />
-                <button type="submit" className="btn-primary">Upgrade to Single Event (1 credit)</button>
+                <button type="submit" className="btn-primary">Upgrade to Premium Event (1 credit)</button>
               </form>
             ) : (
               <Link href="/dashboard/billing" className="btn-primary">Buy a credit ($19) to upgrade</Link>
@@ -260,12 +260,12 @@ export default async function EventManagePage({ params, searchParams }: { params
             {event.isPremium ? (
               <Link href={`/dashboard/events/${event.id}/vendors`} className={actionBox}>Vendors</Link>
             ) : (
-              <span className={actionBoxDisabled} title="Upgrade this event to Single Event to enable vendors">Vendors</span>
+              <span className={actionBoxDisabled} title="Upgrade this event to Premium Event to enable vendors">Vendors</span>
             )}
             {event.isPremium ? (
               <Link href="/dashboard/team" className={actionBox}>Team</Link>
             ) : (
-              <span className={actionBoxDisabled} title="Upgrade this event to Single Event to enable team">Team</span>
+              <span className={actionBoxDisabled} title="Upgrade this event to Premium Event to enable team">Team</span>
             )}
             <Link href={`/dashboard/events/${event.id}/promo-codes`} className={actionBox}>Promo codes</Link>
             <Link href={`/dashboard/events/${event.id}/waitlist`} className={actionBox}>Waitlist</Link>
@@ -440,12 +440,12 @@ export default async function EventManagePage({ params, searchParams }: { params
                 />
                 <span>
                   <span className="font-medium">Accept vendor applications</span>
-                  {!event.isPremium && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Single Event feature</span>}
+                  {!event.isPremium && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Premium feature</span>}
                   <br />
                   <span className="text-xs text-slate-500">
                     Adds a "Become a Vendor" button on the public event page. Vendors submit
                     applications you review before sending a payment link.
-                    {!event.isPremium && " Upgrade this event to Single Event to enable it."}
+                    {!event.isPremium && " Upgrade this event to Premium Event to enable it."}
                   </span>
                 </span>
               </label>
