@@ -139,6 +139,12 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
               <label className="label">End *</label>
               <input name="endAt" type="datetime-local" required defaultValue={defaultEnd} className="input" />
             </div>
+            <div className="sm:col-span-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-200">
+              <strong>Running a multi-day conference?</strong> A <strong>Single Event</strong> (premium) can span up to
+              7 days — then, from its Manage page, you can build a track-by-track <strong>agenda</strong> and sell
+              <strong> Day 1 / Day 2 / All-Access</strong> passes with per-session seat reservations. Free events are
+              single-day.
+            </div>
             <div className="sm:col-span-2">
               <label className="label">Timezone</label>
               <select name="timezone" defaultValue="America/Los_Angeles" className="input">
