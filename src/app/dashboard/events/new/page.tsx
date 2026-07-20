@@ -8,6 +8,7 @@ import { createRecurringEventAction } from "../../recurring/actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EventWizard } from "@/components/EventWizard";
+import { EventLocationFields } from "@/components/EventLocationFields";
 import { EventFormatGate } from "@/components/EventFormatGate";
 import { ConferenceWizard } from "@/components/ConferenceWizard";
 import { RecurringWizard } from "@/components/RecurringWizard";
@@ -166,41 +167,8 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
         <div className="space-y-6">
         <section className="card">
           <h2 className="text-lg font-semibold">Where</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="isVirtual" value="1" />
-                This is a virtual event
-              </label>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Venue name</label>
-              <input name="venueName" className="input" placeholder="Acme Conference Center" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Address line 1</label>
-              <input name="addressLine1" className="input" placeholder="123 Main St" />
-            </div>
-            <div>
-              <label className="label">City</label>
-              <input name="city" className="input" />
-            </div>
-            <div>
-              <label className="label">State</label>
-              <input name="state" className="input" />
-            </div>
-            <div>
-              <label className="label">Postal code</label>
-              <input name="postalCode" className="input" />
-            </div>
-            <div>
-              <label className="label">Country</label>
-              <input name="country" defaultValue="US" className="input" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Virtual URL (for virtual events)</label>
-              <input name="virtualUrl" type="url" className="input" placeholder="https://zoom.us/j/..." />
-            </div>
+          <div className="mt-4">
+            <EventLocationFields />
           </div>
         </section>
         </div>

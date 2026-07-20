@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarClock } from "lucide-react";
 import { BannerImageInput } from "@/components/BannerImageInput";
+import { EventLocationFields } from "@/components/EventLocationFields";
 import { EventTypePicker, CapacityField, VendorSettingsFields, useEventTier } from "@/components/EventTierForm";
 import { useChangeFormat } from "@/components/EventFormatGate";
 import { PassBuilder, newPass, type DraftPass } from "@/components/PassBuilder";
@@ -250,41 +251,8 @@ export function ConferenceWizard({ credits, chargesEnabled, defaultStart, defaul
         <div className="space-y-6">
           <section className="card">
             <h2 className="text-lg font-semibold">Where</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="isVirtual" value="1" />
-                  This is a virtual conference
-                </label>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label">Venue name</label>
-                <input name="venueName" className="input" placeholder="Moscone Center" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label">Address line 1</label>
-                <input name="addressLine1" className="input" placeholder="747 Howard St" />
-              </div>
-              <div>
-                <label className="label">City</label>
-                <input name="city" className="input" />
-              </div>
-              <div>
-                <label className="label">State</label>
-                <input name="state" className="input" />
-              </div>
-              <div>
-                <label className="label">Postal code</label>
-                <input name="postalCode" className="input" />
-              </div>
-              <div>
-                <label className="label">Country</label>
-                <input name="country" defaultValue="US" className="input" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label">Virtual URL (for virtual conferences)</label>
-                <input name="virtualUrl" type="url" className="input" placeholder="https://zoom.us/j/..." />
-              </div>
+            <div className="mt-4">
+              <EventLocationFields />
             </div>
           </section>
         </div>
