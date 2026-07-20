@@ -8,6 +8,7 @@ import { PLATFORM_FEE_PERCENT } from "@/lib/connect";
 import { updateOrgSettingsAction } from "./actions";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { MfaSetup } from "@/components/MfaSetup";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { BrandColorInput } from "@/components/BrandColorInput";
 import { AddressFields } from "@/components/AddressFields";
@@ -21,7 +22,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
   await requirePlanSelected(session);
   const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
   if (!org) redirect("/dashboard");
-  const me = await prisma.user.findUnique({ where: { id: session.sub }, select: { mfaEnabled: true } });
+  const me = await prisma.user.findUnique({ where: { id: session.sub }, select: { mfaEnabled: true, passwordHash: true } });
+  const hasPassword = !!me?.passwordHash;
 
   return (
     <main>
@@ -236,6 +238,24 @@ export default async function SettingsPage({ searchParams }: { searchParams: { s
           </p>
           <div className="mt-4">
             <MfaSetup enabled={me?.mfaEnabled ?? false} />
+          </div>
+        </section>
+
+        <section className="card mt-6">
+          <h2 className="text-lg font-semibold">Change password</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Update the password you use to sign in. You&rsquo;ll need your current password. Changing it signs out
+            any other devices.
+          </p>
+          <div className="mt-4">
+            {hasPassword ? (
+              <ChangePasswordForm />
+            ) : (
+              <p className="text-sm text-slate-500">
+                Your account signs in without a password (for example, via a magic link), so there&rsquo;s nothing to
+                change here.
+              </p>
+            )}
           </div>
         </section>
       </div>
