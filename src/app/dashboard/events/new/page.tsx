@@ -3,10 +3,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage } from "@/lib/auth";
 import { requirePlanSelected } from "@/lib/plan-gate";
-import { createEventAction } from "./actions";
+import { createEventAction, createConferenceAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EventWizard } from "@/components/EventWizard";
+import { EventFormatGate } from "@/components/EventFormatGate";
+import { ConferenceWizard } from "@/components/ConferenceWizard";
 import { EVENT_CATEGORIES } from "@/lib/categories";
 import { EventTierProvider, EventTypePicker, TicketPriceField, TicketQuantityField, CapacityField, VendorSettingsFields } from "@/components/EventTierForm";
 
@@ -21,7 +23,7 @@ const TIMEZONES = [
 
 const CATEGORIES = EVENT_CATEGORIES;
 
-export default async function NewEventPage({ searchParams }: { searchParams: { error?: string; bought?: string; canceled?: string } }) {
+export default async function NewEventPage({ searchParams }: { searchParams: { error?: string; bought?: string; canceled?: string; format?: string } }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
   await requirePlanSelected(session);
   if (!session.orgId) {
@@ -53,16 +55,13 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
   const defaultStart = `${ymd}T09:00`;
   const defaultEnd = `${ymd}T17:00`;
 
-  return (
-    <main>
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="text-sm text-brand-700">◀ Dashboard</Link>
-          <h1 className="font-semibold">Create event</h1>
-        </div>
-      </header>
+  // Skip the format chooser when we arrive back mid-flow with an explicit format
+  // (e.g. the conference "buy credit" button returns to ?format=conference).
+  const initialFormat =
+    searchParams?.format === "conference" ? "conference" : searchParams?.format === "standard" ? "standard" : null;
 
-      <form action={createEventAction} className="mx-auto max-w-3xl px-4 py-8">
+  const standardWizard = (
+    <form action={createEventAction}>
         {/* If we returned here after a successful Single Event credit purchase, pre-select
             the Single Event tier so the form is in the state the buyer expects. */}
         <EventTierProvider initialTier={searchParams?.bought === "SINGLE_EVENT" ? "single_event" : "free"}>
@@ -246,6 +245,46 @@ export default async function NewEventPage({ searchParams }: { searchParams: { e
         </EventWizard>
         </EventTierProvider>
       </form>
+  );
+
+  const conferenceWizard = (
+    <form action={createConferenceAction}>
+      <EventTierProvider initialTier={searchParams?.bought === "SINGLE_EVENT" ? "single_event" : "free"}>
+        <div className="mb-6 space-y-4">
+          <ErrorBanner code={searchParams?.error} />
+          {searchParams?.bought === "SINGLE_EVENT" && (
+            <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800 ring-1 ring-emerald-200">
+              ✓ Credit added — <strong>Single Event</strong> is selected. Finish the steps and save to apply it to this conference.
+            </div>
+          )}
+          {searchParams?.canceled && (
+            <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+              Checkout was canceled. No charge was made.
+            </div>
+          )}
+        </div>
+        <ConferenceWizard
+          credits={credits}
+          chargesEnabled={chargesEnabled}
+          defaultStart={defaultStart}
+          defaultEnd={defaultEnd}
+        />
+      </EventTierProvider>
+    </form>
+  );
+
+  return (
+    <main>
+      <header className="border-b bg-white">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+          <Link href="/dashboard" className="text-sm text-brand-700">◀ Dashboard</Link>
+          <h1 className="font-semibold">Create event</h1>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <EventFormatGate initialFormat={initialFormat} standard={standardWizard} conference={conferenceWizard} />
+      </div>
     </main>
   );
 }

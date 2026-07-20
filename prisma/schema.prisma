@@ -447,6 +447,11 @@ model Event {
   // true once a single-event credit has been spent to unlock premium features
   // (unlimited registrations, vendor flow, custom branding, more broadcasts).
   isPremium          Boolean     @default(false)
+  // true when this event was created via the Conference wizard (multi-day agenda
+  // + day passes). Purely a label/routing flag — a conference is still one
+  // ordinary Event; sessions + dayAccess drive behaviour. Defaults false so every
+  // existing (standard) event is unaffected.
+  isConference       Boolean     @default(false)
   startAt            DateTime
   endAt              DateTime
   timezone           String      @default("UTC")

@@ -3,9 +3,10 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
+import { format } from "date-fns";
 import { prisma } from "@/lib/db";
 import { getSession, requireRole } from "@/lib/auth";
-import { conferenceDayCount } from "@/lib/conference";
+import { conferenceDayCount, conferenceDays } from "@/lib/conference";
 import { eventEntitlements } from "@/lib/plans";
 
 const schema = z.object({
@@ -181,6 +182,221 @@ export async function createEventAction(formData: FormData) {
           sortOrder: 0,
         },
       },
+    },
+  });
+
+  redirect(`/dashboard/events/${event.id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Conference wizard (separate from the standard single-event flow above).
+// Creates ONE Event (isConference = true) plus N day-pass ticket types and N
+// agenda sessions in a single transaction. The standard createEventAction is
+// intentionally left untouched.
+// ---------------------------------------------------------------------------
+
+const passInput = z.object({
+  name: z.string().min(1).max(120),
+  price: z.string().default("0"),
+  days: z.array(z.number().int()).default([]),
+});
+
+const sessionInput = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).optional().default(""),
+  track: z.string().max(120).optional().default(""),
+  room: z.string().max(120).optional().default(""),
+  speaker: z.string().max(200).optional().default(""),
+  day: z.number().int().min(1),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  capacity: z.string().optional().default(""),
+});
+
+const conferenceSchema = z.object({
+  name: z.string().min(2).max(200),
+  shortDescription: z.string().max(160).optional(),
+  description: z.string().min(10),
+  category: z.string().optional(),
+  tags: z.string().optional(),
+  startAt: z.string().min(1),
+  endAt: z.string().min(1),
+  timezone: z.string().default("UTC"),
+  isVirtual: z.string().optional(),
+  venueName: z.string().optional(),
+  addressLine1: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  postalCode: z.string().optional(),
+  country: z.string().default("US"),
+  virtualUrl: z.string().optional(),
+  capacity: z.string().optional(),
+  contactEmail: z.string().optional(),
+  refundPolicy: z.string().optional(),
+  vendorRegistrationEnabled: z.string().optional(),
+  vendorApplicationNotes: z.string().optional(),
+  defaultVendorPrice: z.string().optional(),
+  bannerUrl: z.string().url().optional().or(z.literal("")),
+  bannerPositionX: z.string().optional(),
+  bannerPositionY: z.string().optional(),
+  bannerZoom: z.string().optional(),
+  bannerFitToFrame: z.string().optional(),
+  isPrivate: z.string().optional(),
+  tier: z.enum(["free", "single_event"]).default("free"),
+  action: z.string().default("draft"),
+  passes: z.string().default("[]"),
+  sessions: z.string().default("[]"),
+});
+
+export async function createConferenceAction(formData: FormData) {
+  const session = requireRole(["ORGANIZER", "ADMIN", "SUPERADMIN"], await getSession());
+  if (!session.orgId) throw new Error("No organization linked");
+
+  const backTo = "/dashboard/events/new?format=conference";
+  const parsed = conferenceSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`${backTo}&error=validation`);
+  const data = parsed.data;
+
+  // Builder arrays arrive as JSON strings (repeatable rows can't be plain fields).
+  let passes: z.infer<typeof passInput>[];
+  let sessions: z.infer<typeof sessionInput>[];
+  try {
+    passes = z.array(passInput).max(20).parse(JSON.parse(data.passes));
+    sessions = z.array(sessionInput).max(200).parse(JSON.parse(data.sessions));
+  } catch {
+    redirect(`${backTo}&error=validation`);
+  }
+  if (passes.length === 0) redirect(`${backTo}&error=no_ticket_types`);
+
+  // Wall-clock inputs are interpreted in the event's timezone, stored as UTC.
+  const startAt = fromZonedTime(data.startAt, data.timezone);
+  const endAt = fromZonedTime(data.endAt, data.timezone);
+  if (endAt <= startAt) redirect(`${backTo}&error=date_order`);
+
+  // Span gate against the INTENDED tier, BEFORE claiming a credit.
+  const wantsPremium = data.tier === "single_event";
+  const span = { startAt, endAt, timezone: data.timezone };
+  const dayCount = conferenceDayCount(span);
+  if (dayCount > eventEntitlements(wantsPremium).maxConferenceDays) {
+    redirect(`${backTo}&error=conference_span_${wantsPremium ? "max" : "free"}`);
+  }
+
+  // Paid passes require the org to be Connect-ready (same rule as standard tickets).
+  const anyPaid = passes.some((p) => Math.round(parseFloat(p.price || "0") * 100) > 0);
+  if (anyPaid) {
+    const org = await prisma.organization.findUnique({
+      where: { id: session.orgId },
+      select: { stripeAccountId: true, stripeAccountChargesEnabled: true },
+    });
+    if (!org?.stripeAccountId || !org.stripeAccountChargesEnabled) {
+      redirect(`${backTo}&error=payouts_required`);
+    }
+  }
+
+  // Map each session's conference day + wall-clock time to a real UTC instant.
+  const days = conferenceDays(span);
+  const dayScopingAllowed = eventEntitlements(wantsPremium).dayScopedTickets && dayCount > 1;
+  const sessionCreates = sessions.map((s) => {
+    const day = days.find((d) => d.index === s.day) ?? days[0];
+    const dateStr = format(day.date, "yyyy-MM-dd");
+    const sStart = fromZonedTime(`${dateStr}T${s.startTime}`, data.timezone);
+    const sEnd = fromZonedTime(`${dateStr}T${s.endTime}`, data.timezone);
+    if (sEnd <= sStart) redirect(`${backTo}&error=date_order`);
+    const capNum = s.capacity && s.capacity.trim() !== "" ? parseInt(s.capacity, 10) : NaN;
+    const capacity = Number.isFinite(capNum) && capNum > 0 ? capNum : null;
+    return {
+      title: s.title,
+      description: s.description || null,
+      track: s.track || null,
+      room: s.room || null,
+      speaker: s.speaker || null,
+      startAt: sStart,
+      endAt: sEnd,
+      capacity,
+    };
+  });
+
+  const org = await prisma.organization.findUnique({ where: { id: session.orgId } });
+  if (!org) throw new Error("Organization not found");
+
+  // Claim a single-event credit up front (conditional decrement) so the event is
+  // never marked premium without a paid credit.
+  let isPremium = false;
+  if (data.tier === "single_event") {
+    const claimed = await prisma.organization.updateMany({
+      where: { id: org.id, singleEventCredits: { gt: 0 } },
+      data: { singleEventCredits: { decrement: 1 } },
+    });
+    if (claimed.count === 0) redirect(`${backTo}&error=no_credits`);
+    isPremium = true;
+  }
+
+  const slug = await uniqueSlug(slugify(data.name), session.orgId);
+  const isVirtual = data.isVirtual === "1";
+  const publish = data.action === "publish";
+  const capacity = data.capacity ? parseInt(data.capacity) : null;
+  const hasAddress = data.addressLine1 && data.city;
+  const tagList = (data.tags ?? "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+
+  const ticketCreates = passes.map((p, i) => {
+    const priceCents = Math.round(parseFloat(p.price || "0") * 100);
+    // Day scoping is premium + multi-day only; otherwise every pass is all-days ([]).
+    const dayAccess = dayScopingAllowed
+      ? p.days.filter((n) => Number.isInteger(n) && n >= 1 && n <= dayCount)
+      : [];
+    return {
+      name: p.name,
+      kind: (priceCents === 0 ? "FREE" : "GENERAL") as "FREE" | "GENERAL",
+      priceCents,
+      sortOrder: i,
+      dayAccess,
+    };
+  });
+
+  const event = await prisma.event.create({
+    data: {
+      slug,
+      name: data.name,
+      shortDescription: data.shortDescription,
+      description: data.description,
+      category: data.category || null,
+      status: publish ? "PUBLISHED" : "DRAFT",
+      isPremium,
+      isConference: true,
+      startAt,
+      endAt,
+      timezone: data.timezone,
+      capacity,
+      contactEmail: data.contactEmail || null,
+      refundPolicy: data.refundPolicy || null,
+      vendorRegistrationEnabled: isPremium && data.vendorRegistrationEnabled === "1",
+      isPrivate: data.isPrivate === "1",
+      vendorApplicationNotes: data.vendorApplicationNotes || null,
+      defaultVendorPriceCents: Math.round(parseFloat(data.defaultVendorPrice || "0") * 100),
+      bannerUrl: data.bannerUrl || null,
+      bannerPositionX: data.bannerPositionX ? parseFloat(data.bannerPositionX) : 50,
+      bannerPositionY: data.bannerPositionY ? parseFloat(data.bannerPositionY) : 50,
+      bannerZoom: data.bannerZoom ? parseFloat(data.bannerZoom) : 1,
+      bannerFitToFrame: data.bannerFitToFrame === "1",
+      organizationId: session.orgId,
+      publishedAt: publish ? new Date() : null,
+      location: hasAddress || isVirtual
+        ? {
+            create: {
+              isVirtual,
+              virtualUrl: isVirtual ? data.virtualUrl ?? null : null,
+              venueName: data.venueName ?? null,
+              addressLine1: data.addressLine1 ?? "",
+              city: data.city ?? "",
+              state: data.state ?? null,
+              postalCode: data.postalCode ?? null,
+              country: data.country ?? "US",
+            },
+          }
+        : undefined,
+      tags: tagList.length ? { create: tagList.map((tag) => ({ tag })) } : undefined,
+      ticketTypes: { create: ticketCreates },
+      sessions: sessionCreates.length ? { create: sessionCreates } : undefined,
     },
   });
 

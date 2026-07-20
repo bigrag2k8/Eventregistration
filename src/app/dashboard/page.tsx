@@ -297,8 +297,10 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.status}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${e.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"}`}>
-                    {e.isPremium ? "Single Event" : "Free"}
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${
+                    e.isConference ? "bg-indigo-100 text-indigo-700" : e.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    {e.isConference ? "Conference" : e.isPremium ? "Single Event" : "Free"}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">{e._count.registrations}</td>

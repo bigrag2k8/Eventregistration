@@ -22,6 +22,12 @@ export function EventTierProvider({ children, initialTier = "free" }: { children
   return <TierCtx.Provider value={{ tier, setTier }}>{children}</TierCtx.Provider>;
 }
 
+/** Read/set the selected event tier from anywhere inside an EventTierProvider
+ *  (e.g. the conference wizard reacts to free vs single_event for the day span). */
+export function useEventTier() {
+  return useContext(TierCtx);
+}
+
 /**
  * Build and submit a one-off POST form to the billing checkout endpoint. Used
  * by the in-card "Buy single event" button: the picker lives inside the big
@@ -44,7 +50,7 @@ function postToCheckout(returnTo: string) {
   form.submit();
 }
 
-export function EventTypePicker({ credits }: { credits: number }) {
+export function EventTypePicker({ credits, returnTo = "/dashboard/events/new" }: { credits: number; returnTo?: string }) {
   const { tier, setTier } = useContext(TierCtx);
   return (
     <section className="card">
@@ -96,7 +102,7 @@ export function EventTypePicker({ credits }: { credits: number }) {
               <div className="mt-3 space-y-2">
                 <button
                   type="button"
-                  onClick={() => postToCheckout("/dashboard/events/new")}
+                  onClick={() => postToCheckout(returnTo)}
                   className="btn-primary w-full"
                 >
                   Buy single event — $19
