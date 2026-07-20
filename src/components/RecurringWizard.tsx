@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Repeat } from "lucide-react";
 import { EventLocationFields } from "@/components/EventLocationFields";
 import { ImageUploadInput } from "@/components/ImageUploadInput";
+import { useChangeFormat } from "@/components/EventFormatGate";
 import { EVENT_CATEGORIES } from "@/lib/categories";
 
 const TIMEZONES = [
@@ -52,6 +53,7 @@ export function RecurringWizard({
   /** Pre-select Premium Recurring on return from a credit purchase (?bought=RECURRING_EVENT_CREDIT). */
   initialPremium?: boolean;
 }) {
+  const changeType = useChangeFormat();
   const [step, setStep] = useState(0);
   const [premium, setPremium] = useState(initialPremium);
   const [frequency, setFrequency] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
@@ -161,7 +163,7 @@ export function RecurringWizard({
         <section className="card">
           <h2 className="text-lg font-semibold">Event type</h2>
           <p className="mt-1 text-sm text-slate-500">
-            A recurring event runs on a schedule and creates a real, independently-registerable session for each date.
+            Pick how this event is powered. You can also upgrade a free event later.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label
@@ -171,10 +173,10 @@ export function RecurringWizard({
             >
               <span className="flex items-center gap-2">
                 <input type="radio" name="__recTier" checked={!premium} onChange={() => setPremium(false)} />
-                <span className="font-semibold">Free</span>
+                <span className="font-semibold">Free event</span>
               </span>
               <span className="mt-1 text-xs text-slate-500">
-                Up to 2 sessions, drop-in tickets, 50 registrations per session. No charge.
+                Up to 2 sessions, 50 registrations per session, 1 email broadcast. No charge.
               </span>
             </label>
 
@@ -444,6 +446,8 @@ export function RecurringWizard({
       <div className="mt-6 flex items-center justify-between gap-3">
         {step > 0 ? (
           <button type="button" onClick={() => goTo(step - 1)} className="btn-secondary">← Back</button>
+        ) : changeType ? (
+          <button type="button" onClick={changeType} className="btn-secondary">← Change event type</button>
         ) : (
           <Link href="/dashboard/events/new" className="btn-secondary">← Change event type</Link>
         )}

@@ -6,6 +6,7 @@ import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarClock } from "lucide-react";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { EventTypePicker, CapacityField, VendorSettingsFields, useEventTier } from "@/components/EventTierForm";
+import { useChangeFormat } from "@/components/EventFormatGate";
 import { PassBuilder, newPass, type DraftPass } from "@/components/PassBuilder";
 import { SessionBuilder, type DraftSession } from "@/components/SessionBuilder";
 import { EVENT_CATEGORIES } from "@/lib/categories";
@@ -50,6 +51,7 @@ interface Props {
 
 export function ConferenceWizard({ credits, chargesEnabled, defaultStart, defaultEnd }: Props) {
   const { tier } = useEventTier();
+  const changeType = useChangeFormat();
   const [step, setStep] = useState(0);
   const [start, setStart] = useState(defaultStart);
   const [end, setEnd] = useState(defaultEnd);
@@ -166,10 +168,6 @@ export function ConferenceWizard({ credits, chargesEnabled, defaultStart, defaul
       <div data-wizard-step hidden={step !== 0}>
         <div className="space-y-6">
           <EventTypePicker credits={credits} premiumLabel="Premium Conference" returnTo="/dashboard/events/new?format=conference&bought=SINGLE_EVENT" />
-          <div className="rounded-lg bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-200">
-            <strong>Free</strong> hosts a single-day conference (up to 50 registrations). <strong>Premium Conference</strong> unlocks a
-            multi-day conference (up to 7 days), day passes (Day 1 / Day 2 / All-Access), and unlimited registrations.
-          </div>
         </div>
       </div>
 
@@ -406,6 +404,8 @@ export function ConferenceWizard({ credits, chargesEnabled, defaultStart, defaul
       <div className="mt-6 flex items-center justify-between gap-3">
         {step > 0 ? (
           <button type="button" onClick={() => goTo(step - 1)} className="btn-secondary">← Back</button>
+        ) : changeType ? (
+          <button type="button" onClick={changeType} className="btn-secondary">← Change event type</button>
         ) : (
           <Link href="/dashboard/events/new" className="btn-secondary">← Change event type</Link>
         )}

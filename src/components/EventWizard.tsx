@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Children, useEffect, useRef, useState, type ReactNode } from "react";
+import { useChangeFormat } from "@/components/EventFormatGate";
 
 /**
  * Presentation-only multi-step wrapper for the create-event form. It does NOT
@@ -48,6 +49,7 @@ export function EventWizard({ titles, children }: Props) {
   const steps = Children.toArray(children);
   const inputStepCount = steps.length; // review is the extra last step
   const last = titles.length - 1; // index of the Review step
+  const changeType = useChangeFormat();
   const [step, setStep] = useState(0);
   const [review, setReview] = useState<ReviewData | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -184,6 +186,10 @@ export function EventWizard({ titles, children }: Props) {
         {step > 0 ? (
           <button type="button" onClick={() => goTo(step - 1)} className="btn-secondary">
             ← Back
+          </button>
+        ) : changeType ? (
+          <button type="button" onClick={changeType} className="btn-secondary">
+            ← Change event type
           </button>
         ) : (
           <Link href="/dashboard" className="btn-secondary">

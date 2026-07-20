@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { CalendarDays, CalendarRange, Repeat } from "lucide-react";
 
 type Format = "standard" | "recurring" | "conference";
@@ -10,6 +10,16 @@ const LABELS: Record<Format, string> = {
   recurring: "recurring event",
   conference: "conference",
 };
+
+/**
+ * Lets any wizard mounted inside the gate send the organizer back to the format
+ * chooser (its "← Change event type" control). Null when a wizard is rendered
+ * outside a gate, so those controls can fall back to a plain link.
+ */
+const ChangeFormatContext = createContext<(() => void) | null>(null);
+export function useChangeFormat() {
+  return useContext(ChangeFormatContext);
+}
 
 /**
  * Front door for the create-event flow. First asks WHAT the organizer is
@@ -31,6 +41,7 @@ export function EventFormatGate({
   initialFormat?: Format | null;
 }) {
   const [format, setFormat] = useState<Format | null>(initialFormat);
+  const changeType = () => setFormat(null);
 
   if (format === null) {
     return (
@@ -79,16 +90,18 @@ export function EventFormatGate({
   }
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <span className="text-sm text-slate-500">
-          Creating a <strong className="text-slate-700">{LABELS[format]}</strong>
-        </span>
-        <button type="button" onClick={() => setFormat(null)} className="text-sm text-brand-700 hover:underline">
-          ← Change event type
-        </button>
+    <ChangeFormatContext.Provider value={changeType}>
+      <div>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <span className="text-sm text-slate-500">
+            Creating a <strong className="text-slate-700">{LABELS[format]}</strong>
+          </span>
+          <button type="button" onClick={changeType} className="text-sm text-brand-700 hover:underline">
+            ← Change event type
+          </button>
+        </div>
+        {format === "conference" ? conference : format === "recurring" ? recurring : standard}
       </div>
-      {format === "conference" ? conference : format === "recurring" ? recurring : standard}
-    </div>
+    </ChangeFormatContext.Provider>
   );
 }
