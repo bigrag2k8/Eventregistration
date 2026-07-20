@@ -114,6 +114,12 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
     (session.role === "ORGANIZER" || session.role === "ADMIN") &&
     publishedCount === 0;
 
+  // The events table lists every non-recurring event; split it so conferences
+  // get their own section below recurring events (standard events lead).
+  const isStaff = session.role === "STAFF" || session.role === "VOLUNTEER";
+  const standardEvents = events.filter((e) => !e.isConference);
+  const conferenceEvents = events.filter((e) => e.isConference);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       {searchParams?.error && (
@@ -175,13 +181,32 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         <Stat label="Events" value={String(totalEventCount)} />
       </div>
 
-      {/* This section always renders — it owns the "create a recurring event"
-          button, so gating it on recurringEvents.length would leave an org with no
-          recurring events unable to make their first one. */}
-      <div className="mt-8 flex items-center justify-between">
+      {/* 1. Standard events lead. */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">Your events</h2>
+      </div>
+      {standardEvents.length === 0 ? (
+        <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <div className="text-4xl" aria-hidden>🎟️</div>
+          <h3 className="mt-3 text-lg font-semibold">No events yet</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            {isStaff
+              ? "You'll see events here once an organizer creates them."
+              : "Create your first event in a few guided steps — you can save a draft and finish anytime."}
+          </p>
+          {!isStaff && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link href="/dashboard/events/new" className="btn-primary">+ Create your first event</Link>
+            </div>
+          )}
+        </div>
+      ) : (
+        <EventsTable events={standardEvents} isSuper={isSuper} isStaff={isStaff} />
+      )}
+
+      {/* 2. Recurring events. Always renders (first-run guidance lives in its empty state). */}
+      <div className="mt-8">
         <h2 className="text-lg font-semibold">Your recurring events</h2>
-        {/* Recurring events are now created through the single "Create Event" button
-            (below, in Your events) → the format chooser → Recurring. */}
       </div>
 
       {recurringEvents.length === 0 ? (
@@ -249,76 +274,16 @@ export default async function DashboardHome({ searchParams }: { searchParams?: {
         </>
       )}
 
+      {/* 3. Conferences get their own section below recurring events. */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold">Your events</h2>
+        <h2 className="text-lg font-semibold">Your conferences</h2>
       </div>
-
-      {events.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
-          <div className="text-4xl" aria-hidden>🎟️</div>
-          <h3 className="mt-3 text-lg font-semibold">No events yet</h3>
-          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-            {session.role === "STAFF" || session.role === "VOLUNTEER"
-              ? "You'll see events here once an organizer creates them."
-              : "Create your first event in a few guided steps — you can save a draft and finish anytime."}
-          </p>
-          {session.role !== "STAFF" && session.role !== "VOLUNTEER" && (
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Link href="/dashboard/events/new" className="btn-primary">+ Create your first event</Link>
-            </div>
-          )}
-        </div>
+      {conferenceEvents.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
+          No conferences yet — create one from <strong>+ Create Event</strong> → Conference (a multi-day agenda with day passes).
+        </p>
       ) : (
-      <div className="mt-3 overflow-x-auto rounded-xl ring-1 ring-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
-              <th className="px-4 py-3">Event</th>
-              {isSuper && <th className="px-4 py-3">Organization</th>}
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3 text-right">Registrations</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {events.map((e) => (
-              <tr key={e.id}>
-                <td className="px-4 py-3 font-medium">{e.name}</td>
-                {isSuper && (
-                  <td className="px-4 py-3 text-slate-600">{(e as any).organization?.name ?? "—"}</td>
-                )}
-                <td className="px-4 py-3 text-slate-600">
-                  {e.startAt.toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.status}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${
-                    e.isConference ? "bg-indigo-100 text-indigo-700" : e.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {e.isConference ? "Conference" : e.isPremium ? "Premium" : "Free"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">{e._count.registrations}</td>
-                <td className="px-4 py-3 text-right">
-                  {session.role === "STAFF" || session.role === "VOLUNTEER" ? (
-                    <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Open scanner</Link>
-                  ) : (
-                    <>
-                      <Link href={`/dashboard/events/${e.id}`} className="text-brand-700 hover:underline">Manage</Link>
-                      <span className="px-2 text-slate-300">·</span>
-                      <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Check-in</Link>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <EventsTable events={conferenceEvents} isSuper={isSuper} isStaff={isStaff} />
       )}
     </main>
   );
@@ -329,6 +294,59 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="card">
       <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
       <div className="mt-1 text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+/** The events table, shared by the "Your events" (standard) and
+ *  "Your conferences" sections so both render identically. */
+function EventsTable({ events, isSuper, isStaff }: { events: any[]; isSuper: boolean; isStaff: boolean }) {
+  return (
+    <div className="mt-3 overflow-x-auto rounded-xl ring-1 ring-slate-200 bg-white">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
+          <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+            <th className="px-4 py-3">Event</th>
+            {isSuper && <th className="px-4 py-3">Organization</th>}
+            <th className="px-4 py-3">Date</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Type</th>
+            <th className="px-4 py-3 text-right">Registrations</th>
+            <th className="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {events.map((e) => (
+            <tr key={e.id}>
+              <td className="px-4 py-3 font-medium">{e.name}</td>
+              {isSuper && <td className="px-4 py-3 text-slate-600">{e.organization?.name ?? "—"}</td>}
+              <td className="px-4 py-3 text-slate-600">{e.startAt.toLocaleDateString()}</td>
+              <td className="px-4 py-3">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{e.status}</span>
+              </td>
+              <td className="px-4 py-3">
+                <span className={`rounded-full px-2 py-0.5 text-xs ${
+                  e.isConference ? "bg-indigo-100 text-indigo-700" : e.isPremium ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {e.isConference ? "Conference" : e.isPremium ? "Premium" : "Free"}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right">{e._count.registrations}</td>
+              <td className="px-4 py-3 text-right">
+                {isStaff ? (
+                  <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Open scanner</Link>
+                ) : (
+                  <>
+                    <Link href={`/dashboard/events/${e.id}`} className="text-brand-700 hover:underline">Manage</Link>
+                    <span className="px-2 text-slate-300">·</span>
+                    <Link href={`/checkin/${e.id}`} className="text-brand-700 hover:underline">Check-in</Link>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
