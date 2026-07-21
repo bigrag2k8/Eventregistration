@@ -617,6 +617,44 @@ export async function addSessionAction(formData: FormData) {
   revalidatePath(`/events/${event.slug}`);
 }
 
+/** Edit an existing agenda session. Same fields/validation as add; scoped to the
+ *  session's own event. Lowering the seat cap below what's already reserved is
+ *  allowed (existing seats keep their spot; the live count just blocks NEW ones). */
+export async function updateSessionAction(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const sessionId = String(formData.get("sessionId"));
+  const { event } = await authorizeEvent(eventId);
+  const target = await prisma.eventSession.findFirst({ where: { id: sessionId, eventId: event.id } });
+  if (!target) redirect(`/dashboard/events/${event.id}?error=not_found`);
+
+  const parsed = sessionSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) redirect(`/dashboard/events/${event.id}?error=validation`);
+  const d = parsed.data;
+  const startAt = fromZonedTime(d.startAt, event.timezone);
+  const endAt = fromZonedTime(d.endAt, event.timezone);
+  if (endAt <= startAt) redirect(`/dashboard/events/${event.id}?error=date_order`);
+
+  const capacityNum = d.capacity && d.capacity.trim() !== "" ? parseInt(d.capacity, 10) : null;
+  const capacity = capacityNum != null && Number.isFinite(capacityNum) && capacityNum > 0 ? capacityNum : null;
+
+  await prisma.eventSession.update({
+    where: { id: target.id },
+    data: {
+      title: d.title,
+      description: d.description || null,
+      track: d.track || null,
+      room: d.room || null,
+      speaker: d.speaker || null,
+      startAt,
+      endAt,
+      capacity,
+    },
+  });
+  revalidatePath(`/dashboard/events/${event.id}`);
+  revalidatePath(`/events/${event.slug}`);
+  redirect(`/dashboard/events/${event.id}?saved=1#agenda`);
+}
+
 export async function deleteSessionAction(formData: FormData) {
   const eventId = String(formData.get("eventId"));
   const sessionId = String(formData.get("sessionId"));

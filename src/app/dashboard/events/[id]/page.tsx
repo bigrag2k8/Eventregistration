@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession, requireRole, requireRolePage, orgScope } from "@/lib/auth";
 import { formatDateRange, money } from "@/lib/format";
 import { revenueSplit, perTicketTypeBreakdown } from "@/server/finance";
-import { publishAction, unpublishAction, cancelEventAction, rescheduleEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, addSessionAction, deleteSessionAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
+import { publishAction, unpublishAction, cancelEventAction, rescheduleEventAction, deleteAction, addTicketTypeAction, deleteTicketTypeAction, addSessionAction, updateSessionAction, deleteSessionAction, updateBasicsAction, updateLocationAction, updatePresaleAction, upgradeEventAction } from "./actions";
 import { BannerImageInput } from "@/components/BannerImageInput";
 import { PresaleFields } from "@/components/PresaleFields";
 import { EventLocationFields } from "@/components/EventLocationFields";
@@ -27,7 +27,7 @@ const TIMEZONES = [
   "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney", "UTC",
 ];
 
-export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string; upgraded?: string; rescheduled?: string; cancelled?: string } }) {
+export default async function EventManagePage({ params, searchParams }: { params: { id: string }; searchParams: { saved?: string; error?: string; upgraded?: string; rescheduled?: string; cancelled?: string; editSession?: string } }) {
   const session = await requireRolePage(["ORGANIZER", "ADMIN", "SUPERADMIN"]);
 
   const event = await prisma.event.findFirst({
@@ -46,6 +46,12 @@ export default async function EventManagePage({ params, searchParams }: { params
   const days = conferenceDays(event);
   const entitlements = eventEntitlements(event.isPremium);
   const dayScoped = entitlements.dayScopedTickets && days.length > 1;
+
+  // Agenda: the session currently being edited (?editSession=<id>), if any.
+  const editingSession = searchParams?.editSession
+    ? event.sessions.find((s) => s.id === searchParams.editSession) ?? null
+    : null;
+  const dtLocal = (d: Date) => formatInTimeZone(d, event.timezone, "yyyy-MM-dd'T'HH:mm");
 
   const totalRevenue = await prisma.payment.aggregate({
     where: { status: "SUCCEEDED", registration: { eventId: event.id } },
@@ -592,7 +598,14 @@ export default async function EventManagePage({ params, searchParams }: { params
                       <td className="px-3 py-2 text-slate-500">{s.room || "—"}</td>
                       <td className="px-3 py-2 text-slate-500">{s.speaker || "—"}</td>
                       <td className="px-3 py-2 text-slate-500">{s.capacity != null ? `${s.capacity} cap` : "Open"}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        <Link
+                          href={`/dashboard/events/${event.id}?editSession=${s.id}#agenda`}
+                          className={`text-xs hover:underline ${editingSession?.id === s.id ? "font-semibold text-brand-800" : "text-brand-700"}`}
+                        >
+                          Edit
+                        </Link>
+                        <span className="px-2 text-slate-300">·</span>
                         <form action={deleteSessionAction} className="inline">
                           <input type="hidden" name="eventId" value={event.id} />
                           <input type="hidden" name="sessionId" value={s.id} />
@@ -606,47 +619,64 @@ export default async function EventManagePage({ params, searchParams }: { params
             </div>
           )}
 
-          <form action={addSessionAction} className="mt-6 grid gap-3 sm:grid-cols-2">
-            <input type="hidden" name="eventId" value={event.id} />
-            <div className="sm:col-span-2">
-              <label className="label">Session title</label>
-              <input name="title" required maxLength={200} className="input" placeholder="Opening Keynote: The State of…" />
-            </div>
-            <div>
-              <label className="label">Starts</label>
-              <input name="startAt" type="datetime-local" required className="input" />
-            </div>
-            <div>
-              <label className="label">Ends</label>
-              <input name="endAt" type="datetime-local" required className="input" />
-            </div>
-            <div>
-              <label className="label">Track (optional)</label>
-              <input name="track" maxLength={120} className="input" placeholder="Applied ML" />
-            </div>
-            <div>
-              <label className="label">Room (optional)</label>
-              <input name="room" maxLength={120} className="input" placeholder="Bayview A" />
-            </div>
-            <div>
-              <label className="label">Seat cap (optional)</label>
-              <input name="capacity" type="number" min={1} className="input" placeholder="Open seating" />
-            </div>
-            <div>
-              <label className="label">Speaker (optional)</label>
-              <input name="speaker" maxLength={200} className="input" placeholder="Dr. Ada Lin, Vector Labs" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Description (optional)</label>
-              <textarea name="description" maxLength={2000} rows={2} className="input" placeholder="What this session covers…" />
-            </div>
-            <p className="text-xs text-slate-500 sm:col-span-2">
-              Times are in the event timezone ({event.timezone}).
-            </p>
-            <div className="sm:col-span-2">
-              <button type="submit" className="btn-primary">Add session</button>
-            </div>
-          </form>
+          <div id="agenda" className="mt-6 scroll-mt-24">
+            <h3 className="text-sm font-semibold text-slate-700">
+              {editingSession ? "Edit session" : "Add a session"}
+            </h3>
+            {/* key remounts the form so defaultValues refresh when switching between
+                add and a specific session's edit. */}
+            <form
+              key={editingSession?.id ?? "new"}
+              action={editingSession ? updateSessionAction : addSessionAction}
+              className="mt-2 grid gap-3 sm:grid-cols-2"
+            >
+              <input type="hidden" name="eventId" value={event.id} />
+              {editingSession && <input type="hidden" name="sessionId" value={editingSession.id} />}
+              <div className="sm:col-span-2">
+                <label className="label">Session title</label>
+                <input name="title" required maxLength={200} defaultValue={editingSession?.title ?? ""} className="input" placeholder="Opening Keynote: The State of…" />
+              </div>
+              <div>
+                <label className="label">Starts</label>
+                <input name="startAt" type="datetime-local" required defaultValue={editingSession ? dtLocal(editingSession.startAt) : ""} className="input" />
+              </div>
+              <div>
+                <label className="label">Ends</label>
+                <input name="endAt" type="datetime-local" required defaultValue={editingSession ? dtLocal(editingSession.endAt) : ""} className="input" />
+              </div>
+              <div>
+                <label className="label">Track (optional)</label>
+                <input name="track" maxLength={120} defaultValue={editingSession?.track ?? ""} className="input" placeholder="Applied ML" />
+              </div>
+              <div>
+                <label className="label">Room (optional)</label>
+                <input name="room" maxLength={120} defaultValue={editingSession?.room ?? ""} className="input" placeholder="Bayview A" />
+              </div>
+              <div>
+                <label className="label">Seat cap (optional)</label>
+                <input name="capacity" type="number" min={1} defaultValue={editingSession?.capacity ?? ""} className="input" placeholder="Open seating" />
+              </div>
+              <div>
+                <label className="label">Speaker (optional)</label>
+                <input name="speaker" maxLength={200} defaultValue={editingSession?.speaker ?? ""} className="input" placeholder="Dr. Ada Lin, Vector Labs" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">Description (optional)</label>
+                <textarea name="description" maxLength={2000} rows={2} defaultValue={editingSession?.description ?? ""} className="input" placeholder="What this session covers…" />
+              </div>
+              <p className="text-xs text-slate-500 sm:col-span-2">
+                Times are in the event timezone ({event.timezone}).
+              </p>
+              <div className="flex items-center gap-3 sm:col-span-2">
+                <button type="submit" className="btn-primary">{editingSession ? "Save changes" : "Add session"}</button>
+                {editingSession && (
+                  <Link href={`/dashboard/events/${event.id}#agenda`} className="text-sm text-slate-500 hover:underline">
+                    Cancel
+                  </Link>
+                )}
+              </div>
+            </form>
+          </div>
         </section>
 
         {/* Location — venue + address (or virtual URL) */}
