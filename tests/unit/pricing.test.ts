@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 // (it operates purely on its input). Stub it so no PrismaClient is constructed.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
-import { computeTotals } from "@/server/pricing";
+import { computeTotals, computeCartTotals } from "@/server/pricing";
 
 const HOUR = 60 * 60 * 1000;
 const future = () => new Date(Date.now() + 24 * HOUR);
@@ -147,5 +147,60 @@ describe("computeTotals — tax & processing fee", () => {
     const event = makeEvent([makeTicket({ priceCents: 1000 })], { organization: { passProcessingFee: true } });
     // fee = round(1000 * 2.9%) + 30 = 29 + 30 = 59
     expect(await run(event)).toMatchObject({ fee: 59, total: 1059 });
+  });
+});
+
+describe("computeCartTotals — multi-pass orders", () => {
+  const day1 = () => makeTicket({ id: "d1", priceCents: 8900, dayAccess: [1] });
+  const day2 = () => makeTicket({ id: "d2", priceCents: 8900, dayAccess: [2] });
+  const allAccess = () => makeTicket({ id: "all", priceCents: 15000, dayAccess: [] });
+
+  it("sums two day passes into one subtotal and returns a line breakdown", async () => {
+    const event = makeEvent([day1(), day2(), allAccess()]);
+    const r: any = await computeCartTotals({
+      event,
+      items: [{ ticketTypeId: "d1", quantity: 1 }, { ticketTypeId: "d2", quantity: 1 }],
+    });
+    expect(r).toMatchObject({ subtotal: 17800, discount: 0, tax: 0, fee: 0, total: 17800, currency: "usd" });
+    expect(r.lines).toHaveLength(2);
+    expect(r.lines[0]).toMatchObject({ ticketTypeId: "d1", unitPriceCents: 8900, quantity: 1, lineSubtotal: 8900 });
+  });
+
+  it("prices a single All-Access pass on its own", async () => {
+    const event = makeEvent([day1(), day2(), allAccess()]);
+    const r: any = await computeCartTotals({ event, items: [{ ticketTypeId: "all", quantity: 1 }] });
+    expect(r).toMatchObject({ subtotal: 15000, total: 15000 });
+    expect(r.lines).toHaveLength(1);
+  });
+
+  it("applies presale + promo + processing fee on the combined cart", async () => {
+    const event = makeEvent([day1(), day2()], {
+      presalePercent: 10,
+      presaleEndsAt: future(),
+      organization: { passProcessingFee: true },
+      promoCodes: [{ id: "p1", code: "SAVE", isActive: true, discountType: "FIXED", amountCents: 1000, expiresAt: null, usageLimit: null, usageCount: 0 }],
+    });
+    // subtotal 17800 -> presale 10% (-1780) -> 16020 -> promo fixed -1000 => discount 2780
+    // taxable = subtotal - discount = 15020; fee = round(15020*2.9%) + 30 = 436 + 30 = 466
+    // total = 15020 + 0 tax + 466 = 15486
+    const r: any = await computeCartTotals({
+      event,
+      items: [{ ticketTypeId: "d1", quantity: 1 }, { ticketTypeId: "d2", quantity: 1 }],
+      promoCode: "SAVE",
+    });
+    expect(r).toMatchObject({ subtotal: 17800, discount: 2780, fee: 466, total: 15486, promoCodeId: "p1" });
+  });
+
+  it("rejects the whole cart when any line is sold out", async () => {
+    const event = makeEvent([day1(), makeTicket({ id: "d2", priceCents: 8900, quantityTotal: 10, quantitySold: 10 })]);
+    const r = await computeCartTotals({
+      event,
+      items: [{ ticketTypeId: "d1", quantity: 1 }, { ticketTypeId: "d2", quantity: 1 }],
+    });
+    expect(r).toEqual({ error: "Not enough tickets remaining" });
+  });
+
+  it("errors on an empty cart", async () => {
+    expect(await computeCartTotals({ event: makeEvent([day1()]), items: [] })).toEqual({ error: "No passes selected" });
   });
 });

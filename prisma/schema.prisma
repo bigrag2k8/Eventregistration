@@ -697,10 +697,32 @@ model TicketType {
   dayAccess       Int[]          @default([])
 
   registrations   Registration[]
+  registrationItems RegistrationItem[]
   vendorApplications VendorApplication[]
 
   @@index([eventId])
   @@map("ticket_types")
+}
+
+/// One line of a multi-pass conference order. A buyer who combines several day
+/// passes (e.g. Day 1 + Day 3, or All-Access) in one purchase gets ONE
+/// Registration with one RegistrationItem per selected pass — a single Payment
+/// and PaymentIntent cover the whole order (no bundle share-splitting). Ordinary
+/// single-ticket registrations create NO items and keep using
+/// Registration.ticketTypeId; the item set is purely additive.
+model RegistrationItem {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  ticketTypeId   String
+  ticketType     TicketType   @relation(fields: [ticketTypeId], references: [id])
+  quantity       Int          @default(1)
+  /// Post-presale unit price snapshot at purchase time.
+  unitPriceCents Int
+
+  @@index([registrationId])
+  @@index([ticketTypeId])
+  @@map("registration_items")
 }
 
 model CustomQuestion {
@@ -805,6 +827,9 @@ model Registration {
   refundRequests    RefundRequest[]
   review            Review?
   sessionReservations SessionReservation[]
+  /// Multi-pass conference orders: one item per selected pass. Empty for
+  /// ordinary single-ticket registrations (which use ticketTypeId directly).
+  items             RegistrationItem[]
 
   @@index([eventId, status])
   @@index([email])

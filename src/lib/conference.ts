@@ -77,6 +77,29 @@ export function dayAccessLabel(dayAccess: number[], days: ConferenceDay[]): stri
   return "Day " + inRange.join(", ");
 }
 
+/**
+ * The effective set of conference days a registration grants access to. A
+ * multi-pass order (buying several day passes at once) stores one
+ * RegistrationItem per pass; the access is the UNION of every item's ticket
+ * dayAccess. An empty array anywhere means "the whole event / all days", which
+ * dominates the union (returned as []). Ordinary single-ticket registrations
+ * have no items and fall back to their ticketType's dayAccess. The return value
+ * is fed straight into `ticketCoversDay` and `dayAccessLabel`.
+ */
+export function registrationDayAccess(reg: {
+  ticketType: { dayAccess: number[] };
+  items?: { ticketType: { dayAccess: number[] } }[] | null;
+}): number[] {
+  const sources = reg.items && reg.items.length
+    ? reg.items.map((i) => i.ticketType.dayAccess)
+    : [reg.ticketType.dayAccess];
+  // Any "all days" pass (empty dayAccess) covers the whole event.
+  if (sources.some((d) => d.length === 0)) return [];
+  const set = new Set<number>();
+  for (const d of sources) for (const n of d) set.add(n);
+  return [...set].sort((a, b) => a - b);
+}
+
 /** Do two time ranges overlap? Touching (a.end === b.start) does NOT count. */
 export function sessionsOverlap(
   a: { startAt: Date; endAt: Date },

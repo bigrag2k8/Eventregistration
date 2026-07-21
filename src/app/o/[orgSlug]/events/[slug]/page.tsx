@@ -13,6 +13,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { absoluteUrl, metaDescription, eventJsonLd } from "@/lib/seo";
 import { conferenceDays, dayIndexOf, dayAccessLabel } from "@/lib/conference";
 import { ConferenceAgenda, type AgendaSession } from "@/components/ConferenceAgenda";
+import { PassPicker } from "@/components/PassPicker";
 import { Calendar, MapPin, PartyPopper, CalendarClock, Presentation, Users, Layers } from "lucide-react";
 
 interface Props { params: { orgSlug: string; slug: string } }
@@ -356,6 +357,39 @@ export default async function EventLandingPage({ params }: Props) {
         </div>
       )}
 
+      {event.isConference && visibleTickets.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pt-10">
+          <h2 className="text-xl font-semibold">Choose your pass</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {days.length > 1
+              ? "Buy a single day, combine the days you'll attend, or get an all-access pass."
+              : "Pick your pass to register."}
+          </p>
+          <div className="mt-4">
+            <PassPicker
+              mode="browse"
+              passes={visibleTickets.map((t) => {
+                const left = t.quantityTotal ? t.quantityTotal - t.quantitySold : null;
+                return {
+                  id: t.id,
+                  name: t.name,
+                  priceCents: t.priceCents,
+                  dayAccess: t.dayAccess,
+                  left,
+                  soldOut: left !== null && left <= 0,
+                };
+              })}
+              days={days.map((d) => ({ index: d.index, label: d.label }))}
+              presaleActive={presaleActive}
+              presalePct={presalePct}
+              registerHref={
+                registrationClosed ? undefined : `/o/${event.organization.slug}/events/${event.slug}/register`
+              }
+            />
+          </div>
+        </section>
+      )}
+
       {event.sessions.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 pt-10">
           <h2 className="text-xl font-semibold">Agenda</h2>
@@ -460,7 +494,9 @@ export default async function EventLandingPage({ params }: Props) {
               <div className="text-3xl font-bold">{minPrice === 0 ? "Free" : money(minPrice)}</div>
             )}
 
-            <div className="mt-4 space-y-2">
+            {/* Conferences show the full pass picker up top; don't repeat the
+                per-ticket list in the sidebar. */}
+            <div className={`mt-4 space-y-2${event.isConference ? " hidden" : ""}`}>
               {visibleTickets.map((t) => {
                 const left = t.quantityTotal ? t.quantityTotal - t.quantitySold : null;
                 const soldOut = left !== null && left <= 0;

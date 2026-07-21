@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, PartyPopper } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
+import { PassPicker, type PassPickerDay } from "@/components/PassPicker";
 
 interface TicketType {
   id: string; name: string; priceCents: number; quantityTotal: number | null;
-  quantitySold: number; currency: string;
+  quantitySold: number; currency: string; dayAccess: number[];
 }
 interface Question { id: string; label: string; type: string; required: boolean; options: any }
 interface Event {
-  id: string; slug: string; name: string;
+  id: string; slug: string; name: string; isConference: boolean;
   ticketTypes: TicketType[]; customQuestions: Question[];
   taxRatePct: string | null; passProcessingFee: boolean;
 }
@@ -30,12 +31,21 @@ interface Props {
   waitlistToken?: string;
   /** Optional values to pre-populate the form (from a waitlist link or the signed-in attendee's profile). */
   prefill?: { firstName: string; lastName: string; email: string; phone?: string };
+  /** Conference days (multi-day only) — enables the combine pass picker. */
+  days?: PassPickerDay[];
+  /** Pass ids pre-selected from the event page's picker (?passes=…). */
+  initialPassIds?: string[];
 }
 
-export function RegistrationForm({ event, presaleNote, presaleActive = false, presalePct = 0, successHref, backHref, waitlistToken, prefill }: Props) {
+export function RegistrationForm({ event, presaleNote, presaleActive = false, presalePct = 0, successHref, backHref, waitlistToken, prefill, days, initialPassIds }: Props) {
   const router = useRouter();
-  const [ticketTypeId, setTicketTypeId] = useState(event.ticketTypes[0]?.id);
+  // Combine pass picker: multi-day conferences let the attendee buy several day
+  // passes (or an all-access pass) in one order. Single-day / non-conference
+  // events keep the classic single-ticket radio + quantity flow.
+  const cartMode = event.isConference && !!days && days.length > 1 && event.ticketTypes.length > 0;
+  const [ticketTypeId, setTicketTypeId] = useState(initialPassIds?.[0] ?? event.ticketTypes[0]?.id);
   const [quantity, setQuantity] = useState(1);
+  const [selectedPassIds, setSelectedPassIds] = useState<string[]>(initialPassIds ?? []);
   const [form, setForm] = useState({
     company: "",
     firstName: prefill?.firstName ?? "",
@@ -58,21 +68,47 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
   // uses) — the client previously recomputed it with drifting formulas and
   // never showed the promo discount, so the Pay button lied about the charge.
   const tt = event.ticketTypes.find((t) => t.id === ticketTypeId);
-  const localSubtotal = (tt?.priceCents ?? 0) * quantity;
-  interface Quote { subtotal: number; discount: number; tax: number; fee: number; total: number }
+  // Indicative local subtotal for the initial render (server quote is authoritative).
+  const localSubtotal = cartMode
+    ? event.ticketTypes.filter((t) => selectedPassIds.includes(t.id)).reduce((s, t) => s + t.priceCents, 0)
+    : (tt?.priceCents ?? 0) * quantity;
+  interface QuoteLine { ticketTypeId: string; name: string; unitPriceCents: number; quantity: number; lineSubtotal: number }
+  interface Quote { subtotal: number; discount: number; tax: number; fee: number; total: number; lines?: QuoteLine[] }
   const [quote, setQuote] = useState<Quote>({ subtotal: localSubtotal, discount: 0, tax: 0, fee: 0, total: localSubtotal });
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [promoNote, setPromoNote] = useState<string | null>(null);
 
+  // In cart mode the request key is the set of selected passes; otherwise the
+  // single ticket + quantity. Stable string so the effect re-runs on change.
+  const cartKey = selectedPassIds.join(",");
+
   useEffect(() => {
-    if (!ticketTypeId) return;
+    // Cart mode with nothing selected → zero the quote, don't call the server.
+    if (cartMode && selectedPassIds.length === 0) {
+      setQuote({ subtotal: 0, discount: 0, tax: 0, fee: 0, total: 0 });
+      setQuoteLoading(false);
+      return;
+    }
+    if (!cartMode && !ticketTypeId) return;
+
+    const payload = (withPromo: boolean) =>
+      cartMode
+        ? {
+            eventId: event.id,
+            ticketTypeId: selectedPassIds[0],
+            quantity: 1,
+            items: selectedPassIds.map((id) => ({ ticketTypeId: id, quantity: 1 })),
+            promoCode: withPromo ? form.promoCode || undefined : undefined,
+          }
+        : { eventId: event.id, ticketTypeId, quantity, promoCode: withPromo ? form.promoCode || undefined : undefined };
+
     let cancelled = false;
     setQuoteLoading(true);
     const t = setTimeout(async () => {
       try {
         const res = await fetch("/api/registrations/quote", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ eventId: event.id, ticketTypeId, quantity, promoCode: form.promoCode || undefined }),
+          body: JSON.stringify(payload(true)),
         });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
@@ -85,7 +121,7 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
           setPromoNote(data.error);
           const retry = await fetch("/api/registrations/quote", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ eventId: event.id, ticketTypeId, quantity }),
+            body: JSON.stringify(payload(false)),
           });
           const retryData = await retry.json().catch(() => ({}));
           if (!cancelled && retry.ok) setQuote(retryData);
@@ -97,9 +133,11 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [event.id, ticketTypeId, quantity, form.promoCode]);
+    // selectedPassIds is tracked via cartKey (its stable join) to avoid array-identity churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.id, ticketTypeId, quantity, form.promoCode, cartMode, cartKey]);
 
-  const { subtotal, discount, tax, fee, total } = quote;
+  const { subtotal, discount, tax, fee, total, lines } = quote;
 
   function setField<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -126,12 +164,24 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (cartMode && selectedPassIds.length === 0) {
+      setError("Please select at least one pass.");
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setSubmitting(true); setError(null); setFieldErrors({});
     try {
+      const ticketFields = cartMode
+        ? {
+            ticketTypeId: selectedPassIds[0],
+            quantity: 1,
+            items: selectedPassIds.map((id) => ({ ticketTypeId: id, quantity: 1 })),
+          }
+        : { ticketTypeId, quantity };
       const res = await fetch("/api/registrations", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eventId: event.id, ticketTypeId, quantity, ...form,
+          eventId: event.id, ...ticketFields, ...form,
           answers: Object.entries(answers).map(([questionId, answer]) => ({ questionId, answer })),
           waitlistToken,
         }),
@@ -202,49 +252,75 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         </div>
       )}
       <section className="card">
-        <h2 className="text-lg font-semibold">1. Select ticket</h2>
-        <div className="mt-3 space-y-2">
-          {event.ticketTypes.map((t) => {
-            const left = t.quantityTotal ? t.quantityTotal - t.quantitySold : null;
-            const soldOut = left !== null && left <= 0;
-            return (
-              <label key={t.id} className={`flex items-center justify-between rounded-lg ring-1 ring-slate-200 p-3 ${ticketTypeId === t.id ? "bg-brand-50 ring-brand-300" : ""} ${soldOut ? "opacity-40" : "cursor-pointer"}`}>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio" name="ticket" value={t.id}
-                    checked={ticketTypeId === t.id}
-                    onChange={() => setTicketTypeId(t.id)}
-                    disabled={soldOut}
-                  />
-                  <div>
-                    <div className="font-medium">{t.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {soldOut ? "Sold out" : left !== null ? `${left} left` : ""}
+        <h2 className="text-lg font-semibold">1. {cartMode ? "Choose your pass" : "Select ticket"}</h2>
+        {cartMode ? (
+          <div className="mt-3">
+            <PassPicker
+              mode="checkout"
+              passes={event.ticketTypes.map((t) => {
+                const left = t.quantityTotal ? t.quantityTotal - t.quantitySold : null;
+                return {
+                  id: t.id,
+                  name: t.name,
+                  priceCents: t.priceCents,
+                  dayAccess: t.dayAccess,
+                  left,
+                  soldOut: left !== null && left <= 0,
+                };
+              })}
+              days={days!}
+              presaleActive={presaleActive}
+              presalePct={presalePct}
+              initialSelected={initialPassIds}
+              onChange={setSelectedPassIds}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="mt-3 space-y-2">
+              {event.ticketTypes.map((t) => {
+                const left = t.quantityTotal ? t.quantityTotal - t.quantitySold : null;
+                const soldOut = left !== null && left <= 0;
+                return (
+                  <label key={t.id} className={`flex items-center justify-between rounded-lg ring-1 ring-slate-200 p-3 ${ticketTypeId === t.id ? "bg-brand-50 ring-brand-300" : ""} ${soldOut ? "opacity-40" : "cursor-pointer"}`}>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio" name="ticket" value={t.id}
+                        checked={ticketTypeId === t.id}
+                        onChange={() => setTicketTypeId(t.id)}
+                        disabled={soldOut}
+                      />
+                      <div>
+                        <div className="font-medium">{t.name}</div>
+                        <div className="text-xs text-slate-500">
+                          {soldOut ? "Sold out" : left !== null ? `${left} left` : ""}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div className="text-right font-medium">
-                  {t.priceCents === 0 ? (
-                    "Free"
-                  ) : presaleActive ? (
-                    <>
-                      <span className="mr-1 text-slate-400 line-through">{fmt(t.priceCents)}</span>
-                      <span className="text-emerald-700">{fmt(t.priceCents - Math.floor((t.priceCents * presalePct) / 100))}</span>
-                    </>
-                  ) : (
-                    fmt(t.priceCents)
-                  )}
-                </div>
-              </label>
-            );
-          })}
-        </div>
-        <div className="mt-3">
-          <label className="label" htmlFor="reg-quantity">Quantity</label>
-          <input id="reg-quantity" type="number" min={1} max={10} value={quantity}
-                 onChange={(e) => setQuantity(parseInt(e.target.value || "1"))}
-                 className="input w-24" />
-        </div>
+                    <div className="text-right font-medium">
+                      {t.priceCents === 0 ? (
+                        "Free"
+                      ) : presaleActive ? (
+                        <>
+                          <span className="mr-1 text-slate-400 line-through">{fmt(t.priceCents)}</span>
+                          <span className="text-emerald-700">{fmt(t.priceCents - Math.floor((t.priceCents * presalePct) / 100))}</span>
+                        </>
+                      ) : (
+                        fmt(t.priceCents)
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-3">
+              <label className="label" htmlFor="reg-quantity">Quantity</label>
+              <input id="reg-quantity" type="number" min={1} max={10} value={quantity}
+                     onChange={(e) => setQuantity(parseInt(e.target.value || "1"))}
+                     className="input w-24" />
+            </div>
+          </>
+        )}
       </section>
 
       <section className="card">
@@ -356,6 +432,13 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
       <section className="card">
         <h2 className="text-lg font-semibold">5. Order summary</h2>
         <dl className={`mt-3 space-y-1 text-sm ${quoteLoading ? "opacity-60" : ""}`}>
+          {lines && lines.length > 0 &&
+            lines.map((l) => (
+              <div key={l.ticketTypeId} className="flex justify-between text-slate-600">
+                <dt>{l.quantity > 1 ? `${l.quantity} × ` : ""}{l.name}</dt>
+                <dd>{fmt(l.lineSubtotal)}</dd>
+              </div>
+            ))}
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{fmt(subtotal)}</dd></div>
           {discount > 0 && <div className="flex justify-between text-emerald-700"><dt>Discount</dt><dd>-{fmt(discount)}</dd></div>}
           {tax > 0 && <div className="flex justify-between"><dt>Tax</dt><dd>{fmt(tax)}</dd></div>}
@@ -382,8 +465,18 @@ export function RegistrationForm({ event, presaleNote, presaleActive = false, pr
         )}
       </section>
 
-      <button type="submit" disabled={submitting || quoteLoading} className="btn-primary w-full">
-        {submitting ? "Processing…" : total === 0 ? "Complete registration" : `Pay ${fmt(total)} & register`}
+      <button
+        type="submit"
+        disabled={submitting || quoteLoading || (cartMode && selectedPassIds.length === 0)}
+        className="btn-primary w-full"
+      >
+        {submitting
+          ? "Processing…"
+          : cartMode && selectedPassIds.length === 0
+            ? "Select a pass to continue"
+            : total === 0
+              ? "Complete registration"
+              : `Pay ${fmt(total)} & register`}
       </button>
     </form>
   );

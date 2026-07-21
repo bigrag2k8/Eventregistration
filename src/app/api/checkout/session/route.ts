@@ -31,7 +31,11 @@ export async function POST(req: Request) {
 
   const reg = await prisma.registration.findUnique({
     where: { id: parsed.data.registrationId },
-    include: { event: { include: { organization: true } }, ticketType: true },
+    include: {
+      event: { include: { organization: true } },
+      ticketType: true,
+      items: { include: { ticketType: true } },
+    },
   });
   // Prove ownership via the accessToken before anything else. Fail closed on a
   // missing/blank token and answer 404 (not 403) so an attacker can't use this
@@ -111,22 +115,47 @@ export async function POST(req: Request) {
   const feeOverride = reg.event.recurringEventId ? recurringDropInFeeCents(feeBaseCents) : undefined;
   const connect = connectChargeParams(org, feeBaseCents, feeOverride);
 
+  const currency = reg.currency.toLowerCase();
+  // Ticket line(s). A combined multi-pass order shows one line per pass for a
+  // clear receipt — but ONLY when there's no cart-wide discount, so the line
+  // sum equals feeBaseCents exactly (the passes' list prices sum to the
+  // subtotal). With a discount (presale/promo applies to the whole cart, not a
+  // single line), fall back to the single combined line at feeBaseCents to keep
+  // Stripe's total exactly on reg.totalCents — the same rounding-safe approach a
+  // single ticket uses.
+  const ticketLines =
+    reg.items.length && reg.discountCents === 0
+      ? reg.items.map((it) => ({
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: it.unitPriceCents * it.quantity,
+            product_data: {
+              name: `${reg.event.name} — ${it.ticketType.name}`,
+              description: `${it.quantity > 1 ? `${it.quantity} × ` : ""}${it.ticketType.name} · Reg ${reg.id}`,
+            },
+          },
+        }))
+      : [{
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: feeBaseCents,
+            product_data: {
+              name: reg.items.length ? `${reg.event.name} — conference passes` : `${reg.event.name} — ${reg.ticketType.name}`,
+              description: reg.items.length
+                ? `${reg.items.map((i) => i.ticketType.name).join(", ")}${reg.discountCents > 0 ? " (discount applied)" : ""} · Reg ${reg.id}`
+                : `${reg.quantity} × ${reg.ticketType.name}${reg.discountCents > 0 ? " (discount applied)" : ""} · Reg ${reg.id}`,
+            },
+          },
+        }];
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"], // Apple/Google Pay auto-enabled when wallets supported
       line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: reg.currency.toLowerCase(),
-            unit_amount: feeBaseCents,
-            product_data: {
-              name: `${reg.event.name} — ${reg.ticketType.name}`,
-              description: `${reg.quantity} × ${reg.ticketType.name}${reg.discountCents > 0 ? " (discount applied)" : ""} · Reg ${reg.id}`,
-            },
-          },
-        },
+        ...ticketLines,
         ...(reg.taxCents > 0 ? [{
           quantity: 1,
           price_data: {

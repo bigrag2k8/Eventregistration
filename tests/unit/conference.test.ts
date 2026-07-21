@@ -7,6 +7,7 @@ import {
   dayAccessLabel,
   sessionsOverlap,
   sessionSeatState,
+  registrationDayAccess,
 } from "@/lib/conference";
 import { eventEntitlements, FREE_EVENT_MAX_DAYS, PREMIUM_EVENT_MAX_DAYS } from "@/lib/plans";
 
@@ -115,6 +116,27 @@ describe("dayAccessLabel", () => {
   it("'Day N' for partial coverage", () => {
     expect(dayAccessLabel([2], days3)).toBe("Day 2");
     expect(dayAccessLabel([3, 1], days3)).toBe("Day 1, 3");
+  });
+});
+
+describe("registrationDayAccess", () => {
+  it("falls back to the single ticket's dayAccess when there are no items", () => {
+    expect(registrationDayAccess({ ticketType: { dayAccess: [2] }, items: [] })).toEqual([2]);
+    expect(registrationDayAccess({ ticketType: { dayAccess: [] } })).toEqual([]);
+  });
+  it("unions the items' dayAccess for a combined order", () => {
+    const reg = {
+      ticketType: { dayAccess: [1] }, // primary; ignored once items exist
+      items: [{ ticketType: { dayAccess: [3] } }, { ticketType: { dayAccess: [1] } }],
+    };
+    expect(registrationDayAccess(reg)).toEqual([1, 3]);
+  });
+  it("an all-days pass in the cart covers the whole event (empty union)", () => {
+    const reg = {
+      ticketType: { dayAccess: [1] },
+      items: [{ ticketType: { dayAccess: [1] } }, { ticketType: { dayAccess: [] } }],
+    };
+    expect(registrationDayAccess(reg)).toEqual([]);
   });
 });
 

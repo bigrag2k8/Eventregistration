@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { computeTotals } from "@/server/pricing";
+import { computeTotals, computeCartTotals, type PriceLineSummary } from "@/server/pricing";
 import { issueTickets, reserveSeats, releaseSeats, releasePromoUse } from "@/server/tickets";
 import { sendConfirmationEmail } from "@/lib/email";
 import { eventEntitlements } from "@/lib/plans";
@@ -42,6 +42,14 @@ const schema = z.object({
   eventId: z.string(),
   ticketTypeId: z.string(),
   quantity: z.number().int().min(1).max(20),
+  /** Multi-pass conference order: one entry per selected pass. When present it
+   *  supersedes ticketTypeId/quantity — the order becomes ONE registration whose
+   *  passes are these items (qty 1 each, one attendee). */
+  items: z
+    .array(z.object({ ticketTypeId: z.string(), quantity: z.number().int().min(1).max(20) }))
+    .min(1)
+    .max(20)
+    .optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email(),
@@ -98,12 +106,40 @@ export async function POST(req: Request) {
   }
   const input = parsed.data;
 
+  // Multi-pass conference order? A combined day-pass purchase (Day 1 + Day 3, or
+  // an All-Access pass) is ONE registration = one attendee, so it counts as a
+  // single unit against limits/capacity while reserving a seat per pass below.
+  const isCart = !!input.items?.length;
+  const orderQuantity = isCart ? 1 : input.quantity;
+  const primaryTicketTypeId = isCart ? input.items![0].ticketTypeId : input.ticketTypeId;
+
   const event = await prisma.event.findUnique({
     where: { id: input.eventId },
     include: { ticketTypes: true, promoCodes: true, organization: true },
   });
   if (!event || event.status !== "PUBLISHED" || event.deletedAt || event.organization?.deletedAt) {
     return NextResponse.json({ error: "This event is no longer available." }, { status: 404 });
+  }
+
+  // Cart integrity: every selected pass must be a real, purchasable ticket type
+  // on this event (not hidden, not a vendor-only tier), and each pass at most once.
+  if (isCart) {
+    const byId = new Map(event.ticketTypes.map((t) => [t.id, t]));
+    const ids = input.items!.map((i) => i.ticketTypeId);
+    if (new Set(ids).size !== ids.length) {
+      return NextResponse.json({ error: "Each pass can only be selected once." }, { status: 400 });
+    }
+    for (const id of ids) {
+      const tt = byId.get(id);
+      if (!tt || tt.isHidden || tt.isVendorTier) {
+        return NextResponse.json({ error: "One of the selected passes isn't available." }, { status: 400 });
+      }
+    }
+    // A combined order is a single paid checkout; the waitlist magic-link bypass
+    // (single promised seat) doesn't apply to it.
+    if (input.waitlistToken) {
+      return NextResponse.json({ error: "Waitlist links apply to a single ticket, not a combined order." }, { status: 400 });
+    }
   }
   // Data-layer backstop for the completed/cancelled UI: never accept a registration
   // for an event that has already ended, even via a stale direct POST. Also keeps
@@ -149,7 +185,7 @@ export async function POST(req: Request) {
       where: { eventId: event.id, status: { in: ["PENDING", "CONFIRMED", "PARTIALLY_REFUNDED"] } },
       _sum: { quantity: true },
     });
-    if ((agg._sum.quantity ?? 0) + input.quantity > regLimit) {
+    if ((agg._sum.quantity ?? 0) + orderQuantity > regLimit) {
       return NextResponse.json({
         error: "This event has reached its registration limit.",
       }, { status: 409 });
@@ -162,6 +198,7 @@ export async function POST(req: Request) {
   // - PENDING (abandoned checkout) or CANCELLED: delete the old row so the new INSERT can succeed
   const dupe = await prisma.registration.findUnique({
     where: { eventId_email: { eventId: event.id, email: input.email } },
+    include: { items: true },
   });
   if (dupe) {
     if (dupe.status === "CONFIRMED") {
@@ -188,25 +225,37 @@ export async function POST(req: Request) {
           // already expired/completed — webhook orphan-refund is the backstop
         }
       }
-      await releaseSeats(prisma, dupe.ticketTypeId, dupe.quantity);
+      // Release the seats the abandoned row was holding. A combined multi-pass
+      // order held a seat per item, so release each; a single ticket releases one.
+      if (dupe.items.length) {
+        for (const it of dupe.items) await releaseSeats(prisma, it.ticketTypeId, it.quantity);
+      } else {
+        await releaseSeats(prisma, dupe.ticketTypeId, dupe.quantity);
+      }
       await releasePromoUse(prisma, dupe.promoCodeId);
     }
     await prisma.registration.delete({ where: { id: dupe.id } }).catch(() => {});
   }
 
-  const totals = await computeTotals({
-    event,
-    ticketTypeId: input.ticketTypeId,
-    quantity: input.quantity,
-    promoCode: input.promoCode,
-  });
-  if ("error" in totals && totals.error) {
+  const totals = isCart
+    ? await computeCartTotals({ event, items: input.items!, promoCode: input.promoCode })
+    : await computeTotals({
+        event,
+        ticketTypeId: input.ticketTypeId,
+        quantity: input.quantity,
+        promoCode: input.promoCode,
+      });
+  if ("error" in totals) {
     // pricing errors are human-readable already
     const msg = totals.error;
     const fieldHints: Record<string, string[]> = {};
     if (msg.includes("promo")) fieldHints.promoCode = [msg];
     return NextResponse.json({ error: msg, fieldErrors: fieldHints }, { status: 400 });
   }
+  // Line breakdown for a combined order (null for a single ticket) — persisted
+  // as RegistrationItem rows on the created registration below. isCart determines
+  // which pricer ran, so the presence of `lines` tracks it exactly.
+  const cartLines: PriceLineSummary[] | null = isCart ? (totals as unknown as { lines: PriceLineSummary[] }).lines : null;
 
   // Gate Connect-readiness BEFORE the transaction. If the order will need
   // payment but the organizer hasn't completed Stripe Connect, the downstream
@@ -241,6 +290,12 @@ export async function POST(req: Request) {
           SET "quantitySold" = "quantitySold" + ${input.quantity}
           WHERE id = ${input.ticketTypeId}
         `;
+      } else if (isCart) {
+        // Combined order: claim a seat per selected pass. Any pass that can't be
+        // reserved rolls the whole order back (same all-or-nothing as the bundle).
+        for (const it of input.items!) {
+          if (!(await reserveSeats(tx, it.ticketTypeId, it.quantity))) throw new SoldOutError("ticket");
+        }
       } else if (!(await reserveSeats(tx, input.ticketTypeId, input.quantity))) {
         throw new SoldOutError("ticket");
       }
@@ -270,7 +325,7 @@ export async function POST(req: Request) {
       return tx.registration.create({
         data: {
           eventId: event.id,
-          ticketTypeId: input.ticketTypeId,
+          ticketTypeId: primaryTicketTypeId,
           userId: ownerUserId,
           firstName: input.firstName,
           lastName: input.lastName,
@@ -287,7 +342,7 @@ export async function POST(req: Request) {
           state: input.state,
           zipCode: input.zipCode,
           country: input.country,
-          quantity: input.quantity,
+          quantity: orderQuantity,
           subtotalCents: totals.subtotal,
           discountCents: totals.discount,
           taxCents: totals.tax,
@@ -300,6 +355,11 @@ export async function POST(req: Request) {
           // Secret for retrieving tickets on the success page / ICS download —
           // possession of the (guessable-ish) registration id alone is not enough.
           accessToken: crypto.randomBytes(24).toString("base64url"),
+          // Multi-pass conference order: persist one line per selected pass so the
+          // schedule page, receipts, and day-access union can read the full set.
+          items: cartLines
+            ? { create: cartLines.map((l) => ({ ticketTypeId: l.ticketTypeId, quantity: l.quantity, unitPriceCents: l.unitPriceCents })) }
+            : undefined,
           answers: input.answers
             ? { create: input.answers.map((a) => ({ questionId: a.questionId, answer: a.answer })) }
             : undefined,

@@ -2,13 +2,14 @@ import { notFound, redirect } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { conferenceDays } from "@/lib/conference";
 import { RegistrationForm } from "@/components/RegistrationForm";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
   params: { orgSlug: string; slug: string };
-  searchParams: { waitlist?: string };
+  searchParams: { waitlist?: string; passes?: string };
 }
 
 export default async function RegisterPage({ params, searchParams }: Props) {
@@ -85,6 +86,15 @@ export default async function RegisterPage({ params, searchParams }: Props) {
       )} — prices return to regular after that.`
     : undefined;
 
+  // Conference day-pass picker: multi-day conferences render the combine picker
+  // (mirrors the public event page) instead of the single-ticket radio list.
+  const days = event.isConference ? conferenceDays(event) : [];
+  const validTicketIds = new Set(event.ticketTypes.map((t) => t.id));
+  const initialPassIds = (searchParams.passes ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((id) => validTicketIds.has(id));
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <a href={`/o/${params.orgSlug}/events/${event.slug}`} className="text-sm text-brand-700 hover:underline">◀ Back to event</a>
@@ -99,6 +109,8 @@ export default async function RegisterPage({ params, searchParams }: Props) {
         presaleNote={presaleNote}
         presaleActive={presaleActive}
         presalePct={presalePct}
+        days={days.map((d) => ({ index: d.index, label: d.label }))}
+        initialPassIds={initialPassIds}
         successHref={`/o/${params.orgSlug}/events/${event.slug}/success`}
         backHref={`/o/${params.orgSlug}/events/${event.slug}/register`}
         waitlistToken={waitlistEntry ? searchParams.waitlist : undefined}

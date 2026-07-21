@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { dayIndexOf, ticketCoversDay } from "@/lib/conference";
+import { dayIndexOf, ticketCoversDay, registrationDayAccess } from "@/lib/conference";
 
 /**
  * Per-session seat reservations (Slice 2). Availability is computed LIVE — the
@@ -20,7 +20,7 @@ export async function reserveOrWaitlistSession(
 ): Promise<ReserveResult> {
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    include: { ticketType: true, event: true },
+    include: { ticketType: true, event: true, items: { include: { ticketType: true } } },
   });
   if (!reg) return { ok: false, reason: "wrong_event" };
   if (reg.status !== "CONFIRMED") return { ok: false, reason: "not_confirmed" };
@@ -30,8 +30,9 @@ export async function reserveOrWaitlistSession(
   if (session.capacity == null) return { ok: false, reason: "uncapped" }; // no reservation needed
   const cap = session.capacity;
 
-  // dayAccess enforcement: the ticket must cover the day this session falls on.
-  if (!ticketCoversDay(reg.ticketType.dayAccess, dayIndexOf(session.startAt, reg.event))) {
+  // dayAccess enforcement: the pass (or, for a combined multi-pass order, the
+  // UNION of its passes) must cover the day this session falls on.
+  if (!ticketCoversDay(registrationDayAccess(reg), dayIndexOf(session.startAt, reg.event))) {
     return { ok: false, reason: "day_locked" };
   }
 

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { getRegistrationByAccessToken } from "@/lib/registration-access";
-import { conferenceDays, dayIndexOf, dayAccessLabel } from "@/lib/conference";
+import { conferenceDays, dayIndexOf, dayAccessLabel, registrationDayAccess } from "@/lib/conference";
 import { ConferenceAgenda, type AgendaSession } from "@/components/ConferenceAgenda";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export default async function SchedulePage({
 }) {
   const registration = await getRegistrationByAccessToken(searchParams.reg, searchParams.key, {
     ticketType: true,
+    items: { include: { ticketType: true } },
     event: {
       include: {
         organization: true,
@@ -38,7 +39,9 @@ export default async function SchedulePage({
   if (event.organization.slug !== params.orgSlug || event.slug !== params.slug) return notFound();
 
   const days = conferenceDays(event);
-  const dayAccess = registration.ticketType.dayAccess;
+  // Effective day access = union of a combined multi-pass order (falls back to
+  // the single ticket's dayAccess for ordinary registrations).
+  const dayAccess = registrationDayAccess(registration);
 
   // Live seat counts for the capacity-limited sessions.
   const capSessionIds = event.sessions.filter((s) => s.capacity != null).map((s) => s.id);
@@ -82,7 +85,12 @@ export default async function SchedulePage({
       </div>
       <h1 className="text-2xl font-bold">Build your schedule</h1>
       <p className="mt-1 text-sm text-slate-600">
-        Reserve your spot in limited-capacity sessions. Your pass: <strong>{registration.ticketType.name}</strong>
+        Reserve your spot in limited-capacity sessions. Your pass:{" "}
+        <strong>
+          {registration.items.length
+            ? registration.items.map((i) => i.ticketType.name).join(" + ")
+            : registration.ticketType.name}
+        </strong>
         {days.length > 1 && dayAccessLabel(dayAccess, days) ? ` · ${dayAccessLabel(dayAccess, days)}` : ""}.
       </p>
       <p className="mt-1 text-xs text-slate-500">
